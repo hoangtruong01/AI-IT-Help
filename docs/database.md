@@ -13,13 +13,13 @@
 
 | Service | Database | Status |
 |---|---|---|
-| auth | `auth_db` | Planned |
-| employee | `employee_db` | Planned |
-| asset | `asset_db` | Planned |
-| helpdesk | `helpdesk_db` | Planned |
-| workflow | `workflow_db` | Planned |
-| knowledge | `knowledge_db` | Planned |
-| audit | `audit_db` | Planned |
+| auth | `auth_db` | Provisioned (Active) |
+| employee | `employee_db` | Provisioned (Active) |
+| asset | `asset_db` | Provisioned (Active) |
+| helpdesk | `helpdesk_db` | Provisioned (Active) |
+| workflow | `workflow_db` | Provisioned (Active) |
+| knowledge | `knowledge_db` | Provisioned (Active) |
+| audit | `audit_db` | Provisioned (Active) |
 
 ## Migration Tool
 
