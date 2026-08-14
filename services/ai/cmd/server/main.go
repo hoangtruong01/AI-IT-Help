@@ -15,16 +15,29 @@ import (
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/ai/internal/config"
 	"eomp/services/ai/internal/handler"
+	"eomp/services/ai/internal/provider"
+	"eomp/services/ai/internal/rag"
+	"eomp/services/ai/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
-	mux := http.NewServeMux()
+	// Initialize AI providers (mock provider for local/offline dev)
+	mockProvider := provider.NewMockProvider()
+	mockRetriever := rag.NewMockRetriever()
+
+	// Initialize Service and Handlers
+	aiService := service.NewAIService(mockProvider, mockProvider, mockRetriever)
+	aiHandler := handler.NewAIHandler(aiService)
 	healthHandler := handler.NewHealthHandler(cfg)
+
+	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("POST /api/ai/chat", aiHandler.Chat)
+	mux.HandleFunc("POST /api/ai/analyze-ticket", aiHandler.AnalyzeTicket)
 
 	// Apply middleware stack
 	handlerStack := middleware.Recoverer(log)(
@@ -36,8 +49,8 @@ func main() {
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      handlerStack,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -46,9 +59,11 @@ func main() {
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		log.Info("server starting",
+		log.Info("ai service starting",
 			slog.Int("port", cfg.Port),
 			slog.String("version", cfg.Version),
+			slog.String("model", cfg.AIModel),
+			slog.String("embedding_model", cfg.EmbeddingModel),
 		)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("server failed to start", slog.Any("error", err))
@@ -57,7 +72,7 @@ func main() {
 	}()
 
 	<-shutdownChan
-	log.Info("shutting down server...")
+	log.Info("shutting down ai service...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -67,5 +82,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info("server stopped gracefully")
+	log.Info("ai service stopped gracefully")
 }

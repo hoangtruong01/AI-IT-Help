@@ -1,6 +1,6 @@
-# EOMP — ai Service
+# EOMP — AI Service
 
-> AI Service - LLM Integration, Vector Search, Semantic Routing & Assistant
+> AI Operations Assistant, Vector Search, Ticket Triage & RAG Layer
 
 ## Port
 
@@ -11,32 +11,37 @@
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Service health check |
-| `GET` | `/api/health` | API Gateway alias health check |
+| `GET` | `/api/health` | Gateway health check alias |
+| `POST` | `/api/ai/chat` | Conversational AI Assistant with RAG citations |
+| `POST` | `/api/ai/analyze-ticket` | Automated ticket classification and recommendation |
 
-## Structure
+## Architecture & Layers
 
-``
+```
 services/ai/
-├── cmd/
-│   └── server/
-│       ├── main.go       # Server entrypoint with graceful shutdown
-│       └── main_test.go  # Unit tests
+├── cmd/server/           # Service entrypoint & graceful shutdown
 ├── internal/
-│   ├── config/           # Configuration management
-│   ├── handler/          # HTTP request handlers
-│   ├── middleware/       # Service-specific middleware
-│   ├── model/            # Domain models (to be added in module phase)
-│   ├── repository/       # Data persistence (to be added in module phase)
-│   └── service/          # Business logic (to be added in module phase)
-├── migrations/           # Database migration files
+│   ├── config/           # AI model, embedding & Qdrant configuration
+│   ├── handler/          # HTTP controllers (Chat, Triage, Health)
+│   ├── model/            # Chat messages, citations, analysis models
+│   ├── prompt/           # System prompts & specialized templates
+│   ├── provider/         # LLM & Embedding provider abstractions (Mock / OpenAI / Gemini / Ollama)
+│   ├── rag/              # Vector database retrieval layer (Qdrant)
+│   └── service/          # Business logic orchestrator
+├── migrations/           # DB schema migrations (if needed)
 ├── Dockerfile            # Multi-stage production container build
-├── go.mod                # Module definitions
+├── go.mod                # Module definition
 └── README.md
-``
+```
 
-## Running Locally
+## AI Safety Rules (Section 35)
 
-``bash
-cd services/ai
-go run ./cmd/server
-``
+As an enterprise operations platform, the AI assistant acts strictly as an **advisory, analyzer, and recommendation engine**.
+It is explicitly prohibited from autonomously:
+- Deleting entities
+- Disabling user accounts or revoking credentials
+- Retiring assets
+- Approving workflow requests
+- Triggering production deployments
+
+All AI responses on ticket classification include `requires_human_review: true`.
