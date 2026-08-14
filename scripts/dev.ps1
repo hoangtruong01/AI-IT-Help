@@ -162,8 +162,8 @@ function Test-ServiceHealth {
         @{ Name = "MinIO";      Test = { $r = Invoke-WebRequest -Uri "http://localhost:9000/minio/health/live" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } },
         @{ Name = "Qdrant";     Test = { $r = Invoke-WebRequest -Uri "http://localhost:6333/healthz" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } },
         @{ Name = "Prometheus"; Test = { $r = Invoke-WebRequest -Uri "http://localhost:9090/-/healthy" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } },
-        @{ Name = "Grafana";    Test = { $r = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } },
-        @{ Name = "Loki";       Test = { $r = Invoke-WebRequest -Uri "http://localhost:3100/ready" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } }
+        @{ Name = "Grafana";    Test = { $r = Invoke-WebRequest -Uri "http://localhost:3002/api/health" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } },
+        @{ Name = "Loki";       Test = { $r = Invoke-WebRequest -Uri "http://localhost:3100/loki/api/v1/status/buildinfo" -UseBasicParsing -ErrorAction SilentlyContinue; $r.StatusCode -eq 200 } }
     )
 
     Push-Location $ProjectRoot
