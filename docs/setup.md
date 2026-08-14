@@ -85,5 +85,5 @@ go run ./cmd/server
 | MinIO Console | 9001 | http://localhost:9001 |
 | Qdrant | 6333 | http://localhost:6333 |
 | Prometheus | 9090 | http://localhost:9090 |
-| Grafana | 3001 | http://localhost:3001 |
+| Grafana | 3002 | http://localhost:3002 |
 | Loki | 3100 | — |

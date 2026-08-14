@@ -91,10 +91,32 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
+    networks:
+      - eomp-network
+
+  # ==============================
+  # MinIO Bucket Initialization
+  # ==============================
+  minio-init:
+    image: minio/mc:latest
+    container_name: eomp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-eomp_minio} $${MINIO_ROOT_PASSWORD:-eomp_minio_secret};
+      /usr/bin/mc mb --ignore-existing local/employees;
+      /usr/bin/mc mb --ignore-existing local/assets;
+      /usr/bin/mc mb --ignore-existing local/tickets;
+      /usr/bin/mc mb --ignore-existing local/knowledge;
+      /usr/bin/mc mb --ignore-existing local/reports;
+      exit 0;
+      "
     networks:
       - eomp-network
 
@@ -111,9 +133,9 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
       interval: 15s
-      timeout: 10s
+      timeout: 5s
       retries: 5
     networks:
       - eomp-network
@@ -150,7 +172,7 @@ services:
     container_name: eomp-grafana
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "${GRAFANA_PORT:-3002}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-eomp_grafana}
@@ -183,9 +205,9 @@ services:
       - loki_data:/loki
     command: -config.file=/etc/loki/loki-config.yml
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      test: ["CMD", "/usr/bin/loki", "-version"]
       interval: 15s
-      timeout: 10s
+      timeout: 5s
       retries: 5
     networks:
       - eomp-network

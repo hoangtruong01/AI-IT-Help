@@ -93,8 +93,8 @@ health: ## Check health of all services
 	@echo -n "MinIO:      " && curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1 && echo "OK" || echo "FAIL"
 	@echo -n "Qdrant:     " && curl -sf http://localhost:6333/healthz >/dev/null 2>&1 && echo "OK" || echo "FAIL"
 	@echo -n "Prometheus: " && curl -sf http://localhost:9090/-/healthy >/dev/null 2>&1 && echo "OK" || echo "FAIL"
-	@echo -n "Grafana:    " && curl -sf http://localhost:3001/api/health >/dev/null 2>&1 && echo "OK" || echo "FAIL"
-	@echo -n "Loki:       " && curl -sf http://localhost:3100/ready >/dev/null 2>&1 && echo "OK" || echo "FAIL"
+	@echo -n "Grafana:    " && curl -sf http://localhost:3002/api/health >/dev/null 2>&1 && echo "OK" || echo "FAIL"
+	@echo -n "Loki:       " && curl -sf http://localhost:3100/loki/api/v1/status/buildinfo >/dev/null 2>&1 && echo "OK" || echo "FAIL"
 
 # ==============================
 # Cleanup
