@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package eomp.common.v1;
+
+option go_package = "eomp/packages/proto/common/v1;commonv1";
+
+// Standard pagination parameters for list requests.
+message PaginationRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string sort_by = 3;
+  string sort_order = 4; // "asc" or "desc"
+}
+
+// Standard pagination metadata for list responses.
+message PaginationMetadata {
+  int32 total_items = 1;
+  int32 total_pages = 2;
+  int32 current_page = 3;
+  int32 page_size = 4;
+}
+
+// Generic gRPC health check request.
+message HealthCheckRequest {
+  string service = 1;
+}
+
+// Generic gRPC health check response.
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+  }
+  ServingStatus status = 1;
+  string version = 2;
+}

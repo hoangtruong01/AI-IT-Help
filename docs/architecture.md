@@ -69,5 +69,5 @@
 | MinIO | Object storage (files, images) | 9000 / 9001 |
 | Qdrant | Vector database (AI/search) | 6333 / 6334 |
 | Prometheus | Metrics collection | 9090 |
-| Grafana | Dashboards, visualization | 3001 |
+| Grafana | Dashboards, visualization | 3002 |
 | Loki | Log aggregation | 3100 |
