@@ -163,6 +163,8 @@ make health        # Check health
 
 ## Documentation Links
 
+- **[Intern & Developer Comprehensive Guide (Vietnamese)](docs/INTERN_DEVELOPER_GUIDE.md)** *(Recommended for new developers)*
+- [Documentation Hub](docs/README.md)
 - [Architecture Overview](docs/architecture.md)
 - [Developer Setup Guide](docs/setup.md)
 - [Development Guidelines](docs/development.md)
