@@ -292,6 +292,95 @@ export interface CMDBTopologyGraph {
   edges: CIRelationship[]
 }
 
+/** Workflow Definition */
+export interface WorkflowDefinition {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  category: string
+  trigger_type: string
+  is_active: boolean
+  steps_config: string
+  created_at: string
+  updated_at: string
+}
+
+/** Workflow Instance */
+export interface WorkflowInstance {
+  id: string
+  instance_number: string
+  definition_id: string
+  definition_name: string
+  entity_type: string
+  entity_id: string
+  title: string
+  requester_id: string
+  requester_name: string
+  requester_email: string
+  current_step_name: string
+  status: 'PENDING' | 'RUNNING' | 'WAITING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string
+  context_data?: string | null
+  started_at: string
+  completed_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Approval Request */
+export interface ApprovalRequest {
+  id: string
+  instance_id: string
+  step_id?: string | null
+  title: string
+  approver_id: string
+  approver_name: string
+  approver_role: string
+  approval_level: number
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string
+  decision_notes?: string | null
+  decided_at?: string | null
+  sla_deadline: string
+  created_at: string
+}
+
+/** Workflow Log */
+export interface WorkflowLog {
+  id: string
+  instance_id: string
+  actor_id: string
+  actor_name: string
+  action: string
+  message: string
+  created_at: string
+}
+
+/** Create Workflow Instance Payload */
+export interface CreateWorkflowInstancePayload {
+  definition_id: string
+  entity_type: string
+  entity_id: string
+  title: string
+  requester_id?: string
+  requester_name?: string
+  requester_email?: string
+  context_data?: string
+}
+
+/** Approval Decision Payload */
+export interface ApprovalDecisionPayload {
+  decision: 'APPROVED' | 'REJECTED' | string
+  notes: string
+}
+
+/** Workflow Stats */
+export interface WorkflowStats {
+  total_definitions: number
+  active_instances: number
+  pending_approvals: number
+  completed_today: number
+}
+
 /** Navigation menu item */
 export interface MenuItem {
   label: string

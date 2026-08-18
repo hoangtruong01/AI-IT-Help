@@ -41,14 +41,14 @@ export function useApi() {
     get: <T>(url: string, params?: Record<string, unknown>) =>
       request<T>(url, { method: 'GET', params }),
 
-    post: <T>(url: string, body?: Record<string, unknown>) =>
-      request<T>(url, { method: 'POST', body }),
+    post: <T>(url: string, body?: unknown) =>
+      request<T>(url, { method: 'POST', body: body as Record<string, unknown> }),
 
-    put: <T>(url: string, body?: Record<string, unknown>) =>
-      request<T>(url, { method: 'PUT', body }),
+    put: <T>(url: string, body?: unknown) =>
+      request<T>(url, { method: 'PUT', body: body as Record<string, unknown> }),
 
-    patch: <T>(url: string, body?: Record<string, unknown>) =>
-      request<T>(url, { method: 'PATCH', body }),
+    patch: <T>(url: string, body?: unknown) =>
+      request<T>(url, { method: 'PATCH', body: body as Record<string, unknown> }),
 
     delete: <T>(url: string) =>
       request<T>(url, { method: 'DELETE' })
