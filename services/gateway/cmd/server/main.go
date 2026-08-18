@@ -58,6 +58,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	notificationProxy, err := proxy.NewReverseProxy(cfg.NotificationServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize notification proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	aiProxy, err := proxy.NewReverseProxy(cfg.AIServiceURL, log)
 	if err != nil {
 		log.Error("failed to initialize ai proxy", slog.Any("error", err))
@@ -98,6 +104,10 @@ func main() {
 	mux.Handle("/api/v1/approvals", authFilter(workflowProxy))
 	mux.Handle("/api/v1/approvals/", authFilter(workflowProxy))
 
+	// Notification Center Routing
+	mux.Handle("/api/v1/notifications", authFilter(notificationProxy))
+	mux.Handle("/api/v1/notifications/", authFilter(notificationProxy))
+
 	// AI Operations Copilot Routing
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
 
@@ -128,6 +138,7 @@ func main() {
 			slog.String("asset_service", cfg.AssetServiceURL),
 			slog.String("helpdesk_service", cfg.HelpdeskServiceURL),
 			slog.String("workflow_service", cfg.WorkflowServiceURL),
+			slog.String("notification_service", cfg.NotificationServiceURL),
 			slog.String("ai_service", cfg.AIServiceURL),
 		)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

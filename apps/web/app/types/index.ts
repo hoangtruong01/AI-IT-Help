@@ -381,6 +381,42 @@ export interface WorkflowStats {
   completed_today: number
 }
 
+/** Notification entity */
+export interface Notification {
+  id: string
+  recipient_id: string
+  recipient_email: string
+  title: string
+  message: string
+  category: 'INCIDENT' | 'APPROVAL' | 'ASSET' | 'SLA' | 'SECURITY' | 'SYSTEM' | string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | string
+  is_read: boolean
+  read_at?: string | null
+  channel: string
+  metadata?: string | null
+  created_at: string
+}
+
+/** Create Notification Payload */
+export interface CreateNotificationPayload {
+  recipient_id?: string
+  recipient_email: string
+  title: string
+  message: string
+  category?: string
+  priority?: string
+  channel?: string
+  metadata?: string
+}
+
+/** Notification Stats */
+export interface NotificationStats {
+  total: number
+  unread: number
+  incidents: number
+  approvals: number
+}
+
 /** Navigation menu item */
 export interface MenuItem {
   label: string
