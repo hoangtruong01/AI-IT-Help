@@ -40,6 +40,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	assetProxy, err := proxy.NewReverseProxy(cfg.AssetServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize asset proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	helpdeskProxy, err := proxy.NewReverseProxy(cfg.HelpdeskServiceURL, log)
 	if err != nil {
 		log.Error("failed to initialize helpdesk proxy", slog.Any("error", err))
@@ -69,6 +75,11 @@ func main() {
 	mux.Handle("/api/v1/employees/", authFilter(employeeProxy))
 	mux.Handle("/api/v1/departments", authFilter(employeeProxy))
 	mux.Handle("/api/v1/departments/", authFilter(employeeProxy))
+
+	// Asset & CMDB Routing
+	mux.Handle("/api/v1/assets", authFilter(assetProxy))
+	mux.Handle("/api/v1/assets/", authFilter(assetProxy))
+	mux.Handle("/api/v1/cmdb/", authFilter(assetProxy))
 
 	// Helpdesk & Service Catalog Routing
 	mux.Handle("/api/v1/tickets", authFilter(helpdeskProxy))
@@ -102,6 +113,7 @@ func main() {
 			slog.String("version", cfg.Version),
 			slog.String("auth_service", cfg.AuthServiceURL),
 			slog.String("employee_service", cfg.EmployeeServiceURL),
+			slog.String("asset_service", cfg.AssetServiceURL),
 			slog.String("helpdesk_service", cfg.HelpdeskServiceURL),
 			slog.String("ai_service", cfg.AIServiceURL),
 		)

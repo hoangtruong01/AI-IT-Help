@@ -183,6 +183,115 @@ export interface TicketTimeline {
   created_at: string
 }
 
+/** Asset entity */
+export interface Asset {
+  id: string
+  asset_tag: string
+  name: string
+  category: 'LAPTOP' | 'DESKTOP' | 'SERVER' | 'MONITOR' | 'MOBILE' | 'NETWORK' | 'LICENSE' | 'OTHER' | string
+  model?: string | null
+  serial_number?: string | null
+  purchase_date?: string | null
+  purchase_cost: number
+  warranty_expiry?: string | null
+  current_value: number
+  status: 'PROCUREMENT' | 'RECEIVED' | 'IN_STOCK' | 'ASSIGNED' | 'IN_USE' | 'MAINTENANCE' | 'RETIRED' | 'DISPOSED' | string
+  location: string
+  assigned_to_user_id?: string | null
+  assigned_to_user_name?: string | null
+  assigned_at?: string | null
+  notes?: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Create Asset Payload */
+export interface CreateAssetPayload {
+  asset_tag: string
+  name: string
+  category: string
+  model?: string
+  serial_number?: string
+  purchase_date?: string
+  purchase_cost: number
+  warranty_expiry?: string
+  location: string
+  notes?: string
+}
+
+/** Asset Assignment */
+export interface AssetAssignment {
+  id: string
+  asset_id: string
+  user_id: string
+  user_name: string
+  department_id?: string | null
+  assigned_at: string
+  returned_at?: string | null
+  condition_on_assign: string
+  condition_on_return?: string | null
+  notes?: string | null
+}
+
+/** Asset Stats */
+export interface AssetStats {
+  total_assets: number
+  in_use: number
+  in_stock: number
+  in_maintenance: number
+  total_value: number
+}
+
+/** CMDB Configuration Item */
+export interface ConfigurationItem {
+  id: string
+  ci_code: string
+  name: string
+  ci_type: 'APPLICATION' | 'API_SERVICE' | 'SERVER' | 'DATABASE' | 'NETWORK_DEVICE' | 'CLOUD_RESOURCE' | string
+  environment: 'PRODUCTION' | 'STAGING' | 'DEVELOPMENT' | 'DR' | string
+  owner_id?: string | null
+  owner_name?: string | null
+  status: 'OPERATIONAL' | 'DEGRADED' | 'OFFLINE' | 'MAINTENANCE' | string
+  ip_address?: string | null
+  asset_id?: string | null
+  description?: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Create CI Payload */
+export interface CreateCIPayload {
+  ci_code: string
+  name: string
+  ci_type: string
+  environment: string
+  owner_id?: string
+  owner_name?: string
+  ip_address?: string
+  asset_id?: string
+  description?: string
+}
+
+/** CMDB CI Relationship */
+export interface CIRelationship {
+  id: string
+  parent_ci_id: string
+  parent_ci_name?: string | null
+  parent_ci_type?: string | null
+  child_ci_id: string
+  child_ci_name?: string | null
+  child_ci_type?: string | null
+  relationship_type: 'DEPENDS_ON' | 'RUNS_ON' | 'CONNECTS_TO' | 'BACKED_UP_BY' | string
+  impact_weight: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string
+  created_at: string
+}
+
+/** CMDB Topology Graph */
+export interface CMDBTopologyGraph {
+  nodes: ConfigurationItem[]
+  edges: CIRelationship[]
+}
+
 /** Navigation menu item */
 export interface MenuItem {
   label: string
