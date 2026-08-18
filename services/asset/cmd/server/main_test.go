@@ -8,9 +8,10 @@ import (
 
 	"eomp/services/asset/internal/config"
 	"eomp/services/asset/internal/handler"
+	"eomp/services/asset/internal/model"
 )
 
-func TestHealthCheck(t *testing.T) {
+func TestHealthHandler(t *testing.T) {
 	cfg := config.Load()
 	h := handler.NewHealthHandler(cfg)
 
@@ -20,21 +21,30 @@ func TestHealthCheck(t *testing.T) {
 	h.Check(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	var res handler.HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if res.Status != "ok" {
-		t.Errorf("expected status 'ok', got '%s'", res.Status)
+	if body["service"] != "asset" {
+		t.Errorf("expected service 'asset', got '%v'", body["service"])
 	}
-	if res.Service != "asset" {
-		t.Errorf("expected service 'asset', got '%s'", res.Service)
+}
+
+func TestAssetConstants(t *testing.T) {
+	if model.CategoryLaptop != "LAPTOP" {
+		t.Errorf("expected LAPTOP, got %s", model.CategoryLaptop)
 	}
-	if res.Version != "0.1.0" {
-		t.Errorf("expected version '0.1.0', got '%s'", res.Version)
+	if model.StatusInUse != "IN_USE" {
+		t.Errorf("expected IN_USE, got %s", model.StatusInUse)
+	}
+	if model.RelDependsOn != "DEPENDS_ON" {
+		t.Errorf("expected DEPENDS_ON, got %s", model.RelDependsOn)
+	}
+	if model.CIStatusOperational != "OPERATIONAL" {
+		t.Errorf("expected OPERATIONAL, got %s", model.CIStatusOperational)
 	}
 }

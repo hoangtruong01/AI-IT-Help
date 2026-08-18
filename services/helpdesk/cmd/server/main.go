@@ -11,25 +11,75 @@ import (
 	"syscall"
 	"time"
 
+	"eomp/packages/shared/pkg/database"
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/config"
 	"eomp/services/helpdesk/internal/handler"
+	"eomp/services/helpdesk/internal/repository"
+	"eomp/services/helpdesk/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
-	mux := http.NewServeMux()
+	// 1. PostgreSQL Connection & Auto Migrations
+	dbCfg := database.Config{
+		Host:     cfg.DBHost,
+		Port:     cfg.DBPort,
+		User:     cfg.DBUser,
+		Password: cfg.DBPassword,
+		DBName:   cfg.DBName,
+		SSLMode:  cfg.DBSSLMode,
+	}
+
+	db, err := database.Connect(dbCfg)
+	if err != nil {
+		log.Warn("could not connect to PostgreSQL (helpdesk_db) - will retry on requests", slog.Any("error", err))
+	} else {
+		log.Info("connected to PostgreSQL successfully", slog.String("db", cfg.DBName))
+		if err := database.RunMigrations(db, cfg.MigrationsPath); err != nil {
+			log.Error("failed to run database migrations", slog.Any("error", err))
+		} else {
+			log.Info("database migrations applied successfully")
+		}
+	}
+
+	// 2. Dependencies
+	slaEngine := service.NewSLAEngine()
+	repo := repository.NewRepository(db)
+	ticketSvc := service.NewTicketService(repo, slaEngine)
+	ticketHandler := handler.NewTicketHandler(ticketSvc)
 	healthHandler := handler.NewHealthHandler(cfg)
+
+	// 3. Routes
+	mux := http.NewServeMux()
+
+	// Health
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
 
-	// Apply middleware stack
+	// Tickets API
+	mux.HandleFunc("GET /api/v1/tickets", ticketHandler.ListTickets)
+	mux.HandleFunc("POST /api/v1/tickets", ticketHandler.CreateTicket)
+	mux.HandleFunc("GET /api/v1/tickets/{id}", ticketHandler.GetTicket)
+	mux.HandleFunc("PATCH /api/v1/tickets/{id}/status", ticketHandler.UpdateStatus)
+	mux.HandleFunc("PATCH /api/v1/tickets/{id}/assign", ticketHandler.AssignTicket)
+	mux.HandleFunc("POST /api/v1/tickets/{id}/comments", ticketHandler.AddComment)
+	mux.HandleFunc("GET /api/v1/tickets/{id}/comments", ticketHandler.ListComments)
+	mux.HandleFunc("GET /api/v1/tickets/{id}/timeline", ticketHandler.ListTimeline)
+
+	// Service Catalog API
+	mux.HandleFunc("GET /api/v1/services/categories", ticketHandler.ListServiceCategories)
+	mux.HandleFunc("GET /api/v1/services/items", ticketHandler.ListServiceCatalogItems)
+
+	// Middleware Stack
 	handlerStack := middleware.Recoverer(log)(
 		middleware.RequestLogger(log)(
-			middleware.CORS(mux),
+			middleware.ExtractGatewayHeaders()(
+				middleware.CORS(mux),
+			),
 		),
 	)
 
@@ -41,7 +91,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown channel
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
@@ -65,6 +114,10 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Error("server forced shutdown", slog.Any("error", err))
 		os.Exit(1)
+	}
+
+	if db != nil {
+		_ = db.Close()
 	}
 
 	log.Info("server stopped gracefully")

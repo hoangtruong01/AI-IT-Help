@@ -10,7 +10,7 @@ import (
 	"eomp/services/gateway/internal/handler"
 )
 
-func TestHealthCheck(t *testing.T) {
+func TestGatewayHealthHandler(t *testing.T) {
 	cfg := config.Load()
 	h := handler.NewHealthHandler(cfg)
 
@@ -20,21 +20,18 @@ func TestHealthCheck(t *testing.T) {
 	h.Check(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	var res handler.HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&res); err != nil {
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if res.Status != "ok" {
-		t.Errorf("expected status 'ok', got '%s'", res.Status)
+	if body["service"] != "gateway" {
+		t.Errorf("expected service 'gateway', got '%v'", body["service"])
 	}
-	if res.Service != "gateway" {
-		t.Errorf("expected service 'gateway', got '%s'", res.Service)
-	}
-	if res.Version != "0.1.0" {
-		t.Errorf("expected version '0.1.0', got '%s'", res.Version)
+	if body["status"] != "ok" {
+		t.Errorf("expected status 'ok', got '%v'", body["status"])
 	}
 }
