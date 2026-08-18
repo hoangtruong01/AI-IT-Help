@@ -17,6 +17,8 @@ Tất cả tài liệu được phân chia theo từng chủ đề chuyên sâu 
 
 | File Tài Liệu | Nội Dung Chính | Đối Tượng |
 |---|---|---|
+| **[PROJECT_STRUCTURE_AND_CHANGELOG.md](PROJECT_STRUCTURE_AND_CHANGELOG.md)** | **Quy chuẩn kiến trúc, cấu trúc file dự án & nhật ký thay đổi chi tiết** | **Tất cả AI, Tech Lead, Developers** |
+| **[PHASE_6_TO_14_ROADMAP_SPECIFICATION.md](PHASE_6_TO_14_ROADMAP_SPECIFICATION.md)** | **Đặc tả chi tiết lộ trình Phase 6 — Phase 14 cho BA, Designer, QA/QC & Testers** | **BA, UI/UX, QA/QC, Testers, Devs** |
 | **[INTERN_DEVELOPER_GUIDE.md](INTERN_DEVELOPER_GUIDE.md)** | Cẩm nang toàn diện tổng hợp mọi khía cạnh hệ thống | Developer mới, Intern, Tech Lead |
 | **[architecture.md](architecture.md)** | Thiết kế kiến trúc tổng thể, ranh giới domain, giao tiếp liên service | Solution Architect, Developer |
 | **[setup.md](setup.md)** | Hướng dẫn cài đặt nhanh môi trường phát triển cục bộ | Tất cả lập trình viên |
