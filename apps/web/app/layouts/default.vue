@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
+const authStore = useAuthStore()
 
 const isSidebarOpen = ref(true)
 
@@ -224,10 +225,13 @@ function toggleSidebar() {
 
       <!-- User Profile Footer -->
       <div class="p-3 border-t border-slate-800/80 bg-slate-950/40">
-        <div class="flex items-center gap-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700/80 transition-colors">
+        <div
+          v-if="authStore.isAuthenticated && authStore.user"
+          class="flex items-center gap-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700/80 transition-colors"
+        >
           <div class="relative shrink-0">
             <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center font-bold text-white text-sm shadow-md">
-              AD
+              {{ authStore.user.full_name ? authStore.user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'US' }}
             </div>
             <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900" />
           </div>
@@ -236,13 +240,11 @@ function toggleSidebar() {
             v-if="isSidebarOpen"
             class="flex-1 min-w-0"
           >
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-white truncate">
-                Admin Officer
-              </p>
-            </div>
-            <p class="text-xs text-slate-400 truncate">
-              admin@eomp.local
+            <p class="text-xs font-bold text-white truncate">
+              {{ authStore.user.full_name }}
+            </p>
+            <p class="text-[10px] text-indigo-400 font-semibold truncate">
+              {{ authStore.user.role }}
             </p>
           </div>
 
@@ -250,11 +252,33 @@ function toggleSidebar() {
             v-if="isSidebarOpen"
             class="flex items-center gap-1"
           >
-            <UColorModeButton
-              size="xs"
-              class="text-slate-400 hover:text-white"
-            />
+            <button
+              class="p-1 text-slate-400 hover:text-rose-400 transition-colors"
+              title="Sign Out"
+              @click="authStore.logout"
+            >
+              <UIcon
+                name="i-lucide-log-out"
+                class="w-4 h-4"
+              />
+            </button>
           </div>
+        </div>
+
+        <div
+          v-else
+          class="p-2"
+        >
+          <NuxtLink
+            to="/login"
+            class="w-full py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+          >
+            <UIcon
+              name="i-lucide-log-in"
+              class="w-4 h-4"
+            />
+            <span v-if="isSidebarOpen">Sign In</span>
+          </NuxtLink>
         </div>
       </div>
     </aside>
