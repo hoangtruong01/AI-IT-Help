@@ -40,6 +40,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	helpdeskProxy, err := proxy.NewReverseProxy(cfg.HelpdeskServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize helpdesk proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	aiProxy, err := proxy.NewReverseProxy(cfg.AIServiceURL, log)
 	if err != nil {
 		log.Error("failed to initialize ai proxy", slog.Any("error", err))
@@ -63,6 +69,11 @@ func main() {
 	mux.Handle("/api/v1/employees/", authFilter(employeeProxy))
 	mux.Handle("/api/v1/departments", authFilter(employeeProxy))
 	mux.Handle("/api/v1/departments/", authFilter(employeeProxy))
+
+	// Helpdesk & Service Catalog Routing
+	mux.Handle("/api/v1/tickets", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/tickets/", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/services/", authFilter(helpdeskProxy))
 
 	// AI Operations Copilot Routing
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
@@ -91,6 +102,7 @@ func main() {
 			slog.String("version", cfg.Version),
 			slog.String("auth_service", cfg.AuthServiceURL),
 			slog.String("employee_service", cfg.EmployeeServiceURL),
+			slog.String("helpdesk_service", cfg.HelpdeskServiceURL),
 			slog.String("ai_service", cfg.AIServiceURL),
 		)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

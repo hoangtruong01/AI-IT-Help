@@ -91,6 +91,98 @@ export interface CreateEmployeePayload {
   joined_at?: string
 }
 
+/** Service Category */
+export interface ServiceCategory {
+  id: string
+  name: string
+  icon: string
+  description?: string | null
+  items?: ServiceCatalogItem[]
+  created_at: string
+}
+
+/** Service Catalog Item */
+export interface ServiceCatalogItem {
+  id: string
+  category_id: string
+  category_name?: string | null
+  name: string
+  code: string
+  description?: string | null
+  default_priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | string
+  sla_response_minutes: number
+  sla_resolution_minutes: number
+  requires_approval: boolean
+  is_active: boolean
+  created_at: string
+}
+
+/** Ticket entity */
+export interface Ticket {
+  id: string
+  ticket_number: string
+  title: string
+  description: string
+  service_item_id?: string | null
+  category: string
+  priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | string
+  status: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'WAITING_USER' | 'RESOLVED' | 'CLOSED' | string
+  requester_id: string
+  requester_name: string
+  requester_email: string
+  assignee_id?: string | null
+  assignee_name?: string | null
+  department_id?: string | null
+  affected_ci_id?: string | null
+  sla_response_deadline: string
+  sla_resolution_deadline: string
+  responded_at?: string | null
+  resolved_at?: string | null
+  closed_at?: string | null
+  sla_status: 'WITHIN_SLA' | 'WARNING' | 'BREACHED' | string
+  created_at: string
+  updated_at: string
+}
+
+/** Create Ticket Payload */
+export interface CreateTicketPayload {
+  title: string
+  description: string
+  service_item_id?: string
+  category: string
+  priority: string
+  requester_id?: string
+  requester_name?: string
+  requester_email?: string
+  department_id?: string
+  affected_ci_id?: string
+}
+
+/** Ticket Comment */
+export interface TicketComment {
+  id: string
+  ticket_id: string
+  author_id: string
+  author_name: string
+  author_role: string
+  content: string
+  is_internal: boolean
+  created_at: string
+}
+
+/** Ticket Timeline record */
+export interface TicketTimeline {
+  id: string
+  ticket_id: string
+  actor_id: string
+  actor_name: string
+  action: string
+  old_value?: string | null
+  new_value?: string | null
+  notes?: string | null
+  created_at: string
+}
+
 /** Navigation menu item */
 export interface MenuItem {
   label: string
