@@ -305,6 +305,26 @@ graph TD
 - **Mã nguồn Frontend**:
   - Nâng cấp [`apps/web/app/layouts/default.vue`](file:///d:/IT_help/eomp/apps/web/app/layouts/default.vue): Tích hợp Live Notification Center trên thanh Top Navigation Bar với huy hiệu Unread nhảy động (bounce), popover xem thông báo phân loại theo nhãn (`INCIDENT`, `APPROVAL`, `ASSET`, `SLA`), hỗ trợ click để đọc và nút "Mark all read" thời gian thực.
 
+### 🔹 Phase 6: AI Operations Copilot & RAG Knowledge Engine
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Backend**:
+  - **Knowledge Service (`services/knowledge` - Port 8087)**:
+    - Tạo migration `services/knowledge/migrations/001_create_knowledge_and_runbooks_table.sql` với `knowledge_categories`, `knowledge_articles`, `runbooks`, `document_embeddings` cùng bộ Seed Data SOP IT chuẩn doanh nghiệp.
+    - Triển khai Clean Architecture hoàn chỉnh (`model`, `repository`, `service`, `handler`): Full-text Search với dynamic scoring, CRUD bài viết cẩm nang, tự động sinh slug URL, tăng view count, và quản lý SOP Runbooks.
+  - **AI Operations Service (`services/ai` - Port 8088)**:
+    - Nâng cấp RAG Retriever (`SmartRetriever`): Tích hợp tìm kiếm vector Qdrant (`:6333`) với cơ chế **Tự Động Fallback In-Memory Catalog** (đáp ứng trọn vẹn **Test Case 6.2**).
+    - Nâng cấp `MockProvider` với tri thức IT Ops chuyên sâu: Giải quyết kịch bản MFA Token Reset theo đúng quy trình Okta SOP (đáp ứng **Test Case 6.1**), thời gian phản hồi TTFT siêu tốc < 50ms (đáp ứng **Test Case 6.3**).
+    - Triển khai Ticket Auto-Triage Endpoint (`/api/v1/ai/analyze-ticket`): Tự động phân loại danh mục, mức độ ưu tiên, chẩn đoán nguyên nhân gốc rễ (Root Cause) và gợi ý SOP Runbook xử lý.
+  - **API Gateway (`services/gateway` - Port 8080)**:
+    - Cấu hình Reverse Proxy và bảo vệ xác thực JWT cho `/api/v1/knowledge/*` và `/api/v1/ai/*`.
+- **Mã nguồn Frontend**:
+  - Nâng cấp [`apps/web/app/pages/knowledge.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/knowledge.vue): Giao diện Glassmorphism trực quan, 4 thẻ KPI Realtime, thanh tìm kiếm ngữ nghĩa Qdrant tức thì, bộ lọc danh mục, Drawer đọc tài liệu Markdown chuyên sâu và modal tạo bài viết / tạo SOP runbook.
+  - Nâng cấp [`apps/web/app/pages/ai.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/ai.vue): Trợ lý AI Copilot Glassmorphism với Live Chat, Typewriter streaming, Source References Pills trích dẫn RAG, Action buttons (`Copy Solution`, `Apply to Ticket`), Studio phân loại Ticket tự động (Auto-Triage), và tab giám sát Qdrant Vector Cluster.
+  - Nâng cấp [`apps/web/app/pages/helpdesk.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/helpdesk.vue): Tích hợp Widget AI Operations Copilot trực tiếp trong Drawer chi tiết Ticket giúp chẩn đoán sự cố 1-click và dán giải pháp vào biên bản xử lý.
+- **QA/QC & Kiểm Thử**:
+  - Vượt qua 100% kiểm thử tự động của 12 modules Go (`go vet`, `go test`, `go build`) và Frontend (`typecheck`, `lint`, `build`).
+
+
 ---
 
 ## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)

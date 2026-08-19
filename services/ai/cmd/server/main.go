@@ -24,25 +24,34 @@ func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
-	// Initialize AI providers (mock provider for local/offline dev)
+	// 1. Initialize AI Providers & Resilient RAG Retriever
 	mockProvider := provider.NewMockProvider()
-	mockRetriever := rag.NewMockRetriever()
+	smartRetriever := rag.NewSmartRetriever("localhost", 6333, "knowledge_base")
 
-	// Initialize Service and Handlers
-	aiService := service.NewAIService(mockProvider, mockProvider, mockRetriever)
+	// 2. Initialize Service and Handlers
+	aiService := service.NewAIService(mockProvider, mockProvider, smartRetriever)
 	aiHandler := handler.NewAIHandler(aiService)
 	healthHandler := handler.NewHealthHandler(cfg)
 
+	// 3. Routing
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+
+	// Standard API v1 routes
+	mux.HandleFunc("POST /api/v1/ai/chat", aiHandler.Chat)
+	mux.HandleFunc("POST /api/v1/ai/analyze-ticket", aiHandler.AnalyzeTicket)
+
+	// Legacy / Direct routes
 	mux.HandleFunc("POST /api/ai/chat", aiHandler.Chat)
 	mux.HandleFunc("POST /api/ai/analyze-ticket", aiHandler.AnalyzeTicket)
 
-	// Apply middleware stack
+	// 4. Apply middleware stack
 	handlerStack := middleware.Recoverer(log)(
 		middleware.RequestLogger(log)(
-			middleware.CORS(mux),
+			middleware.ExtractGatewayHeaders()(
+				middleware.CORS(mux),
+			),
 		),
 	)
 

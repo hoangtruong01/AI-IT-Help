@@ -64,6 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	knowledgeProxy, err := proxy.NewReverseProxy(cfg.KnowledgeServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize knowledge proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	aiProxy, err := proxy.NewReverseProxy(cfg.AIServiceURL, log)
 	if err != nil {
 		log.Error("failed to initialize ai proxy", slog.Any("error", err))
@@ -108,7 +114,12 @@ func main() {
 	mux.Handle("/api/v1/notifications", authFilter(notificationProxy))
 	mux.Handle("/api/v1/notifications/", authFilter(notificationProxy))
 
+	// Knowledge Base & Vector Documents Routing
+	mux.Handle("/api/v1/knowledge", authFilter(knowledgeProxy))
+	mux.Handle("/api/v1/knowledge/", authFilter(knowledgeProxy))
+
 	// AI Operations Copilot Routing
+	mux.Handle("/api/v1/ai", authFilter(aiProxy))
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
 
 	// Apply Global Gateway Middleware Stack
@@ -139,6 +150,7 @@ func main() {
 			slog.String("helpdesk_service", cfg.HelpdeskServiceURL),
 			slog.String("workflow_service", cfg.WorkflowServiceURL),
 			slog.String("notification_service", cfg.NotificationServiceURL),
+			slog.String("knowledge_service", cfg.KnowledgeServiceURL),
 			slog.String("ai_service", cfg.AIServiceURL),
 		)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
