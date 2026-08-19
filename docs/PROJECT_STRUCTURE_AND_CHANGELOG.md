@@ -325,6 +325,7 @@ graph TD
   - Vượt qua 100% kiểm thử tự động của 12 modules Go (`go vet`, `go test`, `go build`) và Frontend (`typecheck`, `lint`, `build`).
 
 ### 🔹 Phase 7: ITIL Problem Management, RCA & Change Advisory Board (CAB)
+- **Commit**: `7c2eccd`
 - **Trạng thái**: **HOÀN THÀNH (Done)**
 - **Mã nguồn Backend**:
   - **Problem Management (`services/helpdesk` - Port 8084)**:
