@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/response"
 	"eomp/services/ai/internal/model"
 	"eomp/services/ai/internal/service"
@@ -22,19 +23,19 @@ func NewAIHandler(svc service.AIService) *AIHandler {
 // Chat handles interactive conversation with the AI assistant.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
+		errors.WriteHTTP(w, errors.BadRequest("Method not allowed"))
 		return
 	}
 
 	var req model.ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request payload")
+		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON request body"))
 		return
 	}
 
 	res, err := h.svc.Chat(r.Context(), &req)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		errors.WriteHTTP(w, errors.InternalServerError(err.Error()))
 		return
 	}
 
@@ -50,19 +51,19 @@ type AnalyzeTicketRequest struct {
 // AnalyzeTicket evaluates helpdesk ticket content for classification and suggestions.
 func (h *AIHandler) AnalyzeTicket(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
+		errors.WriteHTTP(w, errors.BadRequest("Method not allowed"))
 		return
 	}
 
 	var req AnalyzeTicketRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request payload")
+		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON request body"))
 		return
 	}
 
 	res, err := h.svc.AnalyzeTicket(r.Context(), req.Title, req.Description)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		errors.WriteHTTP(w, errors.InternalServerError(err.Error()))
 		return
 	}
 

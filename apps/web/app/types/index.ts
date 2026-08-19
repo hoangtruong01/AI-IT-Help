@@ -425,3 +425,156 @@ export interface MenuItem {
   children?: MenuItem[]
   badge?: string | number
 }
+
+/** Knowledge Category */
+export interface KnowledgeCategory {
+  id: string
+  name: string
+  code: string
+  icon: string
+  description?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+/** Knowledge Article */
+export interface KnowledgeArticle {
+  id: string
+  category_id: string
+  category_name?: string | null
+  category_code?: string | null
+  title: string
+  slug: string
+  summary: string
+  content: string
+  tags: string[]
+  author_id: string
+  author_name: string
+  view_count: number
+  helpful_count: number
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Create Article Payload */
+export interface CreateArticlePayload {
+  category_id: string
+  title: string
+  slug?: string
+  summary: string
+  content: string
+  tags?: string[]
+  author_id?: string
+  author_name?: string
+  is_published?: boolean
+}
+
+/** Runbook Step */
+export interface RunbookStep {
+  step: number
+  action: string
+  command?: string
+  expected?: string
+}
+
+/** Knowledge Runbook */
+export interface KnowledgeRunbook {
+  id: string
+  code: string
+  title: string
+  category: string
+  description: string
+  prerequisites: string
+  steps_json: RunbookStep[]
+  rollback_steps: string
+  author_name: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Create Runbook Payload */
+export interface CreateRunbookPayload {
+  code: string
+  title: string
+  category: string
+  description: string
+  prerequisites: string
+  steps_json: RunbookStep[]
+  rollback_steps: string
+  author_name?: string
+}
+
+/** Knowledge Search Result */
+export interface KnowledgeSearchResult {
+  id: string
+  type: 'article' | 'runbook' | string
+  title: string
+  snippet: string
+  category: string
+  score: number
+  tags?: string[]
+  slug_or_code: string
+  view_count?: number
+  updated_time: string
+}
+
+/** Knowledge Stats */
+export interface KnowledgeStats {
+  total_articles: number
+  total_categories: number
+  total_runbooks: number
+  total_views: number
+}
+
+/** AI Message */
+export interface AIChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  citations?: AICitation[]
+  confidence?: number
+  fallback_mode?: boolean
+  timestamp?: string
+}
+
+/** AI Citation */
+export interface AICitation {
+  article_id: string
+  title: string
+  score: number
+  category?: string
+  type?: 'article' | 'runbook' | string
+}
+
+/** AI Chat Request */
+export interface AIChatRequest {
+  session_id?: string
+  messages: Array<{
+    role: string
+    content: string
+  }>
+}
+
+/** AI Chat Response */
+export interface AIChatResponse {
+  answer: string
+  citations?: AICitation[]
+  confidence: number
+  tokens_used: number
+  fallback_mode?: boolean
+}
+
+/** AI Ticket Analysis */
+export interface AITicketAnalysis {
+  ticket_id: string
+  suggested_category: string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | string
+  summary: string
+  root_cause: string
+  suggested_resolution: string
+  confidence: number
+  citations?: AICitation[]
+  requires_human_review: boolean
+  created_at: string
+}
