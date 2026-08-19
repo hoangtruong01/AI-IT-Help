@@ -767,3 +767,43 @@ export interface ChangeStats {
   success_rate_percent: number
   total_this_month: number
 }
+
+/** Microservice Health Status for SRE Monitoring */
+export interface ServiceHealthStatus {
+  id: string
+  name: string
+  category: string
+  port: number
+  status: 'ONLINE' | 'DEGRADED' | 'OFFLINE' | string
+  uptime_pct: number
+  latency_ms: number
+  cpu_pct: number
+  memory_mb: number
+  version: string
+  error_rate_pct: number
+  total_requests: number
+  last_probe_time: string
+}
+
+/** Cluster Overview Metrics */
+export interface ClusterOverview {
+  total_services: number
+  online_services: number
+  degraded_services: number
+  offline_services: number
+  cluster_health_pct: number
+  total_requests_per_min: number
+  avg_latency_p95_ms: number
+  error_rate_pct: number
+}
+
+/** SRE Live Structured Log Entry */
+export interface LogEntry {
+  id: string
+  timestamp: string
+  service: string
+  level: 'INFO' | 'WARN' | 'ERROR' | 'FATAL' | string
+  message: string
+  request_id?: string
+  caller?: string
+}

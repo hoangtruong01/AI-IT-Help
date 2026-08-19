@@ -14,6 +14,7 @@ import (
 	"eomp/packages/shared/pkg/database"
 	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/notification/internal/config"
 	"eomp/services/notification/internal/handler"
@@ -64,9 +65,10 @@ func main() {
 	// 3. Routes
 	mux := http.NewServeMux()
 
-	// Health
+	// Health & Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Notifications API
 	mux.HandleFunc("GET /api/v1/notifications/stats", notificationHandler.GetStats)
@@ -75,11 +77,13 @@ func main() {
 	mux.HandleFunc("PATCH /api/v1/notifications/{id}/read", notificationHandler.MarkAsRead)
 	mux.HandleFunc("POST /api/v1/notifications/read-all", notificationHandler.MarkAllAsRead)
 
-	// Middleware Stack
+	// Middleware Stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.ExtractGatewayHeaders()(
-				middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.ExtractGatewayHeaders()(
+					middleware.CORS(mux),
+				),
 			),
 		),
 	)

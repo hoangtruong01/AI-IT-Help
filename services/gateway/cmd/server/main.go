@@ -13,6 +13,7 @@ import (
 
 	"eomp/packages/shared/pkg/auth"
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/gateway/internal/config"
 	"eomp/services/gateway/internal/handler"
@@ -77,13 +78,21 @@ func main() {
 	}
 
 	healthHandler := handler.NewHealthHandler(cfg)
+	monitoringHandler := handler.NewMonitoringHandler()
 
 	// 2. Setup Routing Multiplexer
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health & Prometheus Metrics (Test Case 8.1)
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
+
+	// Enterprise Observability & SRE Monitoring APIs (Phase 8)
+	mux.HandleFunc("GET /api/v1/monitoring/overview", monitoringHandler.GetOverview)
+	mux.HandleFunc("GET /api/v1/monitoring/services", monitoringHandler.ListServices)
+	mux.HandleFunc("POST /api/v1/monitoring/probe/{id}", monitoringHandler.ProbeService)
+	mux.HandleFunc("GET /api/v1/monitoring/logs", monitoringHandler.GetLogs)
 
 	// Auth Service Routing (Public routes for register, login, refresh; me requires token)
 	mux.Handle("/api/v1/auth/", authProxy)
@@ -126,10 +135,12 @@ func main() {
 	mux.Handle("/api/v1/ai", authFilter(aiProxy))
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
 
-	// Apply Global Gateway Middleware Stack
+	// Apply Global Gateway Middleware Stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.CORS(mux),
+			),
 		),
 	)
 

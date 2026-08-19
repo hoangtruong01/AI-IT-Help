@@ -337,11 +337,31 @@ graph TD
   - **API Gateway (`services/gateway` - Port 8080)**:
     - Định tuyến và bảo vệ xác thực JWT cho `/api/v1/problems/*` (Port 8084) và `/api/v1/changes/*` (Port 8085).
 - **Mã nguồn Frontend**:
-  - Nâng cấp [`apps/web/app/layouts/default.vue`](file:///d:/IT_help/eomp/apps/web/app/layouts/default.vue): Tích hợp navigation links cho Problem Management (`/problems`) và Change Advisory (`/changes`).
-  - Xây dựng [`apps/web/app/pages/problems.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/problems.vue): Giao diện Glassmorphism trực quan, 4 thẻ KPI Realtime, bảng Problem records với huy hiệu Linked Incidents count, Drawer chi tiết với 3 tabs (Root Cause Analysis 5-Whys, Linked Incidents Manager, Overview), nút Cascade Resolve tức thì, và modal tạo Problem mới.
-  - Xây dựng [`apps/web/app/pages/changes.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/changes.vue): Giao diện Glassmorphism với 3 views (Bảng RFC, Ma trận rủi ro 3x3 tương tác, Lịch bảo trì bảo dưỡng Maintenance Windows), Drawer chi tiết RFC hiển thị các kế hoạch Implementation/Rollback/Test, thanh đo Quorum CAB, và Modal biểu quyết phê duyệt dành cho thành viên Hội đồng CAB.
+### 🔹 Phase 8: Enterprise Observability & SRE Health Mesh
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Backend**:
+  - **Shared Metrics Module (`packages/shared/pkg/metrics`)**:
+    - Triển khai thu thập chỉ số theo chuẩn **RED Method** (Rate, Errors, Duration) và Prometheus 2.0 text format: `http_requests_total`, `http_request_duration_seconds`, `service_uptime_seconds`, `service_memory_bytes`, `service_goroutines_count`.
+    - Cung cấp `HTTPMetricsMiddleware` và `PrometheusHandler` (đáp ứng **Test Case 8.1**).
+  - **Tích Hợp `/metrics` trên toàn bộ 9 backend Go microservices**:
+    - `services/gateway` (:8080), `services/auth` (:8081), `services/employee` (:8082), `services/asset` (:8083), `services/helpdesk` (:8084), `services/workflow` (:8085), `services/notification` (:8086), `services/knowledge` (:8087), `services/ai` (:8088).
+  - **Monitoring Aggregator Controller (`services/gateway` - Port 8080)**:
+    - Cung cấp REST endpoints `/api/v1/monitoring/*`:
+      - `GET /api/v1/monitoring/overview`: Tổng hợp KPIs cụm dịch vụ thời gian thực (Active count, RPS, Avg latency p95, Error rate %).
+      - `GET /api/v1/monitoring/services`: Danh sách chi tiết 11 dịch vụ với thông số CPU, RAM, Uptime, Latency, Error Rate.
+      - `POST /api/v1/monitoring/probe/{id}`: Chủ động kích hoạt Health probe phát hiện sự cố gián đoạn trong `< 5 giây` (đáp ứng **Test Case 8.2**).
+      - `GET /api/v1/monitoring/logs`: Live log streamer hỗ trợ lọc theo service, log level (`INFO`, `WARN`, `ERROR`), và tìm kiếm từ khóa.
+- **Mã nguồn Frontend**:
+  - Nâng cấp [`apps/web/app/layouts/default.vue`](file:///d:/IT_help/eomp/apps/web/app/layouts/default.vue): Thêm navigation link `Observability & SRE` (`/monitoring`).
+  - Xây dựng [`apps/web/app/pages/monitoring.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/monitoring.vue):
+    - 4 Thẻ KPI Realtime Glassmorphism: Cluster Health %, Cluster Throughput RPS, Avg Latency p95, Cluster Error Rate %.
+    - Ma trận 11 Microservices (Service Grid) với đèn tín hiệu trạng thái, Uptime, RAM, CPU, p95 Latency và nút Probe 1-click.
+    - Live Terminal Log Streamer Console đen phong cách SRE với text highlight màu, auto-scroll toggle, bộ lọc level và service.
+    - Tab phân tích kiến trúc RED Method (Rate, Errors, Duration).
+    - Modal Prometheus Metrics Raw Viewer hỗ trợ copy dữ liệu thô `/metrics` chuẩn Prometheus.
 - **QA/QC & Kiểm Thử**:
-  - Vượt qua 100% kiểm thử tự động của cả 12 modules Go và Frontend.
+  - Vượt qua 100% kiểm thử tự động của cả 12 modules Go và Frontend (`typecheck`, `lint`, `build`).
+
 
 
 

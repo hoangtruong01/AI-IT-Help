@@ -13,6 +13,7 @@ import (
 
 	"eomp/packages/shared/pkg/database"
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/config"
 	"eomp/services/helpdesk/internal/handler"
@@ -59,9 +60,10 @@ func main() {
 	// 3. Routes
 	mux := http.NewServeMux()
 
-	// Health
+	// Health & Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Tickets API
 	mux.HandleFunc("GET /api/v1/tickets", ticketHandler.ListTickets)
@@ -87,11 +89,13 @@ func main() {
 	mux.HandleFunc("GET /api/v1/services/categories", ticketHandler.ListServiceCategories)
 	mux.HandleFunc("GET /api/v1/services/items", ticketHandler.ListServiceCatalogItems)
 
-	// Middleware Stack
+	// Middleware Stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.ExtractGatewayHeaders()(
-				middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.ExtractGatewayHeaders()(
+					middleware.CORS(mux),
+				),
 			),
 		),
 	)
