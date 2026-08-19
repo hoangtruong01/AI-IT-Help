@@ -30,10 +30,22 @@ const navigationGroups = [
         badge: '24'
       },
       {
+        label: 'Problem Management',
+        icon: 'i-lucide-alert-octagon',
+        to: '/problems',
+        badge: 'KEDB'
+      },
+      {
+        label: 'Change Advisory (CAB)',
+        icon: 'i-lucide-git-pull-request',
+        to: '/changes',
+        badge: 'RFC'
+      },
+      {
         label: 'AI Ops Assistant',
         icon: 'i-lucide-bot',
         to: '/ai',
-        badge: 'New'
+        badge: 'Copilot'
       }
     ]
   },

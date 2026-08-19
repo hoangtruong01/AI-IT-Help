@@ -578,3 +578,192 @@ export interface AITicketAnalysis {
   requires_human_review: boolean
   created_at: string
 }
+
+/** ITIL Problem Record */
+export interface Problem {
+  id: string
+  problem_number: string
+  title: string
+  description: string
+  category: string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  status: 'OPEN' | 'UNDER_INVESTIGATION' | 'WORKAROUND_FOUND' | 'KNOWN_ERROR' | 'RESOLVED' | 'CLOSED' | string
+  impact: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  assignee_id?: string | null
+  assignee_name?: string | null
+  root_cause?: string | null
+  workaround?: string | null
+  resolution?: string | null
+  is_known_error: boolean
+  linked_count: number
+  created_at: string
+  updated_at: string
+  resolved_at?: string | null
+  closed_at?: string | null
+}
+
+/** Problem Incident Link */
+export interface ProblemIncidentLink {
+  id: string
+  problem_id: string
+  ticket_id: string
+  ticket_number: string
+  ticket_title: string
+  linked_by: string
+  linked_at: string
+}
+
+/** Link Incident Payload */
+export interface LinkIncidentPayload {
+  ticket_id: string
+  linked_by?: string
+}
+
+/** Create Problem Payload */
+export interface CreateProblemPayload {
+  title: string
+  description: string
+  category: string
+  priority: string
+  impact: string
+  urgency: string
+  assignee_id?: string
+  assignee_name?: string
+  root_cause?: string
+  workaround?: string
+  is_known_error?: boolean
+  ticket_ids?: string[]
+}
+
+/** Update Problem Status Payload */
+export interface UpdateProblemStatusPayload {
+  status: string
+  resolution?: string
+  notes?: string
+}
+
+/** Update Problem RCA Payload */
+export interface UpdateProblemRCAPayload {
+  root_cause?: string
+  workaround?: string
+  is_known_error?: boolean
+}
+
+/** Problem Stats */
+export interface ProblemStats {
+  total_problems: number
+  under_investigation: number
+  known_errors: number
+  resolved_problems: number
+  total_linked_tickets: number
+}
+
+/** ITIL Change Request (RFC) */
+export interface ChangeRequest {
+  id: string
+  change_number: string
+  title: string
+  description: string
+  change_type: 'STANDARD' | 'NORMAL' | 'EMERGENCY' | 'MAJOR' | string
+  category: string
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  impact_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  probability_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  status: 'DRAFT' | 'SUBMITTED' | 'CAB_REVIEW' | 'APPROVED' | 'REJECTED' | 'SCHEDULED' | 'IMPLEMENTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string
+  requester_id: string
+  requester_name: string
+  requester_email: string
+  assigned_to_id?: string | null
+  assigned_to_name?: string | null
+  reason_for_change: string
+  implementation_plan: string
+  rollback_plan: string
+  test_plan: string
+  scheduled_start_time?: string | null
+  scheduled_end_time?: string | null
+  actual_start_time?: string | null
+  actual_end_time?: string | null
+  downtime_required: boolean
+  downtime_minutes: number
+  cab_required_count: number
+  cab_approved_count: number
+  created_at: string
+  updated_at: string
+}
+
+/** CAB Review Vote */
+export interface CABReview {
+  id: string
+  change_id: string
+  reviewer_id: string
+  reviewer_name: string
+  reviewer_role: string
+  vote: 'APPROVED' | 'REJECTED' | 'ABSTAIN' | string
+  comments?: string | null
+  reviewed_at: string
+}
+
+/** Create Change Payload */
+export interface CreateChangePayload {
+  title: string
+  description: string
+  change_type: string
+  category: string
+  priority: string
+  impact_level: string
+  probability_level: string
+  requester_id: string
+  requester_name: string
+  requester_email: string
+  assigned_to_id?: string
+  assigned_to_name?: string
+  reason_for_change: string
+  implementation_plan: string
+  rollback_plan: string
+  test_plan: string
+  scheduled_start_time?: string
+  scheduled_end_time?: string
+  downtime_required: boolean
+  downtime_minutes: number
+}
+
+/** Update Change Status Payload */
+export interface UpdateChangeStatusPayload {
+  status: string
+  notes?: string
+}
+
+/** Submit CAB Vote Payload */
+export interface SubmitCABVotePayload {
+  reviewer_id: string
+  reviewer_name: string
+  reviewer_role: string
+  vote: string
+  comments?: string
+}
+
+/** Change Calendar Item */
+export interface ChangeCalendarItem {
+  id: string
+  change_number: string
+  title: string
+  change_type: string
+  category: string
+  risk_level: string
+  status: string
+  scheduled_start?: string | null
+  scheduled_end?: string | null
+  downtime_required: boolean
+  downtime_minutes: number
+}
+
+/** Change Stats */
+export interface ChangeStats {
+  active_changes: number
+  pending_cab_review: number
+  emergency_changes: number
+  success_rate_percent: number
+  total_this_month: number
+}

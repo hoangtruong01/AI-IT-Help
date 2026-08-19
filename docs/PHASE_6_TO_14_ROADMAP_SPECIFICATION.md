@@ -245,9 +245,9 @@ Hoàn thiện quy trình vận hành tin cậy và bàn giao nền tảng:
 | **Phase 3** | Asset Management & CMDB Infrastructure Dependency Topology | **HOÀN THÀNH (Commit `7b4428a`)** |
 | **Phase 4** | Workflow State Machine Engine, Multi-level Approvals & Audit Logs | **HOÀN THÀNH (Commit `e482adc`)** |
 | **Phase 5** | Event-Driven Architecture, CloudEvents EventBus & Notification Service | **HOÀN THÀNH (Commit `e67d9fc`)** |
-| **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **HOÀN THÀNH (Done)** |
-| **Phase 7** | ITIL Problem Management, RCA & Change Advisory Board (CAB) | **READY TO START (Tiếp theo)** |
-| **Phase 8** | Enterprise Observability (Prometheus, Grafana RED, Loki Logs) | **SẴN SÀNG TRIỂN KHAI** |
+| **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **HOÀN THÀNH (Commit `d6afacc`)** |
+| **Phase 7** | ITIL Problem Management, RCA & Change Advisory Board (CAB) | **HOÀN THÀNH (Done)** |
+| **Phase 8** | Enterprise Observability (Prometheus, Grafana RED, Loki Logs) | **READY TO START (Tiếp theo)** |
 | **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load) | **SẴN SÀNG TRIỂN KHAI** |

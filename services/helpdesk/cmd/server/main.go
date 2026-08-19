@@ -49,8 +49,11 @@ func main() {
 	// 2. Dependencies
 	slaEngine := service.NewSLAEngine()
 	repo := repository.NewRepository(db)
+	problemRepo := repository.NewProblemRepository(db)
 	ticketSvc := service.NewTicketService(repo, slaEngine)
+	problemSvc := service.NewProblemService(problemRepo, repo)
 	ticketHandler := handler.NewTicketHandler(ticketSvc)
+	problemHandler := handler.NewProblemHandler(problemSvc)
 	healthHandler := handler.NewHealthHandler(cfg)
 
 	// 3. Routes
@@ -69,6 +72,16 @@ func main() {
 	mux.HandleFunc("POST /api/v1/tickets/{id}/comments", ticketHandler.AddComment)
 	mux.HandleFunc("GET /api/v1/tickets/{id}/comments", ticketHandler.ListComments)
 	mux.HandleFunc("GET /api/v1/tickets/{id}/timeline", ticketHandler.ListTimeline)
+
+	// Problem Management API (ITIL v4)
+	mux.HandleFunc("GET /api/v1/problems/stats", problemHandler.GetStats)
+	mux.HandleFunc("GET /api/v1/problems", problemHandler.ListProblems)
+	mux.HandleFunc("POST /api/v1/problems", problemHandler.CreateProblem)
+	mux.HandleFunc("GET /api/v1/problems/{id}", problemHandler.GetProblem)
+	mux.HandleFunc("PATCH /api/v1/problems/{id}/status", problemHandler.UpdateStatus)
+	mux.HandleFunc("PATCH /api/v1/problems/{id}/rca", problemHandler.UpdateRCA)
+	mux.HandleFunc("POST /api/v1/problems/{id}/link-incident", problemHandler.LinkIncident)
+	mux.HandleFunc("DELETE /api/v1/problems/{id}/unlink-incident/{ticketId}", problemHandler.UnlinkIncident)
 
 	// Service Catalog API
 	mux.HandleFunc("GET /api/v1/services/categories", ticketHandler.ListServiceCategories)

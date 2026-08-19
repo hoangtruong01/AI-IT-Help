@@ -103,12 +103,16 @@ func main() {
 	mux.Handle("/api/v1/tickets", authFilter(helpdeskProxy))
 	mux.Handle("/api/v1/tickets/", authFilter(helpdeskProxy))
 	mux.Handle("/api/v1/services/", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/problems", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/problems/", authFilter(helpdeskProxy))
 
-	// Workflow Engine & Approvals Routing
+	// Workflow Engine & Approvals & Changes Routing
 	mux.Handle("/api/v1/workflows", authFilter(workflowProxy))
 	mux.Handle("/api/v1/workflows/", authFilter(workflowProxy))
 	mux.Handle("/api/v1/approvals", authFilter(workflowProxy))
 	mux.Handle("/api/v1/approvals/", authFilter(workflowProxy))
+	mux.Handle("/api/v1/changes", authFilter(workflowProxy))
+	mux.Handle("/api/v1/changes/", authFilter(workflowProxy))
 
 	// Notification Center Routing
 	mux.Handle("/api/v1/notifications", authFilter(notificationProxy))
