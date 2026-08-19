@@ -48,10 +48,13 @@ func main() {
 
 	// 2. Dependencies
 	repo := repository.NewRepository(db)
+	changeRepo := repository.NewChangeRepository(db)
 	workflowSvc := service.NewWorkflowService(repo)
+	changeSvc := service.NewChangeService(changeRepo)
 
 	workflowHandler := handler.NewWorkflowHandler(workflowSvc)
 	approvalHandler := handler.NewApprovalHandler(workflowSvc)
+	changeHandler := handler.NewChangeHandler(changeSvc)
 	healthHandler := handler.NewHealthHandler(cfg)
 
 	// 3. Routes
@@ -73,6 +76,15 @@ func main() {
 	// Approval APIs
 	mux.HandleFunc("GET /api/v1/approvals", approvalHandler.ListApprovals)
 	mux.HandleFunc("POST /api/v1/approvals/{id}/decision", approvalHandler.ProcessDecision)
+
+	// Change Management & CAB APIs (ITIL v4)
+	mux.HandleFunc("GET /api/v1/changes/stats", changeHandler.GetStats)
+	mux.HandleFunc("GET /api/v1/changes/calendar", changeHandler.GetCalendar)
+	mux.HandleFunc("GET /api/v1/changes", changeHandler.ListChanges)
+	mux.HandleFunc("POST /api/v1/changes", changeHandler.CreateChange)
+	mux.HandleFunc("GET /api/v1/changes/{id}", changeHandler.GetChange)
+	mux.HandleFunc("PATCH /api/v1/changes/{id}/status", changeHandler.UpdateStatus)
+	mux.HandleFunc("POST /api/v1/changes/{id}/cab-vote", changeHandler.SubmitCABVote)
 
 	// Middleware Stack
 	handlerStack := middleware.Recoverer(log)(

@@ -13,8 +13,8 @@ Base URL: `http://localhost:8080`
 | **Auth Service** | `:8081` | `/api/v1/auth/` | Public (Login/Register) / JWT (Me) |
 | **Employee Service** | `:8082` | `/api/v1/employees/`, `/api/v1/departments/` | JWT Required |
 | **Asset Service** | `:8083` | `/api/v1/assets/`, `/api/v1/cmdb/` | JWT Required |
-| **Helpdesk Service** | `:8084` | `/api/v1/tickets/`, `/api/v1/services/` | JWT Required |
-| **Workflow Engine** | `:8085` | `/api/v1/workflows/`, `/api/v1/approvals/` | JWT Required |
+| **Helpdesk Service** | `:8084` | `/api/v1/tickets/`, `/api/v1/services/`, `/api/v1/problems/` | JWT Required |
+| **Workflow Engine** | `:8085` | `/api/v1/workflows/`, `/api/v1/approvals/`, `/api/v1/changes/` | JWT Required |
 | **Notification Service** | `:8086` | `/api/v1/notifications/` | JWT Required |
 | **Knowledge Base** | `:8087` | `/api/v1/knowledge/` | JWT Required |
 | **AI Operations Copilot** | `:8088` | `/api/v1/ai/` | JWT Required |
@@ -235,3 +235,62 @@ Base URL: `http://localhost:8080`
   "created_at": "2026-08-19T10:00:00Z"
 }
 ```
+
+---
+
+## 4. Problem Management API (`services/helpdesk` — Port 8084)
+
+### 4.1. Get Problem Statistics
+`GET /api/v1/problems/stats`
+
+**Response (`200 OK`):**
+```json
+{
+  "total_problems": 3,
+  "under_investigation": 1,
+  "known_errors": 2,
+  "resolved_problems": 1,
+  "total_linked_tickets": 4
+}
+```
+
+### 4.2. List Problems
+`GET /api/v1/problems?category=Network&status=KNOWN_ERROR&page=1&page_size=20`
+
+### 4.3. Get Problem by ID with Linked Incidents
+`GET /api/v1/problems/{id}`
+
+### 4.4. Create ITIL Problem Record
+`POST /api/v1/problems`
+
+### 4.5. Update Root Cause Analysis (RCA) & Workaround (KEDB)
+`PATCH /api/v1/problems/{id}/rca`
+
+### 4.6. Link Incident Ticket to Problem
+`POST /api/v1/problems/{id}/link-incident`
+
+### 4.7. Cascade Resolution to All Linked Incidents (Test Case 7.1)
+`PATCH /api/v1/problems/{id}/status`
+- When payload `{"status": "RESOLVED", "resolution": "..."}` is sent, the system automatically resolves all linked incident tickets and writes audit timeline records.
+
+---
+
+## 5. Change Advisory Board (CAB) & RFC Lifecycle (`services/workflow` — Port 8085)
+
+### 5.1. Get Change Management Dashboard KPIs
+`GET /api/v1/changes/stats`
+
+### 5.2. Get Maintenance Window Schedule Calendar
+`GET /api/v1/changes/calendar?start=2026-08-01T00:00:00Z&end=2026-09-01T00:00:00Z`
+
+### 5.3. Create Request for Change (RFC) with 3x3 Risk Matrix
+`POST /api/v1/changes`
+
+### 5.4. Submit CAB Member Vote
+`POST /api/v1/changes/{id}/cab-vote`
+- Payload: `{"reviewer_id": "u1", "reviewer_name": "Sarah Jenkins", "reviewer_role": "Security Lead", "vote": "APPROVED", "comments": "Approved"}`
+
+### 5.5. Transition Change Lifecycle State (Enforces Quorum - Test Case 7.2)
+`PATCH /api/v1/changes/{id}/status`
+- If change is `EMERGENCY` or `MAJOR` and `cab_approved_count < 2`, the API rejects with `403 Forbidden` (`insufficient CAB approvals`).
+

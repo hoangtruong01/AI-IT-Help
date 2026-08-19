@@ -306,7 +306,7 @@ graph TD
   - Nâng cấp [`apps/web/app/layouts/default.vue`](file:///d:/IT_help/eomp/apps/web/app/layouts/default.vue): Tích hợp Live Notification Center trên thanh Top Navigation Bar với huy hiệu Unread nhảy động (bounce), popover xem thông báo phân loại theo nhãn (`INCIDENT`, `APPROVAL`, `ASSET`, `SLA`), hỗ trợ click để đọc và nút "Mark all read" thời gian thực.
 
 ### 🔹 Phase 6: AI Operations Copilot & RAG Knowledge Engine
-- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Commit**: `d6afacc`
 - **Mã nguồn Backend**:
   - **Knowledge Service (`services/knowledge` - Port 8087)**:
     - Tạo migration `services/knowledge/migrations/001_create_knowledge_and_runbooks_table.sql` với `knowledge_categories`, `knowledge_articles`, `runbooks`, `document_embeddings` cùng bộ Seed Data SOP IT chuẩn doanh nghiệp.
@@ -323,6 +323,25 @@ graph TD
   - Nâng cấp [`apps/web/app/pages/helpdesk.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/helpdesk.vue): Tích hợp Widget AI Operations Copilot trực tiếp trong Drawer chi tiết Ticket giúp chẩn đoán sự cố 1-click và dán giải pháp vào biên bản xử lý.
 - **QA/QC & Kiểm Thử**:
   - Vượt qua 100% kiểm thử tự động của 12 modules Go (`go vet`, `go test`, `go build`) và Frontend (`typecheck`, `lint`, `build`).
+
+### 🔹 Phase 7: ITIL Problem Management, RCA & Change Advisory Board (CAB)
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Backend**:
+  - **Problem Management (`services/helpdesk` - Port 8084)**:
+    - Tạo migration `services/helpdesk/migrations/002_create_problems_table.sql` gồm bảng `problems`, `problem_incident_links` và seed data 3 Problems chuẩn ITIL (`PRB-1001`, `PRB-1002`, `PRB-1003`).
+    - Triển khai Clean Architecture (`internal/model/problem.go`, `internal/repository/problem_repository.go`, `internal/service/problem_service.go`, `internal/handler/problem_handler.go`): Gom nhóm các sự cố trùng lặp, cập nhật phân tích nguyên nhân gốc rễ RCA (5-Whys), giải pháp tạm thời (Workaround), xuất bản KEDB, và **Tự Động Đóng Hàng Loạt Sự Cố Liên Kết (Cascade Resolution)** khi Problem chuyển sang `RESOLVED` (đáp ứng **Test Case 7.1**).
+  - **Change Management & CAB (`services/workflow` - Port 8085)**:
+    - Tạo migration `services/workflow/migrations/002_create_changes_and_cab_table.sql` gồm bảng `change_requests` (RFC) và `cab_reviews`.
+    - Triển khai Clean Architecture (`internal/model/change.go`, `internal/repository/change_repository.go`, `internal/service/change_service.go`, `internal/handler/change_handler.go`): Tính toán ma trận rủi ro (3x3 Risk Matrix: Probability vs Impact), quản lý lịch trình bảo trì bảo dưỡng (Maintenance Window Calendar), và **Kiểm Soát Nghiêm Ngặt Quorum Biểu Quyết CAB** (chặn mã `403 Forbidden` khi Change loại `EMERGENCY`/`MAJOR` chưa đủ tối thiểu 2 phiếu biểu quyết, đáp ứng **Test Case 7.2**).
+  - **API Gateway (`services/gateway` - Port 8080)**:
+    - Định tuyến và bảo vệ xác thực JWT cho `/api/v1/problems/*` (Port 8084) và `/api/v1/changes/*` (Port 8085).
+- **Mã nguồn Frontend**:
+  - Nâng cấp [`apps/web/app/layouts/default.vue`](file:///d:/IT_help/eomp/apps/web/app/layouts/default.vue): Tích hợp navigation links cho Problem Management (`/problems`) và Change Advisory (`/changes`).
+  - Xây dựng [`apps/web/app/pages/problems.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/problems.vue): Giao diện Glassmorphism trực quan, 4 thẻ KPI Realtime, bảng Problem records với huy hiệu Linked Incidents count, Drawer chi tiết với 3 tabs (Root Cause Analysis 5-Whys, Linked Incidents Manager, Overview), nút Cascade Resolve tức thì, và modal tạo Problem mới.
+  - Xây dựng [`apps/web/app/pages/changes.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/changes.vue): Giao diện Glassmorphism với 3 views (Bảng RFC, Ma trận rủi ro 3x3 tương tác, Lịch bảo trì bảo dưỡng Maintenance Windows), Drawer chi tiết RFC hiển thị các kế hoạch Implementation/Rollback/Test, thanh đo Quorum CAB, và Modal biểu quyết phê duyệt dành cho thành viên Hội đồng CAB.
+- **QA/QC & Kiểm Thử**:
+  - Vượt qua 100% kiểm thử tự động của cả 12 modules Go và Frontend.
+
 
 
 ---
