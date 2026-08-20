@@ -425,6 +425,21 @@ graph TD
   - Nâng cấp [`scripts/qa.ps1`](file:///d:/IT_help/eomp/scripts/qa.ps1) chạy tự động 6 tầng kiểm định: Frontend (typecheck, lint, build), Backend (12 services go vet, test, build), E2E Cross-Service, Infrastructure Probes, Database Schemas, Docker & CI.
 - **QA/QC & Kiểm Thử**:
   - Đạt **100% PASS** trên toàn bộ các tầng kiểm thử tự động.
+
+### 🔹 Phase 12: Technical BA Artifacts, C4 Model Blueprints & OpenAPI Spec Hub
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Hồ Sơ Thiết Kế Kiến Trúc C4 Model**:
+  - Hoàn thiện tài liệu [`docs/architecture/c4_model_diagrams.md`](file:///d:/IT_help/eomp/docs/architecture/c4_model_diagrams.md):
+    - Level 1: System Context Diagram (Người dùng & Hệ thống bên ngoài).
+    - Level 2: Container Diagram (11 Go Microservices, API Gateway, 8 PostgreSQL DBs, Redis, RabbitMQ, MinIO, Qdrant, Prometheus, Grafana, Loki, Nuxt 4 Web App).
+    - Level 3: Component Diagram (Phân tầng Clean Architecture chi tiết).
+    - Level 4: Dynamic Lifecycle Sequence Diagram (Luồng 7 bước liên service).
+- **Từ Điển Dữ Liệu & Sơ Đồ Thực Thể Quan Hệ (Master ERD)**:
+  - Hoàn thiện tài liệu [`docs/architecture/database_erd_and_data_dictionary.md`](file:///d:/IT_help/eomp/docs/architecture/database_erd_and_data_dictionary.md):
+    - Sơ đồ quan hệ thực thể Master ERD liên kết 8 cơ sở dữ liệu phân tán.
+    - Data Dictionary chi tiết cho tất cả các bảng, kiểu dữ liệu, ràng buộc và khóa ngoại.
+- **OpenAPI 3.0 (Swagger) Specification Hub**:
+  - Hoàn thiện file đặc tả [`docs/openapi/eomp-openapi-spec.yaml`](file:///d:/IT_help/eomp/docs/openapi/eomp-openapi-spec.yaml) và tài liệu hướng dẫn [`docs/openapi/README.md`](file:///d:/IT_help/eomp/docs/openapi/README.md) chuẩn hóa tất cả các REST API endpoints của 11 microservices.
 ---
 
 ## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)
