@@ -876,3 +876,46 @@ export interface ExportReportResponse {
   generation_time_ms: number
 }
 
+/** Immutable Audit Log Entry */
+export interface AuditLog {
+  id: string
+  event_type: string
+  actor_id?: string
+  actor_name: string
+  actor_email: string
+  actor_role: string
+  service_name: string
+  ip_address: string
+  user_agent?: string
+  status: 'SUCCESS' | 'FORBIDDEN' | 'FAILED' | string
+  resource_type: string
+  resource_id: string
+  old_values?: Record<string, any>
+  new_values?: Record<string, any>
+  checksum_sha256: string
+  created_at: string
+}
+
+/** Security Event Alert Entry */
+export interface SecurityEvent {
+  id: string
+  event_code: string
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string
+  source_ip: string
+  target_endpoint: string
+  description: string
+  is_blocked: boolean
+  created_at: string
+}
+
+/** Audit & Security Stats */
+export interface AuditStats {
+  total_logs: number
+  blocked_violations: number
+  active_security_alerts: number
+  immutable_proofs_count: number
+  success_count: number
+  forbidden_count: number
+}
+
+

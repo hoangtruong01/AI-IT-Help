@@ -381,6 +381,28 @@ graph TD
     - Nút Xuất Báo Cáo PDF & Excel/CSV tức thì.
 - **QA/QC & Kiểm Thử**:
   - Vượt qua 100% Go unit tests (`services/reporting`, `services/gateway`) và Frontend `pnpm typecheck` (0 lỗi).
+
+### 🔹 Phase 10: Security Hardening, Strict RBAC & Immutable Audit Trail
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Backend**:
+  - **Shared Security Core (`packages/shared/pkg/middleware`)**:
+    - `rbac.go`: Middleware `RequireRoles(allowedRoles ...string)` bảo vệ tài nguyên theo vai trò, tự động trả về `403 Forbidden` (`INSUFFICIENT_PERMISSIONS`) nếu truy cập trái phép (**Test Case 10.1**).
+    - `ratelimit.go`: Sliding Window IP Rate Limiter (100 req/min/IP), tự động khóa IP và trả về `429 Too Many Requests` kèm header `Retry-After: 60` (**Test Case 10.2**).
+    - `masker.go`: Data Masking Engine tự động phát hiện và che giấu Passwords, JWT Tokens, API Keys, Credit Cards trong logs và diffs (**Test Case 10.3**).
+  - **Audit Microservice (`services/audit` - Port 8089)**:
+    - Migration `services/audit/migrations/001_create_audit_tables.sql` với bảng `audit_logs` (lưu SHA-256 Checksum chống sửa đổi) và `security_events`.
+    - Triển khai Clean Architecture (`model`, `repository`, `service`, `handler`): Phục vụ tra cứu audit logs đa chiều, tính toán mã băm SHA-256 bất biến, thống kê an ninh SOC2.
+  - **API Gateway (`services/gateway` - Port 8080)**:
+    - Áp dụng Sliding Window Rate Limiter toàn cục và RBAC Filter bảo vệ `/api/v1/audit/*` (chỉ cho phép `ROLE_ADMIN` và `ROLE_MANAGER`).
+- **Mã nguồn Frontend**:
+  - Nâng cấp toàn diện [`apps/web/app/pages/audit.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/audit.vue):
+    - 4 Thẻ KPI An ninh: Total Audit Events, Blocked RBAC Violations, Active Threat Signals, Data Masking Engine.
+    - Bộ lọc đa chiều: Action Event Type, Status (`SUCCESS`, `FORBIDDEN`, `FAILED`), Microservice, Actor Email/IP.
+    - Bảng Audit Stream với mã hash bảo mật, vai trò, IP, và nút "View Diffs".
+    - Modal **Visual Code Diff Viewer & Tamper Proof**: So sánh Old Value vs New Value dạng Code Diff, hiển thị trường đã che giấu (Data Masking) và mã băm SHA-256 Checksum với nút Copy.
+    - Trình mô phỏng kiểm thử an ninh 1-click (Test 403 RBAC Chokepoint & Test 429 Rate Limiter).
+- **QA/QC & Kiểm Thử**:
+  - Vượt qua 100% Go Unit Tests (`packages/shared`, `services/audit`, `services/gateway`) và Nuxt 4 `pnpm typecheck` (0 lỗi).
 ---
 
 ## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)

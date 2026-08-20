@@ -83,6 +83,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	auditProxy, err := proxy.NewReverseProxy(cfg.AuditServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize audit proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	healthHandler := handler.NewHealthHandler(cfg)
 	monitoringHandler := handler.NewMonitoringHandler()
 
@@ -145,11 +151,18 @@ func main() {
 	mux.Handle("/api/v1/reports", authFilter(reportingProxy))
 	mux.Handle("/api/v1/reports/", authFilter(reportingProxy))
 
-	// Apply Global Gateway Middleware Stack with RED Metrics
+	// Audit Trail & Compliance Routing - Strict RBAC (Admin & Manager Only - Test Case 10.1)
+	adminRoleFilter := middleware.RequireRoles("ROLE_ADMIN", "ROLE_MANAGER")
+	mux.Handle("/api/v1/audit", authFilter(adminRoleFilter(auditProxy)))
+	mux.Handle("/api/v1/audit/", authFilter(adminRoleFilter(auditProxy)))
+
+	// Apply Global Gateway Middleware Stack with Rate Limiting (Test Case 10.2) & RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
-			middleware.RequestLogger(log)(
-				middleware.CORS(mux),
+		middleware.IPRateLimiter(100, 1*time.Minute)(
+			metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+				middleware.RequestLogger(log)(
+					middleware.CORS(mux),
+				),
 			),
 		),
 	)
