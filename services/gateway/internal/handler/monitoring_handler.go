@@ -73,6 +73,8 @@ func NewMonitoringHandler() *MonitoringHandler {
 			"notification": "http://localhost:8086/health",
 			"knowledge":    "http://localhost:8087/health",
 			"ai":           "http://localhost:8088/health",
+			"audit":        "http://localhost:8089/health",
+			"reporting":    "http://localhost:8090/health",
 		},
 		httpClient: &http.Client{
 			Timeout: 2 * time.Second,
@@ -96,6 +98,8 @@ func (h *MonitoringHandler) initializeServices() {
 		{ID: "notification", Name: "Notification Service", Category: "Messaging", Port: 8086, Status: "ONLINE", UptimePct: 99.99, LatencyMs: 6.1, CPUPct: 1.2, MemoryMB: 32.4, Version: "v1.0.0", ErrorRatePct: 0.00, TotalRequests: 12100, LastProbeTime: now},
 		{ID: "knowledge", Name: "Knowledge Base & SOPs", Category: "Intelligence", Port: 8087, Status: "ONLINE", UptimePct: 99.96, LatencyMs: 9.8, CPUPct: 1.6, MemoryMB: 44.0, Version: "v1.0.0", ErrorRatePct: 0.00, TotalRequests: 5410, LastProbeTime: now},
 		{ID: "ai", Name: "AI Copilot & Triage Engine", Category: "Intelligence", Port: 8088, Status: "ONLINE", UptimePct: 99.89, LatencyMs: 42.0, CPUPct: 5.4, MemoryMB: 88.2, Version: "v1.0.0", ErrorRatePct: 0.05, TotalRequests: 3280, LastProbeTime: now},
+		{ID: "audit", Name: "Audit & Compliance Service", Category: "Governance", Port: 8089, Status: "ONLINE", UptimePct: 99.98, LatencyMs: 7.4, CPUPct: 1.1, MemoryMB: 34.2, Version: "v1.0.0", ErrorRatePct: 0.00, TotalRequests: 11200, LastProbeTime: now},
+		{ID: "reporting", Name: "Reporting & BI Analytics", Category: "Analytics", Port: 8090, Status: "ONLINE", UptimePct: 99.93, LatencyMs: 16.8, CPUPct: 2.5, MemoryMB: 62.0, Version: "v1.0.0", ErrorRatePct: 0.01, TotalRequests: 4980, LastProbeTime: now},
 		{ID: "postgres", Name: "PostgreSQL 16 Cluster", Category: "Database", Port: 5432, Status: "ONLINE", UptimePct: 99.99, LatencyMs: 2.1, CPUPct: 4.8, MemoryMB: 512.0, Version: "v16.2", ErrorRatePct: 0.00, TotalRequests: 42100, LastProbeTime: now},
 		{ID: "qdrant", Name: "Qdrant Vector Database", Category: "Vector Store", Port: 6333, Status: "ONLINE", UptimePct: 99.95, LatencyMs: 3.4, CPUPct: 2.2, MemoryMB: 196.4, Version: "v1.8.0", ErrorRatePct: 0.00, TotalRequests: 7420, LastProbeTime: now},
 	}

@@ -12,8 +12,24 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Gateway service (will be enabled when service is running)
-  # - job_name: "gateway"
-  #   static_configs:
-  #     - targets: ["gateway:8080"]
-  #   metrics_path: /metrics
+  # EOMP Microservices Metrics Scrape (RED Method & System Runtime)
+  - job_name: "eomp-services"
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - "gateway:8080"
+          - "auth:8081"
+          - "employee:8082"
+          - "asset:8083"
+          - "helpdesk:8084"
+          - "workflow:8085"
+          - "notification:8086"
+          - "knowledge:8087"
+          - "ai:8088"
+          - "audit:8089"
+          - "reporting:8090"
+        labels:
+          environment: "development"
+          cluster: "eomp-local"
+

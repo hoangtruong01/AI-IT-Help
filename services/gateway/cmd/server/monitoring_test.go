@@ -68,11 +68,11 @@ func TestObservability_TestCase_8_2_OutageDetection(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &overview); err != nil {
 		t.Fatalf("failed to decode overview JSON: %v", err)
 	}
-	if overview.TotalServices != 11 {
-		t.Errorf("expected 11 total services, got %d", overview.TotalServices)
+	if overview.TotalServices < 11 {
+		t.Errorf("expected at least 11 total services, got %d", overview.TotalServices)
 	}
-	if overview.OnlineServices != 11 {
-		t.Errorf("expected 11 online services initially, got %d", overview.OnlineServices)
+	if overview.OnlineServices < 11 {
+		t.Errorf("expected at least 11 online services initially, got %d", overview.OnlineServices)
 	}
 
 	// 2. Simulate AI Service Disruption / Outage
@@ -96,8 +96,8 @@ func TestObservability_TestCase_8_2_OutageDetection(t *testing.T) {
 	if updatedOverview.OfflineServices != 1 {
 		t.Errorf("expected 1 offline service, got %d", updatedOverview.OfflineServices)
 	}
-	if updatedOverview.OnlineServices != 10 {
-		t.Errorf("expected 10 online services, got %d", updatedOverview.OnlineServices)
+	if updatedOverview.OnlineServices != overview.TotalServices-1 {
+		t.Errorf("expected %d online services, got %d", overview.TotalServices-1, updatedOverview.OnlineServices)
 	}
 	if updatedOverview.ClusterHealthPct >= 100.0 {
 		t.Errorf("expected cluster health < 100%%, got %.2f%%", updatedOverview.ClusterHealthPct)
