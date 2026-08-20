@@ -74,6 +74,12 @@ const navigationGroups = [
     title: 'Intelligence & Insights',
     items: [
       {
+        label: 'Observability & SRE',
+        icon: 'i-lucide-activity',
+        to: '/monitoring',
+        badge: 'RED'
+      },
+      {
         label: 'Knowledge Base',
         icon: 'i-lucide-book-open',
         to: '/knowledge'

@@ -294,3 +294,40 @@ Base URL: `http://localhost:8080`
 `PATCH /api/v1/changes/{id}/status`
 - If change is `EMERGENCY` or `MAJOR` and `cab_approved_count < 2`, the API rejects with `403 Forbidden` (`insufficient CAB approvals`).
 
+---
+
+## 6. Enterprise Observability & SRE Health Mesh (`services/gateway` — Port 8080)
+
+### 6.1. Prometheus 2.0 Text Exposition Format (Test Case 8.1)
+`GET /metrics`
+- Scrapes RED metrics across microservices: `http_requests_total`, `http_request_duration_seconds`, `service_uptime_seconds`, `service_memory_bytes`, `service_goroutines_count`.
+- Content-Type: `text/plain; version=0.0.4; charset=utf-8`
+
+### 6.2. Cluster Overview RED Metrics
+`GET /api/v1/monitoring/overview`
+
+**Response (`200 OK`):**
+```json
+{
+  "total_services": 11,
+  "online_services": 11,
+  "degraded_services": 0,
+  "offline_services": 0,
+  "cluster_health_pct": 100.0,
+  "total_requests_per_min": 1420,
+  "avg_latency_p95_ms": 12.4,
+  "error_rate_pct": 0.02
+}
+```
+
+### 6.3. List Microservice Health Matrix
+`GET /api/v1/monitoring/services`
+
+### 6.4. Active Health Probe (Outage Detection < 5s - Test Case 8.2)
+`POST /api/v1/monitoring/probe/{id}`
+- Actively tests target microservice `/health` endpoint and updates status immediately.
+
+### 6.5. SRE Live Log Streamer (Tail -f)
+`GET /api/v1/monitoring/logs?service=helpdesk&level=INFO&limit=50&search=cascade`
+
+

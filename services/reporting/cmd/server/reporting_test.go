@@ -1,0 +1,152 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"eomp/services/reporting/internal/handler"
+	"eomp/services/reporting/internal/model"
+	"eomp/services/reporting/internal/repository"
+	"eomp/services/reporting/internal/service"
+)
+
+func setupTestApp() *handler.ReportingHandler {
+	repo := repository.NewRepository(nil) // Uses built-in mock fallback
+	svc := service.NewService(repo)
+	return handler.NewReportingHandler(svc)
+}
+
+// Test Case 9.1: PDF & Excel Export Benchmark (Exporting up to 10,000 records in < 3s).
+func TestReporting_TestCase_9_1_ExportPerformance(t *testing.T) {
+	h := setupTestApp()
+
+	// 1. Test PDF Export
+	reqBody := `{"format":"pdf","title":"Executive Operations Report","range":"30d","limit_rows":10000}`
+	req := httptest.NewRequest("POST", "/api/v1/reports/export", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	start := time.Now()
+	h.ExportReport(rec, req)
+	elapsed := time.Since(start)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	if elapsed > 3*time.Second {
+		t.Errorf("PDF export took too long: %v (expected < 3s)", elapsed)
+	}
+
+	var res model.ExportReportResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("failed to decode export response: %v", err)
+	}
+
+	if res.MimeType != "application/pdf" {
+		t.Errorf("expected application/pdf, got: %s", res.MimeType)
+	}
+	if len(res.ContentBase64) == 0 {
+		t.Errorf("expected non-empty base64 content")
+	}
+	if res.TotalRecords != 10000 {
+		t.Errorf("expected 10000 records processed, got %d", res.TotalRecords)
+	}
+
+	// 2. Test CSV / Excel Export
+	reqCSVBody := `{"format":"csv","title":"Raw Operations Data","range":"30d","limit_rows":10000}`
+	reqCSV := httptest.NewRequest("POST", "/api/v1/reports/export", strings.NewReader(reqCSVBody))
+	reqCSV.Header.Set("Content-Type", "application/json")
+	recCSV := httptest.NewRecorder()
+
+	startCSV := time.Now()
+	h.ExportReport(recCSV, reqCSV)
+	elapsedCSV := time.Since(startCSV)
+
+	if recCSV.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK for CSV, got %d", recCSV.Code)
+	}
+	if elapsedCSV > 3*time.Second {
+		t.Errorf("CSV export took too long: %v (expected < 3s)", elapsedCSV)
+	}
+
+	var resCSV model.ExportReportResponse
+	if err := json.Unmarshal(recCSV.Body.Bytes(), &resCSV); err != nil {
+		t.Fatalf("failed to decode CSV export response: %v", err)
+	}
+	if resCSV.MimeType != "text/csv" {
+		t.Errorf("expected text/csv, got: %s", resCSV.MimeType)
+	}
+}
+
+// Test Case 9.2: Date filter with zero data returns clean empty state without NaN.
+func TestReporting_TestCase_9_2_EmptyState_NoNaN(t *testing.T) {
+	h := setupTestApp()
+
+	// Query overview with empty range
+	req := httptest.NewRequest("GET", "/api/v1/reports/overview?range=empty", nil)
+	rec := httptest.NewRecorder()
+
+	h.GetOverview(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", rec.Code)
+	}
+
+	var ov model.ExecutiveOverview
+	if err := json.Unmarshal(rec.Body.Bytes(), &ov); err != nil {
+		t.Fatalf("failed to decode overview: %v", err)
+	}
+
+	// Assert that values are valid 0.0 and NOT NaN or crashed
+	if ov.TotalIncidents != 0 {
+		t.Errorf("expected 0 total incidents in empty state, got %d", ov.TotalIncidents)
+	}
+	if ov.SLACompliancePct != 0.0 {
+		t.Errorf("expected 0.0 SLA compliance in empty state, got %f", ov.SLACompliancePct)
+	}
+	if ov.AvgMTTRMinutes != 0.0 {
+		t.Errorf("expected 0.0 MTTR in empty state, got %f", ov.AvgMTTRMinutes)
+	}
+}
+
+// Test reporting sub-endpoints: Trends, Categories, Departments, Agents.
+func TestReporting_Endpoints(t *testing.T) {
+	h := setupTestApp()
+
+	// Trends
+	reqTrends := httptest.NewRequest("GET", "/api/v1/reports/trends", nil)
+	recTrends := httptest.NewRecorder()
+	h.GetTrends(recTrends, reqTrends)
+	if recTrends.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for trends, got %d", recTrends.Code)
+	}
+
+	// Categories
+	reqCat := httptest.NewRequest("GET", "/api/v1/reports/categories", nil)
+	recCat := httptest.NewRecorder()
+	h.GetCategories(recCat, reqCat)
+	if recCat.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for categories, got %d", recCat.Code)
+	}
+
+	// Departments SLA
+	reqDepts := httptest.NewRequest("GET", "/api/v1/reports/departments-sla", nil)
+	recDepts := httptest.NewRecorder()
+	h.GetDepartmentsSLA(recDepts, reqDepts)
+	if recDepts.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for departments-sla, got %d", recDepts.Code)
+	}
+
+	// Agents Scorecard
+	reqAgents := httptest.NewRequest("GET", "/api/v1/reports/agents", nil)
+	recAgents := httptest.NewRecorder()
+	h.GetAgents(recAgents, reqAgents)
+	if recAgents.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for agents, got %d", recAgents.Code)
+	}
+}

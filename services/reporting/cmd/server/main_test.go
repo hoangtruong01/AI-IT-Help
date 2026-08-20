@@ -34,7 +34,7 @@ func TestHealthCheck(t *testing.T) {
 	if res.Service != "reporting" {
 		t.Errorf("expected service 'reporting', got '%s'", res.Service)
 	}
-	if res.Version != "0.1.0" {
-		t.Errorf("expected version '0.1.0', got '%s'", res.Version)
+	if res.Version != cfg.Version {
+		t.Errorf("expected version '%s', got '%s'", cfg.Version, res.Version)
 	}
 }

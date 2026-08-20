@@ -246,10 +246,10 @@ Hoàn thiện quy trình vận hành tin cậy và bàn giao nền tảng:
 | **Phase 4** | Workflow State Machine Engine, Multi-level Approvals & Audit Logs | **HOÀN THÀNH (Commit `e482adc`)** |
 | **Phase 5** | Event-Driven Architecture, CloudEvents EventBus & Notification Service | **HOÀN THÀNH (Commit `e67d9fc`)** |
 | **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **HOÀN THÀNH (Commit `d6afacc`)** |
-| **Phase 7** | ITIL Problem Management, RCA & Change Advisory Board (CAB) | **HOÀN THÀNH (Done)** |
-| **Phase 8** | Enterprise Observability (Prometheus, Grafana RED, Loki Logs) | **READY TO START (Tiếp theo)** |
-| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **SẴN SÀNG TRIỂN KHAI** |
-| **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **SẴN SÀNG TRIỂN KHAI** |
+| **Phase 7** | ITIL Problem Management, RCA & Change Advisory Board (CAB) | **HOÀN THÀNH (Commit `7c2eccd`)** |
+| **Phase 8** | Enterprise Observability (Prometheus, Grafana RED, Loki Logs) | **HOÀN THÀNH (Done)** |
+| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **HOÀN THÀNH (Done)** |
+| **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **READY TO START (Tiếp theo)** |
 | **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load) | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI Spec Hub | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 13** | Production Packaging, Docker Multi-stage & Kubernetes Helm Charts | **SẴN SÀNG TRIỂN KHAI** |

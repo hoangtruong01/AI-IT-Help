@@ -14,6 +14,7 @@ import (
 	"eomp/packages/shared/pkg/auth"
 	"eomp/packages/shared/pkg/database"
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/auth/internal/config"
 	"eomp/services/auth/internal/handler"
@@ -57,9 +58,10 @@ func main() {
 	// 3. Register HTTP Routes
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health & Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Public auth routes
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
@@ -80,10 +82,12 @@ func main() {
 		meHandler.ServeHTTP(w, r)
 	})))
 
-	// Apply global middleware stack
+	// Apply global middleware stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.CORS(mux),
+			),
 		),
 	)
 

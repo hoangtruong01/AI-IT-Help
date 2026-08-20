@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/ai/internal/config"
 	"eomp/services/ai/internal/handler"
@@ -37,6 +38,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Standard API v1 routes
 	mux.HandleFunc("POST /api/v1/ai/chat", aiHandler.Chat)
@@ -46,11 +48,13 @@ func main() {
 	mux.HandleFunc("POST /api/ai/chat", aiHandler.Chat)
 	mux.HandleFunc("POST /api/ai/analyze-ticket", aiHandler.AnalyzeTicket)
 
-	// 4. Apply middleware stack
+	// 4. Apply middleware stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.ExtractGatewayHeaders()(
-				middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.ExtractGatewayHeaders()(
+					middleware.CORS(mux),
+				),
 			),
 		),
 	)
