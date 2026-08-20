@@ -890,8 +890,8 @@ export interface AuditLog {
   status: 'SUCCESS' | 'FORBIDDEN' | 'FAILED' | string
   resource_type: string
   resource_id: string
-  old_values?: Record<string, any>
-  new_values?: Record<string, any>
+  old_values?: Record<string, unknown>
+  new_values?: Record<string, unknown>
   checksum_sha256: string
   created_at: string
 }
@@ -917,5 +917,3 @@ export interface AuditStats {
   success_count: number
   forbidden_count: number
 }
-
-

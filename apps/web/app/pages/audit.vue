@@ -195,8 +195,9 @@ async function simulateRBACForbidden() {
       headers: { 'X-User-Role': 'ROLE_EMPLOYEE' }
     })
     simulationResult.value = 'ERROR: Access was granted but should have been blocked!'
-  } catch (err: any) {
-    const status = err?.status || err?.statusCode || 403
+  } catch (err: unknown) {
+    const errObj = err as { status?: number, statusCode?: number, message?: string }
+    const status = errObj?.status || errObj?.statusCode || 403
     if (status === 403) {
       simulationResult.value = 'PASSED: Gateway correctly blocked access with 403 Forbidden (INSUFFICIENT_PERMISSIONS).'
       toast.add({
@@ -205,7 +206,7 @@ async function simulateRBACForbidden() {
         color: 'success'
       })
     } else {
-      simulationResult.value = `Returned status ${status}: ${err?.message}`
+      simulationResult.value = `Returned status ${status}: ${errObj?.message || 'Unknown error'}`
     }
   } finally {
     isSimulating.value = false
@@ -216,15 +217,14 @@ async function simulateRBACForbidden() {
 async function simulateRateLimitSpam() {
   isSimulating.value = true
   simulationResult.value = null
-  let blockedAt = 0
 
   try {
     for (let i = 1; i <= 6; i++) {
       try {
         await api.get('/health')
-      } catch (err: any) {
-        if (err?.status === 429 || err?.statusCode === 429) {
-          blockedAt = i
+      } catch (err: unknown) {
+        const errObj = err as { status?: number, statusCode?: number }
+        if (errObj?.status === 429 || errObj?.statusCode === 429) {
           break
         }
       }
@@ -252,7 +252,10 @@ onMounted(() => {
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-1">
-          <UIcon name="i-lucide-shield-check" class="w-4 h-4 animate-pulse" />
+          <UIcon
+            name="i-lucide-shield-check"
+            class="w-4 h-4 animate-pulse"
+          />
           <span>SOC2 Type II & ISO 27001 Compliance Engine</span>
         </div>
         <h1 class="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
@@ -266,29 +269,38 @@ onMounted(() => {
       <!-- Action Buttons -->
       <div class="flex flex-wrap items-center gap-2.5">
         <button
-          @click="fetchAuditData"
           :disabled="loading"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-white text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+          @click="fetchAuditData"
         >
-          <UIcon name="i-lucide-refresh-cw" :class="['w-4 h-4 text-cyan-400', loading ? 'animate-spin' : '']" />
+          <UIcon
+            name="i-lucide-refresh-cw"
+            :class="['w-4 h-4 text-cyan-400', loading ? 'animate-spin' : '']"
+          />
           <span>Refresh Stream</span>
         </button>
 
         <button
-          @click="simulateRBACForbidden"
           :disabled="isSimulating"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+          @click="simulateRBACForbidden"
         >
-          <UIcon name="i-lucide-shield-alert" class="w-4 h-4 text-rose-400" />
+          <UIcon
+            name="i-lucide-shield-alert"
+            class="w-4 h-4 text-rose-400"
+          />
           <span>Test 403 RBAC Chokepoint</span>
         </button>
 
         <button
-          @click="simulateRateLimitSpam"
           :disabled="isSimulating"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+          @click="simulateRateLimitSpam"
         >
-          <UIcon name="i-lucide-gauge" class="w-4 h-4 text-amber-400" />
+          <UIcon
+            name="i-lucide-gauge"
+            class="w-4 h-4 text-amber-400"
+          />
           <span>Test 429 Rate Limiter</span>
         </button>
       </div>
@@ -300,14 +312,20 @@ onMounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-emerald-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Immutable Audit Events</span>
-          <UIcon name="i-lucide-database" class="w-4 h-4 text-emerald-400" />
+          <UIcon
+            name="i-lucide-database"
+            class="w-4 h-4 text-emerald-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">{{ stats.total_logs }}</span>
           <span class="text-xs text-slate-400 font-medium">records</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-          <UIcon name="i-lucide-check-circle" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-check-circle"
+            class="w-3.5 h-3.5"
+          />
           <span>100% cryptographically sealed</span>
         </div>
       </div>
@@ -316,14 +334,20 @@ onMounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-rose-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Blocked RBAC Violations</span>
-          <UIcon name="i-lucide-shield-alert" class="w-4 h-4 text-rose-400" />
+          <UIcon
+            name="i-lucide-shield-alert"
+            class="w-4 h-4 text-rose-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-rose-400 tracking-tight">{{ stats.blocked_violations }}</span>
           <span class="text-xs text-slate-400 font-medium">attempts blocked</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-rose-400 font-semibold">
-          <UIcon name="i-lucide-lock" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-lock"
+            class="w-3.5 h-3.5"
+          />
           <span>HTTP 403 Forbidden enforced</span>
         </div>
       </div>
@@ -332,7 +356,10 @@ onMounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-amber-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Active Threat Signals</span>
-          <UIcon name="i-lucide-zap" class="w-4 h-4 text-amber-400" />
+          <UIcon
+            name="i-lucide-zap"
+            class="w-4 h-4 text-amber-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">{{ stats.active_security_alerts }}</span>
@@ -348,14 +375,20 @@ onMounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Data Masking & Sanitization</span>
-          <UIcon name="i-lucide-eye-off" class="w-4 h-4 text-cyan-400" />
+          <UIcon
+            name="i-lucide-eye-off"
+            class="w-4 h-4 text-cyan-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-cyan-400 tracking-tight">ACTIVE</span>
           <span class="text-xs text-slate-400 font-medium">Zero-Leak</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-cyan-400 font-semibold">
-          <UIcon name="i-lucide-sparkles" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-sparkles"
+            class="w-3.5 h-3.5"
+          />
           <span>Passwords & JWTs Sanitized</span>
         </div>
       </div>
@@ -366,55 +399,92 @@ onMounted(() => {
       <div class="flex flex-wrap items-center gap-3 flex-1">
         <!-- Search Input -->
         <div class="relative w-full sm:w-64">
-          <UIcon name="i-lucide-search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <UIcon
+            name="i-lucide-search"
+            class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"
+          />
           <input
             v-model="search"
-            @input="fetchAuditData"
             type="text"
             placeholder="Search email, IP, action, resource..."
             class="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
-          />
+            @input="fetchAuditData"
+          >
         </div>
 
         <!-- Event Type Filter -->
         <select
           v-model="selectedEventType"
-          @change="fetchAuditData"
           class="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-emerald-400"
+          @change="fetchAuditData"
         >
-          <option value="ALL">All Event Types</option>
-          <option value="AUTH_LOGIN_SUCCESS">AUTH_LOGIN_SUCCESS</option>
-          <option value="ROLE_CHANGE">ROLE_CHANGE</option>
-          <option value="ASSET_DELETE">ASSET_DELETE</option>
-          <option value="APPROVAL_DECISION">APPROVAL_DECISION</option>
-          <option value="RBAC_ACCESS_DENIED">RBAC_ACCESS_DENIED</option>
+          <option value="ALL">
+            All Event Types
+          </option>
+          <option value="AUTH_LOGIN_SUCCESS">
+            AUTH_LOGIN_SUCCESS
+          </option>
+          <option value="ROLE_CHANGE">
+            ROLE_CHANGE
+          </option>
+          <option value="ASSET_DELETE">
+            ASSET_DELETE
+          </option>
+          <option value="APPROVAL_DECISION">
+            APPROVAL_DECISION
+          </option>
+          <option value="RBAC_ACCESS_DENIED">
+            RBAC_ACCESS_DENIED
+          </option>
         </select>
 
         <!-- Status Filter -->
         <select
           v-model="selectedStatus"
-          @change="fetchAuditData"
           class="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-emerald-400"
+          @change="fetchAuditData"
         >
-          <option value="ALL">All Statuses</option>
-          <option value="SUCCESS">SUCCESS</option>
-          <option value="FORBIDDEN">FORBIDDEN</option>
-          <option value="FAILED">FAILED</option>
+          <option value="ALL">
+            All Statuses
+          </option>
+          <option value="SUCCESS">
+            SUCCESS
+          </option>
+          <option value="FORBIDDEN">
+            FORBIDDEN
+          </option>
+          <option value="FAILED">
+            FAILED
+          </option>
         </select>
 
         <!-- Service Filter -->
         <select
           v-model="selectedService"
-          @change="fetchAuditData"
           class="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-emerald-400"
+          @change="fetchAuditData"
         >
-          <option value="ALL">All Microservices</option>
-          <option value="auth">auth</option>
-          <option value="gateway">gateway</option>
-          <option value="asset">asset</option>
-          <option value="workflow">workflow</option>
-          <option value="helpdesk">helpdesk</option>
-          <option value="reporting">reporting</option>
+          <option value="ALL">
+            All Microservices
+          </option>
+          <option value="auth">
+            auth
+          </option>
+          <option value="gateway">
+            gateway
+          </option>
+          <option value="asset">
+            asset
+          </option>
+          <option value="workflow">
+            workflow
+          </option>
+          <option value="helpdesk">
+            helpdesk
+          </option>
+          <option value="reporting">
+            reporting
+          </option>
         </select>
       </div>
 
@@ -429,14 +499,30 @@ onMounted(() => {
         <table class="w-full text-left text-xs">
           <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-800">
             <tr>
-              <th class="py-3.5 px-4">Audit ID</th>
-              <th class="py-3.5 px-4">Action / Event</th>
-              <th class="py-3.5 px-4">Actor (Role)</th>
-              <th class="py-3.5 px-4">Service</th>
-              <th class="py-3.5 px-4">IP Address</th>
-              <th class="py-3.5 px-4">Timestamp</th>
-              <th class="py-3.5 px-4 text-center">Status</th>
-              <th class="py-3.5 px-4 text-right">Details & Diffs</th>
+              <th class="py-3.5 px-4">
+                Audit ID
+              </th>
+              <th class="py-3.5 px-4">
+                Action / Event
+              </th>
+              <th class="py-3.5 px-4">
+                Actor (Role)
+              </th>
+              <th class="py-3.5 px-4">
+                Service
+              </th>
+              <th class="py-3.5 px-4">
+                IP Address
+              </th>
+              <th class="py-3.5 px-4">
+                Timestamp
+              </th>
+              <th class="py-3.5 px-4 text-center">
+                Status
+              </th>
+              <th class="py-3.5 px-4 text-right">
+                Details & Diffs
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60 font-medium">
@@ -447,7 +533,10 @@ onMounted(() => {
             >
               <!-- Audit ID with Hash indicator -->
               <td class="py-3.5 px-4 font-mono font-bold text-indigo-400 flex items-center gap-1.5">
-                <UIcon name="i-lucide-lock" class="w-3.5 h-3.5 text-emerald-400" />
+                <UIcon
+                  name="i-lucide-lock"
+                  class="w-3.5 h-3.5 text-emerald-400"
+                />
                 <span class="truncate max-w-[120px]">{{ log.id }}</span>
               </td>
 
@@ -456,7 +545,9 @@ onMounted(() => {
                 <span class="font-mono font-extrabold text-white group-hover:text-emerald-400 transition-colors">
                   {{ log.event_type }}
                 </span>
-                <p class="text-[10px] text-slate-400 font-mono">{{ log.resource_type }}: {{ log.resource_id }}</p>
+                <p class="text-[10px] text-slate-400 font-mono">
+                  {{ log.resource_type }}: {{ log.resource_id }}
+                </p>
               </td>
 
               <!-- Actor (Role) -->
@@ -495,9 +586,9 @@ onMounted(() => {
                 <span
                   :class="[
                     'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider',
-                    log.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                    log.status === 'FORBIDDEN' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                    'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    log.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : log.status === 'FORBIDDEN' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   ]"
                 >
                   {{ log.status }}
@@ -507,10 +598,13 @@ onMounted(() => {
               <!-- View Diff Button -->
               <td class="py-3.5 px-4 text-right">
                 <button
-                  @click="openDiffModal(log)"
                   class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-semibold border border-slate-700 transition-all inline-flex items-center gap-1.5"
+                  @click="openDiffModal(log)"
                 >
-                  <UIcon name="i-lucide-git-compare" class="w-3.5 h-3.5 text-cyan-400" />
+                  <UIcon
+                    name="i-lucide-git-compare"
+                    class="w-3.5 h-3.5 text-cyan-400"
+                  />
                   <span>View Diffs</span>
                 </button>
               </td>
@@ -521,8 +615,14 @@ onMounted(() => {
     </div>
 
     <!-- Visual Code Diff & Tamper Proof Modal -->
-    <UModal v-model="isDiffModalOpen" :ui="{ content: 'sm:max-w-2xl' }">
-      <div v-if="selectedAuditLog" class="p-6 space-y-5 bg-slate-900 border border-slate-800 text-white rounded-2xl">
+    <UModal
+      v-model="isDiffModalOpen"
+      :ui="{ content: 'sm:max-w-2xl' }"
+    >
+      <div
+        v-if="selectedAuditLog"
+        class="p-6 space-y-5 bg-slate-900 border border-slate-800 text-white rounded-2xl"
+      >
         <!-- Modal Header -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
@@ -534,8 +634,14 @@ onMounted(() => {
               </span>
             </h3>
           </div>
-          <button @click="isDiffModalOpen = false" class="text-slate-400 hover:text-white">
-            <UIcon name="i-lucide-x" class="w-5 h-5" />
+          <button
+            class="text-slate-400 hover:text-white"
+            @click="isDiffModalOpen = false"
+          >
+            <UIcon
+              name="i-lucide-x"
+              class="w-5 h-5"
+            />
           </button>
         </div>
 
@@ -564,7 +670,10 @@ onMounted(() => {
           <div class="flex items-center justify-between text-xs font-bold text-slate-300">
             <span>State Changes (Old vs New Values Diff)</span>
             <span class="text-[10px] text-cyan-400 flex items-center gap-1 font-semibold">
-              <UIcon name="i-lucide-eye-off" class="w-3.5 h-3.5" />
+              <UIcon
+                name="i-lucide-eye-off"
+                class="w-3.5 h-3.5"
+              />
               <span>Masked Sensitive Fields</span>
             </span>
           </div>
@@ -573,7 +682,10 @@ onMounted(() => {
             <!-- Old Values -->
             <div class="p-3.5 rounded-xl bg-slate-950 border border-rose-500/20 text-xs font-mono">
               <div class="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <UIcon name="i-lucide-minus-circle" class="w-3 h-3" />
+                <UIcon
+                  name="i-lucide-minus-circle"
+                  class="w-3 h-3"
+                />
                 <span>Old Values (Before Action)</span>
               </div>
               <pre class="text-slate-300 text-[11px] overflow-x-auto whitespace-pre-wrap">{{ JSON.stringify(selectedAuditLog.old_values || {}, null, 2) }}</pre>
@@ -582,7 +694,10 @@ onMounted(() => {
             <!-- New Values -->
             <div class="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/20 text-xs font-mono">
               <div class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <UIcon name="i-lucide-plus-circle" class="w-3 h-3" />
+                <UIcon
+                  name="i-lucide-plus-circle"
+                  class="w-3 h-3"
+                />
                 <span>New Values (After Action)</span>
               </div>
               <pre class="text-slate-200 text-[11px] overflow-x-auto whitespace-pre-wrap">{{ JSON.stringify(selectedAuditLog.new_values || {}, null, 2) }}</pre>
@@ -594,14 +709,20 @@ onMounted(() => {
         <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
           <div class="flex items-center justify-between text-xs font-bold text-slate-300">
             <span class="flex items-center gap-1.5 text-emerald-400">
-              <UIcon name="i-lucide-shield-check" class="w-4 h-4" />
+              <UIcon
+                name="i-lucide-shield-check"
+                class="w-4 h-4"
+              />
               <span>Immutable SHA-256 Cryptographic Checksum</span>
             </span>
             <button
-              @click="copyChecksum(selectedAuditLog.checksum_sha256)"
               class="text-[10px] text-cyan-400 hover:underline flex items-center gap-1"
+              @click="copyChecksum(selectedAuditLog.checksum_sha256)"
             >
-              <UIcon name="i-lucide-copy" class="w-3 h-3" />
+              <UIcon
+                name="i-lucide-copy"
+                class="w-3 h-3"
+              />
               <span>Copy Hash</span>
             </button>
           </div>

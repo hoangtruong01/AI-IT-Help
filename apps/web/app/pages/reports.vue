@@ -193,7 +193,7 @@ async function handleExport(format: 'pdf' | 'csv') {
 
 // Filtered & Sorted Agents
 const filteredAgents = computed(() => {
-  let list = agents.value.filter(a => {
+  const list = agents.value.filter((a) => {
     if (!agentSearch.value) return true
     const q = agentSearch.value.toLowerCase()
     return a.agent_name.toLowerCase().includes(q) || a.job_title.toLowerCase().includes(q) || a.department.toLowerCase().includes(q)
@@ -242,7 +242,10 @@ onUnmounted(() => {
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400 mb-1">
-          <UIcon name="i-lucide-bar-chart-3" class="w-4 h-4 animate-pulse" />
+          <UIcon
+            name="i-lucide-bar-chart-3"
+            class="w-4 h-4 animate-pulse"
+          />
           <span>Executive Intelligence & SLA Engine</span>
         </div>
         <h1 class="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
@@ -266,13 +269,13 @@ onUnmounted(() => {
               { id: 'empty', label: 'Empty Test' }
             ]"
             :key="p.id"
-            @click="selectPeriod(p.id as any)"
             :class="[
               'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
               selectedPeriod === p.id
                 ? 'bg-amber-500 text-slate-950 shadow-md'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800'
             ]"
+            @click="selectPeriod(p.id as any)"
           >
             {{ p.label }}
           </button>
@@ -280,20 +283,26 @@ onUnmounted(() => {
 
         <!-- Export Buttons (Test Case 9.1) -->
         <button
-          @click="handleExport('pdf')"
           :disabled="isExportingPDF"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-white text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+          @click="handleExport('pdf')"
         >
-          <UIcon :name="isExportingPDF ? 'i-lucide-loader-2' : 'i-lucide-file-text'" :class="['w-4 h-4 text-rose-400', isExportingPDF ? 'animate-spin' : '']" />
+          <UIcon
+            :name="isExportingPDF ? 'i-lucide-loader-2' : 'i-lucide-file-text'"
+            :class="['w-4 h-4 text-rose-400', isExportingPDF ? 'animate-spin' : '']"
+          />
           <span>Export PDF</span>
         </button>
 
         <button
-          @click="handleExport('csv')"
           :disabled="isExportingCSV"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-white text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+          @click="handleExport('csv')"
         >
-          <UIcon :name="isExportingCSV ? 'i-lucide-loader-2' : 'i-lucide-table'" :class="['w-4 h-4 text-emerald-400', isExportingCSV ? 'animate-spin' : '']" />
+          <UIcon
+            :name="isExportingCSV ? 'i-lucide-loader-2' : 'i-lucide-table'"
+            :class="['w-4 h-4 text-emerald-400', isExportingCSV ? 'animate-spin' : '']"
+          />
           <span>Export Excel</span>
         </button>
 
@@ -303,7 +312,10 @@ onUnmounted(() => {
           target="_blank"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold shadow-md transition-all"
         >
-          <UIcon name="i-lucide-external-link" class="w-4 h-4" />
+          <UIcon
+            name="i-lucide-external-link"
+            class="w-4 h-4"
+          />
           <span>Grafana (:3002)</span>
         </a>
       </div>
@@ -315,15 +327,20 @@ onUnmounted(() => {
       class="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 text-center space-y-3 backdrop-blur-xl animate-fade-in"
     >
       <div class="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-        <UIcon name="i-lucide-inbox" class="w-6 h-6" />
+        <UIcon
+          name="i-lucide-inbox"
+          class="w-6 h-6"
+        />
       </div>
-      <h3 class="text-base font-bold text-white">No Telemetry Records in Selected Period</h3>
+      <h3 class="text-base font-bold text-white">
+        No Telemetry Records in Selected Period
+      </h3>
       <p class="text-xs text-slate-400 max-w-md mx-auto">
         There were no incidents or SLA events recorded for this specific range. All metrics cleanly defaulted to 0.0 without any system anomalies.
       </p>
       <button
-        @click="selectPeriod('30d')"
         class="mt-2 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shadow-md hover:bg-amber-400 transition-all"
+        @click="selectPeriod('30d')"
       >
         Reset to 30 Days Overview
       </button>
@@ -335,7 +352,10 @@ onUnmounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-amber-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Mean Time to Resolve</span>
-          <UIcon name="i-lucide-timer" class="w-4 h-4 text-amber-400" />
+          <UIcon
+            name="i-lucide-timer"
+            class="w-4 h-4 text-amber-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">
@@ -344,7 +364,10 @@ onUnmounted(() => {
           <span class="text-xs text-slate-400 font-medium">minutes</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-          <UIcon name="i-lucide-trending-down" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-trending-down"
+            class="w-3.5 h-3.5"
+          />
           <span>{{ overview.mttr_improvement_pct > 0 ? `↓ ${overview.mttr_improvement_pct}% vs last period` : 'Optimal baseline' }}</span>
         </div>
       </div>
@@ -353,7 +376,10 @@ onUnmounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-cyan-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>Mean Time to Detect</span>
-          <UIcon name="i-lucide-scan" class="w-4 h-4 text-cyan-400" />
+          <UIcon
+            name="i-lucide-scan"
+            class="w-4 h-4 text-cyan-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">
@@ -362,7 +388,10 @@ onUnmounted(() => {
           <span class="text-xs text-slate-400 font-medium">minutes</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-cyan-400 font-semibold">
-          <UIcon name="i-lucide-zap" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-zap"
+            class="w-3.5 h-3.5"
+          />
           <span>Realtime AI triage</span>
         </div>
       </div>
@@ -371,7 +400,10 @@ onUnmounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-emerald-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>SLA Compliance Rate</span>
-          <UIcon name="i-lucide-shield-check" class="w-4 h-4 text-emerald-400" />
+          <UIcon
+            name="i-lucide-shield-check"
+            class="w-4 h-4 text-emerald-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">
@@ -389,7 +421,10 @@ onUnmounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-indigo-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>First Contact Resolution</span>
-          <UIcon name="i-lucide-check-check" class="w-4 h-4 text-indigo-400" />
+          <UIcon
+            name="i-lucide-check-check"
+            class="w-4 h-4 text-indigo-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">
@@ -398,7 +433,10 @@ onUnmounted(() => {
           <span class="text-xs text-slate-400 font-medium">L1 + AI Copilot</span>
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-indigo-400 font-semibold">
-          <UIcon name="i-lucide-sparkles" class="w-3.5 h-3.5" />
+          <UIcon
+            name="i-lucide-sparkles"
+            class="w-3.5 h-3.5"
+          />
           <span>↑ 5.2% automated</span>
         </div>
       </div>
@@ -407,7 +445,10 @@ onUnmounted(() => {
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-yellow-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
           <span>CSAT Satisfaction</span>
-          <UIcon name="i-lucide-star" class="w-4 h-4 text-yellow-400" />
+          <UIcon
+            name="i-lucide-star"
+            class="w-4 h-4 text-yellow-400"
+          />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <span class="text-3xl font-extrabold text-white tracking-tight">
@@ -416,11 +457,26 @@ onUnmounted(() => {
           <span class="text-xs text-slate-400 font-medium">/ 5.00</span>
         </div>
         <div class="mt-2 flex items-center gap-1 text-yellow-400 text-xs font-semibold">
-          <UIcon name="i-lucide-star" class="w-3.5 h-3.5 fill-yellow-400" />
-          <UIcon name="i-lucide-star" class="w-3.5 h-3.5 fill-yellow-400" />
-          <UIcon name="i-lucide-star" class="w-3.5 h-3.5 fill-yellow-400" />
-          <UIcon name="i-lucide-star" class="w-3.5 h-3.5 fill-yellow-400" />
-          <UIcon name="i-lucide-star" class="w-3.5 h-3.5 fill-yellow-400/50" />
+          <UIcon
+            name="i-lucide-star"
+            class="w-3.5 h-3.5 fill-yellow-400"
+          />
+          <UIcon
+            name="i-lucide-star"
+            class="w-3.5 h-3.5 fill-yellow-400"
+          />
+          <UIcon
+            name="i-lucide-star"
+            class="w-3.5 h-3.5 fill-yellow-400"
+          />
+          <UIcon
+            name="i-lucide-star"
+            class="w-3.5 h-3.5 fill-yellow-400"
+          />
+          <UIcon
+            name="i-lucide-star"
+            class="w-3.5 h-3.5 fill-yellow-400/50"
+          />
           <span class="text-slate-400 text-[10px] ml-1">(420 ratings)</span>
         </div>
       </div>
@@ -434,10 +490,15 @@ onUnmounted(() => {
           <div class="flex items-center justify-between">
             <div>
               <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <UIcon name="i-lucide-trending-up" class="w-5 h-5 text-amber-400" />
+                <UIcon
+                  name="i-lucide-trending-up"
+                  class="w-5 h-5 text-amber-400"
+                />
                 <span>Incident Volume & SLA Resolution Trend</span>
               </h2>
-              <p class="text-xs text-slate-400 mt-0.5">Daily generated incidents vs resolved inside agreed SLA threshold</p>
+              <p class="text-xs text-slate-400 mt-0.5">
+                Daily generated incidents vs resolved inside agreed SLA threshold
+              </p>
             </div>
             <div class="flex items-center gap-4 text-xs font-semibold">
               <div class="flex items-center gap-1.5 text-slate-300">
@@ -496,17 +557,24 @@ onUnmounted(() => {
       <div class="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl flex flex-col justify-between">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <UIcon name="i-lucide-pie-chart" class="w-5 h-5 text-indigo-400" />
+            <UIcon
+              name="i-lucide-pie-chart"
+              class="w-5 h-5 text-indigo-400"
+            />
             <span>Priority Distribution</span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Incident severity classification</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Incident severity classification
+          </p>
 
           <!-- Donut Representation -->
           <div class="my-6 flex items-center justify-center">
             <div class="relative w-36 h-36 rounded-full border-8 border-slate-800 flex items-center justify-center shadow-inner">
               <div class="text-center">
                 <span class="text-2xl font-extrabold text-white">{{ overview.total_incidents }}</span>
-                <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total</p>
+                <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                  Total
+                </p>
               </div>
             </div>
           </div>
@@ -543,10 +611,15 @@ onUnmounted(() => {
       <div class="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl space-y-5">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <UIcon name="i-lucide-building-2" class="w-5 h-5 text-emerald-400" />
+            <UIcon
+              name="i-lucide-building-2"
+              class="w-5 h-5 text-emerald-400"
+            />
             <span>Department SLA Compliance</span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Performance index per organizational department</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Performance index per organizational department
+          </p>
         </div>
 
         <div class="space-y-4">
@@ -585,10 +658,15 @@ onUnmounted(() => {
       <div class="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl space-y-5">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <UIcon name="i-lucide-alert-triangle" class="w-5 h-5 text-rose-400" />
+            <UIcon
+              name="i-lucide-alert-triangle"
+              class="w-5 h-5 text-rose-400"
+            />
             <span>Top Incident Categories</span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">High-frequency problem areas requiring runbook automation</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            High-frequency problem areas requiring runbook automation
+          </p>
         </div>
 
         <div class="space-y-3.5">
@@ -599,17 +677,26 @@ onUnmounted(() => {
           >
             <div class="flex items-center gap-3">
               <div class="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                <UIcon :name="c.icon || 'i-lucide-folder'" class="w-5 h-5" />
+                <UIcon
+                  :name="c.icon || 'i-lucide-folder'"
+                  class="w-5 h-5"
+                />
               </div>
               <div>
-                <h4 class="text-xs font-bold text-white">{{ c.category_name }}</h4>
-                <p class="text-[10px] text-slate-400">Avg Resolution: {{ c.avg_resolution_minutes.toFixed(1) }} minutes</p>
+                <h4 class="text-xs font-bold text-white">
+                  {{ c.category_name }}
+                </h4>
+                <p class="text-[10px] text-slate-400">
+                  Avg Resolution: {{ c.avg_resolution_minutes.toFixed(1) }} minutes
+                </p>
               </div>
             </div>
 
             <div class="text-right">
               <span class="text-xs font-extrabold text-white">{{ c.total_count }} incidents</span>
-              <p class="text-[10px] font-semibold text-amber-400">{{ c.share_pct.toFixed(1) }}% share</p>
+              <p class="text-[10px] font-semibold text-amber-400">
+                {{ c.share_pct.toFixed(1) }}% share
+              </p>
             </div>
           </div>
         </div>
@@ -621,22 +708,30 @@ onUnmounted(() => {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <UIcon name="i-lucide-award" class="w-5 h-5 text-yellow-400" />
+            <UIcon
+              name="i-lucide-award"
+              class="w-5 h-5 text-yellow-400"
+            />
             <span>IT Support Specialist Scorecard</span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Technician productivity, MTTR efficiency, CSAT satisfaction & SLA ratings</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Technician productivity, MTTR efficiency, CSAT satisfaction & SLA ratings
+          </p>
         </div>
 
         <div class="flex items-center gap-3">
           <!-- Search Input -->
           <div class="relative w-48 sm:w-60">
-            <UIcon name="i-lucide-search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <UIcon
+              name="i-lucide-search"
+              class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"
+            />
             <input
               v-model="agentSearch"
               type="text"
               placeholder="Search technician..."
               class="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-            />
+            >
           </div>
 
           <!-- Sort Select -->
@@ -644,10 +739,18 @@ onUnmounted(() => {
             v-model="agentSortBy"
             class="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-amber-400"
           >
-            <option value="resolved">Sort: Tickets Closed</option>
-            <option value="csat">Sort: CSAT Rating</option>
-            <option value="sla">Sort: SLA Compliance</option>
-            <option value="mttr">Sort: Fastest MTTR</option>
+            <option value="resolved">
+              Sort: Tickets Closed
+            </option>
+            <option value="csat">
+              Sort: CSAT Rating
+            </option>
+            <option value="sla">
+              Sort: SLA Compliance
+            </option>
+            <option value="mttr">
+              Sort: Fastest MTTR
+            </option>
           </select>
         </div>
       </div>
@@ -657,13 +760,27 @@ onUnmounted(() => {
         <table class="w-full text-left text-xs">
           <thead class="border-b border-slate-800 text-slate-400 uppercase text-[10px] font-bold">
             <tr>
-              <th class="py-3 px-4">Technician</th>
-              <th class="py-3 px-4">Role & Team</th>
-              <th class="py-3 px-4 text-center">Assigned / Closed</th>
-              <th class="py-3 px-4 text-center">Avg MTTR</th>
-              <th class="py-3 px-4 text-center">CSAT Score</th>
-              <th class="py-3 px-4 text-center">SLA Compliance</th>
-              <th class="py-3 px-4 text-right">Badge</th>
+              <th class="py-3 px-4">
+                Technician
+              </th>
+              <th class="py-3 px-4">
+                Role & Team
+              </th>
+              <th class="py-3 px-4 text-center">
+                Assigned / Closed
+              </th>
+              <th class="py-3 px-4 text-center">
+                Avg MTTR
+              </th>
+              <th class="py-3 px-4 text-center">
+                CSAT Score
+              </th>
+              <th class="py-3 px-4 text-center">
+                SLA Compliance
+              </th>
+              <th class="py-3 px-4 text-right">
+                Badge
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60 font-medium">
@@ -678,7 +795,7 @@ onUnmounted(() => {
                   <img
                     :src="ag.agent_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'"
                     class="w-9 h-9 rounded-full object-cover border border-slate-700"
-                  />
+                  >
                   <span
                     v-if="idx === 0"
                     class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full text-slate-950 flex items-center justify-center text-[9px] font-extrabold shadow"
@@ -687,7 +804,9 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <div>
-                  <h4 class="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">{{ ag.agent_name }}</h4>
+                  <h4 class="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">
+                    {{ ag.agent_name }}
+                  </h4>
                   <span class="text-[10px] text-slate-400 font-mono">ID: {{ ag.agent_id }}</span>
                 </div>
               </td>
@@ -695,7 +814,9 @@ onUnmounted(() => {
               <!-- Role & Team -->
               <td class="py-3.5 px-4">
                 <span class="text-slate-200 font-semibold">{{ ag.job_title }}</span>
-                <p class="text-[10px] text-slate-400">{{ ag.department }}</p>
+                <p class="text-[10px] text-slate-400">
+                  {{ ag.department }}
+                </p>
               </td>
 
               <!-- Assigned / Closed -->
@@ -712,7 +833,10 @@ onUnmounted(() => {
               <!-- CSAT Score -->
               <td class="py-3.5 px-4 text-center">
                 <div class="inline-flex items-center gap-1 font-extrabold text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20">
-                  <UIcon name="i-lucide-star" class="w-3 h-3 fill-yellow-400" />
+                  <UIcon
+                    name="i-lucide-star"
+                    class="w-3 h-3 fill-yellow-400"
+                  />
                   <span>{{ ag.csat_rating.toFixed(2) }}</span>
                 </div>
               </td>
