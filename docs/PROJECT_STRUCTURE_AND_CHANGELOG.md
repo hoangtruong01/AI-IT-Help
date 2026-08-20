@@ -362,9 +362,25 @@ graph TD
 - **QA/QC & Kiểm Thử**:
   - Vượt qua 100% kiểm thử tự động của cả 12 modules Go và Frontend (`typecheck`, `lint`, `build`).
 
-
-
-
+### 🔹 Phase 9: Reporting, BI Analytics & SLA Dashboard
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Backend**:
+  - **Reporting Service (`services/reporting` - Port 8090)**:
+    - Tạo migration `services/reporting/migrations/001_create_reporting_tables.sql` với các bảng: `sla_metrics_daily`, `agent_performance`, `category_metrics`, `department_sla_metrics`, `raw_incident_records`.
+    - Triển khai Clean Architecture (`model`, `repository`, `service`, `handler`): Tính toán chỉ số vận hành cốt lõi (MTTR, MTTD, SLA Compliance %, FCR %, CSAT Rating), phân bổ sự cố theo danh mục & phòng ban.
+    - Triển khai Endpoint xuất báo cáo tốc độ cao (`POST /api/v1/reports/export`): Sinh file PDF và Excel/CSV xử lý 10,000 bản ghi trong `< 3 giây` (đáp ứng **Test Case 9.1**).
+    - Cơ chế an toàn chống chia cho 0 (`NaN`) khi lọc khoảng ngày không có dữ liệu (đáp ứng **Test Case 9.2**).
+  - **API Gateway (`services/gateway` - Port 8080)**:
+    - Cấu hình reverse proxy và bảo vệ xác thực JWT cho `/api/v1/reports/*` tới Port 8090.
+- **Mã nguồn Frontend**:
+  - Xây dựng [`apps/web/app/pages/reports.vue`](file:///d:/IT_help/eomp/apps/web/app/pages/reports.vue):
+    - 5 Thẻ KPI Executive Glassmorphism: MTTR (kèm % cải thiện), MTTD, SLA Compliance Rate %, FCR %, CSAT Rating (kèm sao trực quan).
+    - Bộ lọc thời gian nhanh (`Today`, `7 Days`, `30 Days`, `Q3 2026`, `Empty Test`).
+    - Biểu đồ trực quan: Xu hướng Incident vs SLA Resolution theo ngày, Donut phân bổ mức độ ưu tiên, Stacked Bar tuân thủ SLA theo phòng ban, Top 5 danh mục sự cố.
+    - Bảng xếp hạng kỹ thuật viên (Agent Performance Scorecard) hỗ trợ tìm kiếm, sắp xếp theo Tickets Closed, CSAT, SLA %, MTTR.
+    - Nút Xuất Báo Cáo PDF & Excel/CSV tức thì.
+- **QA/QC & Kiểm Thử**:
+  - Vượt qua 100% Go unit tests (`services/reporting`, `services/gateway`) và Frontend `pnpm typecheck` (0 lỗi).
 ---
 
 ## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)

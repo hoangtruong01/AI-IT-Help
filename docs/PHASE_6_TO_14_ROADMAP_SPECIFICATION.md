@@ -248,8 +248,8 @@ Hoàn thiện quy trình vận hành tin cậy và bàn giao nền tảng:
 | **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **HOÀN THÀNH (Commit `d6afacc`)** |
 | **Phase 7** | ITIL Problem Management, RCA & Change Advisory Board (CAB) | **HOÀN THÀNH (Commit `7c2eccd`)** |
 | **Phase 8** | Enterprise Observability (Prometheus, Grafana RED, Loki Logs) | **HOÀN THÀNH (Done)** |
-| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **READY TO START (Tiếp theo)** |
-| **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **SẴN SÀNG TRIỂN KHAI** |
+| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **HOÀN THÀNH (Done)** |
+| **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **READY TO START (Tiếp theo)** |
 | **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load) | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI Spec Hub | **SẴN SÀNG TRIỂN KHAI** |
 | **Phase 13** | Production Packaging, Docker Multi-stage & Kubernetes Helm Charts | **SẴN SÀNG TRIỂN KHAI** |

@@ -807,3 +807,72 @@ export interface LogEntry {
   request_id?: string
   caller?: string
 }
+
+/** Executive BI & SLA Overview */
+export interface ExecutiveOverview {
+  avg_mttr_minutes: number
+  avg_mttd_minutes: number
+  sla_compliance_pct: number
+  fcr_rate_pct: number
+  csat_rating: number
+  total_incidents: number
+  total_resolved: number
+  total_breached: number
+  mttr_improvement_pct: number
+  period_label: string
+}
+
+/** Incident Daily Trend */
+export interface IncidentTrend {
+  date: string
+  opened_count: number
+  resolved_count: number
+  sla_compliance_pct: number
+}
+
+/** Category Metrics Breakdown */
+export interface CategoryBreakdown {
+  category_name: string
+  category_code: string
+  icon: string
+  total_count: number
+  resolved_count: number
+  avg_resolution_minutes: number
+  share_pct: number
+}
+
+/** Department SLA Metric */
+export interface DepartmentSLAMetric {
+  department_name: string
+  department_code: string
+  total_tickets: number
+  within_sla_count: number
+  breached_sla_count: number
+  sla_compliance_pct: number
+  avg_mttr_minutes: number
+}
+
+/** Agent Performance Scorecard */
+export interface AgentScorecard {
+  agent_id: string
+  agent_name: string
+  agent_avatar: string
+  job_title: string
+  department: string
+  tickets_assigned: number
+  tickets_resolved: number
+  avg_mttr_minutes: number
+  csat_rating: number
+  sla_compliance_pct: number
+}
+
+/** Export Report Response */
+export interface ExportReportResponse {
+  filename: string
+  mime_type: string
+  content_base64: string
+  total_records: number
+  generated_at: string
+  generation_time_ms: number
+}
+

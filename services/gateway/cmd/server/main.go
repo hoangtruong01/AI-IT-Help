@@ -77,6 +77,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	reportingProxy, err := proxy.NewReverseProxy(cfg.ReportingServiceURL, log)
+	if err != nil {
+		log.Error("failed to initialize reporting proxy", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	healthHandler := handler.NewHealthHandler(cfg)
 	monitoringHandler := handler.NewMonitoringHandler()
 
@@ -134,6 +140,10 @@ func main() {
 	// AI Operations Copilot Routing
 	mux.Handle("/api/v1/ai", authFilter(aiProxy))
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
+
+	// Reporting & BI Analytics Routing (Phase 9)
+	mux.Handle("/api/v1/reports", authFilter(reportingProxy))
+	mux.Handle("/api/v1/reports/", authFilter(reportingProxy))
 
 	// Apply Global Gateway Middleware Stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
