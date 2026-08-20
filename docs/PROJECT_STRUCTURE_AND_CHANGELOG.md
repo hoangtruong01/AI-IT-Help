@@ -403,6 +403,28 @@ graph TD
     - Trình mô phỏng kiểm thử an ninh 1-click (Test 403 RBAC Chokepoint & Test 429 Rate Limiter).
 - **QA/QC & Kiểm Thử**:
   - Vượt qua 100% Go Unit Tests (`packages/shared`, `services/audit`, `services/gateway`) và Nuxt 4 `pnpm typecheck` (0 lỗi).
+
+### 🔹 Phase 11: QA Automation Suite & Cross-Service E2E Lifecycle
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Kiểm thử Luồng Nghiệp Vụ Liên Service (Cross-Service E2E)**:
+  - Xây dựng [`tests/e2e/e2e_lifecycle_test.go`](file:///d:/IT_help/eomp/tests/e2e/e2e_lifecycle_test.go) bao phủ trọn vẹn luồng 7 bước:
+    1. `Auth`: Đăng nhập cấp phát JWT Token cho Employee, Manager, IT Agent.
+    2. `Helpdesk`: Tạo Ticket yêu cầu cấp Laptop kỹ thuật (`TK-2026-8801`).
+    3. `SLA`: Tính toán hạn xử lý cam kết trong 4 giờ.
+    4. `Workflow`: Kích hoạt quy trình phê duyệt 2 cấp -> Manager phê duyệt `APPROVED`.
+    5. `Notification`: Bắn sự kiện CloudEvent realtime `eomp.workflow.approved` tới IT Agent.
+    6. `Asset`: Gán thiết bị từ kho CMDB (`AST-MBP-9901`) sang trạng thái `IN_USE` cho Employee.
+    7. `Audit`: Ghi nhận nhật ký kiểm toán với mã băm SHA-256 Checksum bất biến và che giấu dữ liệu nhạy cảm (`********`).
+  - Kiểm thử chốt chặn an ninh: Strict RBAC `403 Forbidden`, Rate Limiter `429 Too Many Requests`.
+- **Kiểm Thử Tải & Hiệu Năng (K6 Load & Stress Engine)**:
+  - Xây dựng [`infrastructure/k6/load_test.js`](file:///d:/IT_help/eomp/infrastructure/k6/load_test.js) mô phỏng **500 Concurrent VUs** đánh giá p95 Latency (< 200ms) và Error Rate (< 1%) trên API Gateway, Auth, Tickets, Assets, Reports, Audit.
+  - Xây dựng [`infrastructure/k6/stress_test.js`](file:///d:/IT_help/eomp/infrastructure/k6/stress_test.js) mô phỏng đột biến tải (Spike test) lên tới 800 VUs.
+- **Frontend QA & Component Logic Testing**:
+  - Xây dựng [`apps/web/tests/kpi_calculator.test.ts`](file:///d:/IT_help/eomp/apps/web/tests/kpi_calculator.test.ts): Kiểm thử tính toán SLA compliance %, MTTR improvement rate và client-side credit card masking.
+- **Tự Động Hóa Pipeline QA CI/CD**:
+  - Nâng cấp [`scripts/qa.ps1`](file:///d:/IT_help/eomp/scripts/qa.ps1) chạy tự động 6 tầng kiểm định: Frontend (typecheck, lint, build), Backend (12 services go vet, test, build), E2E Cross-Service, Infrastructure Probes, Database Schemas, Docker & CI.
+- **QA/QC & Kiểm Thử**:
+  - Đạt **100% PASS** trên toàn bộ các tầng kiểm thử tự động.
 ---
 
 ## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)
