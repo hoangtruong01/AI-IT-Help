@@ -251,6 +251,6 @@ Hoàn thiện quy trình vận hành tin cậy và bàn giao nền tảng:
 | **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **HOÀN THÀNH (Done)** |
 | **Phase 10** | Enterprise Security Hardening, Strict RBAC & Immutable Audit Trail | **HOÀN THÀNH (Done)** |
 | **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load) | **HOÀN THÀNH (Done)** |
-| **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI Spec Hub | **READY TO START (Tiếp theo)** |
-| **Phase 13** | Production Packaging, Docker Multi-stage & Kubernetes Helm Charts | **SẴN SÀNG TRIỂN KHAI** |
+| **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI Spec Hub | **HOÀN THÀNH (Done)** |
+| **Phase 13** | Production Packaging, Docker Multi-stage & Kubernetes Helm Charts | **READY TO START (Tiếp theo)** |
 | **Phase 14** | SRE Disaster Recovery Runbooks, Chaos Testing & Project Handover | **SẴN SÀNG TRIỂN KHAI** |
