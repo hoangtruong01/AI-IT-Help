@@ -1,0 +1,546 @@
+# ==============================================================================
+# EOMP — Production Docker Compose Orchestration (11 Microservices + Web + Infra)
+# ==============================================================================
+
+name: eomp-prod
+
+services:
+  # ============================================================================
+  # Edge Gateway & Ingress (Nginx)
+  # ============================================================================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: eomp-prod-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      web:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # Frontend Web (Nuxt 4 SSR)
+  # ============================================================================
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.web
+    image: eomp/web:prod
+    container_name: eomp-prod-web
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: "0.0.0.0"
+      NUXT_PUBLIC_API_BASE_URL: "/api/v1"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 1. API Gateway Service (:8080)
+  # ============================================================================
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: gateway
+        PORT: 8080
+    image: eomp/gateway:prod
+    container_name: eomp-prod-gateway
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:-eomp_production_super_secure_jwt_secret_key_2026}
+      AUTH_SERVICE_URL: http://auth:8081
+      EMPLOYEE_SERVICE_URL: http://employee:8082
+      ASSET_SERVICE_URL: http://asset:8083
+      HELPDESK_SERVICE_URL: http://helpdesk:8084
+      WORKFLOW_SERVICE_URL: http://workflow:8085
+      NOTIFICATION_SERVICE_URL: http://notification:8086
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8087
+      AI_SERVICE_URL: http://ai:8088
+      AUDIT_SERVICE_URL: http://audit:8089
+      REPORTING_SERVICE_URL: http://reporting:8090
+      REDIS_ADDR: redis:6379
+    depends_on:
+      auth:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 2. Auth Service (:8081)
+  # ============================================================================
+  auth:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: auth
+        PORT: 8081
+    image: eomp/auth:prod
+    container_name: eomp-prod-auth
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8081
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: auth_db
+      DB_SSLMODE: disable
+      JWT_SECRET: ${JWT_SECRET:-eomp_production_super_secure_jwt_secret_key_2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 3. Employee Service (:8082)
+  # ============================================================================
+  employee:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: employee
+        PORT: 8082
+    image: eomp/employee:prod
+    container_name: eomp-prod-employee
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8082
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: employee_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 4. Asset & CMDB Service (:8083)
+  # ============================================================================
+  asset:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: asset
+        PORT: 8083
+    image: eomp/asset:prod
+    container_name: eomp-prod-asset
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8083
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: asset_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 5. Helpdesk Service (:8084)
+  # ============================================================================
+  helpdesk:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: helpdesk
+        PORT: 8084
+    image: eomp/helpdesk:prod
+    container_name: eomp-prod-helpdesk
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8084
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: helpdesk_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 6. Workflow Engine Service (:8085)
+  # ============================================================================
+  workflow:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: workflow
+        PORT: 8085
+    image: eomp/workflow:prod
+    container_name: eomp-prod-workflow
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8085
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: workflow_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 7. Notification Service (:8086)
+  # ============================================================================
+  notification:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: notification
+        PORT: 8086
+    image: eomp/notification:prod
+    container_name: eomp-prod-notification
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8086
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: notification_db
+      DB_SSLMODE: disable
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-eomp}:${RABBITMQ_PASSWORD:-eomp_dev_password}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 8. Knowledge Base Service (:8087)
+  # ============================================================================
+  knowledge:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: knowledge
+        PORT: 8087
+    image: eomp/knowledge:prod
+    container_name: eomp-prod-knowledge
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8087
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: knowledge_db
+      DB_SSLMODE: disable
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 9. AI Operations Copilot Service (:8088)
+  # ============================================================================
+  ai:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: ai
+        PORT: 8088
+    image: eomp/ai:prod
+    container_name: eomp-prod-ai
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8088
+      QDRANT_URL: http://qdrant:6333
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8087
+    depends_on:
+      knowledge:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 10. Audit Service (:8089)
+  # ============================================================================
+  audit:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: audit
+        PORT: 8089
+    image: eomp/audit:prod
+    container_name: eomp-prod-audit
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8089
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: audit_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # 11. Reporting & BI Service (:8090)
+  # ============================================================================
+  reporting:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args:
+        SERVICE_NAME: reporting
+        PORT: 8090
+    image: eomp/reporting:prod
+    container_name: eomp-prod-reporting
+    restart: always
+    environment:
+      APP_ENV: production
+      PORT: 8090
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-eomp}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      DB_NAME: reporting_db
+      DB_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+  postgres:
+    image: postgres:17-alpine
+    container_name: eomp-prod-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      POSTGRES_DB: eomp
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ../infrastructure/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eomp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eomp-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: eomp-prod-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eomp-net
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: eomp-prod-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-eomp}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-eomp_dev_password}
+    volumes:
+      - rabbitmq_prod_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - eomp-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: eomp-prod-minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-eomp_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-eomp_minio_secret}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_prod_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - eomp-net
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: eomp-prod-qdrant
+    restart: always
+    volumes:
+      - qdrant_prod_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eomp-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: eomp-prod-prometheus
+    restart: always
+    volumes:
+      - ../infrastructure/prometheus:/etc/prometheus:ro
+      - prometheus_prod_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - eomp-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: eomp-prod-grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-eomp_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/monitoring/grafana/"
+    volumes:
+      - grafana_prod_data:/var/lib/grafana
+      - ../infrastructure/grafana:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - eomp-net
+
+  loki:
+    image: grafana/loki:latest
+    container_name: eomp-prod-loki
+    restart: always
+    volumes:
+      - ../infrastructure/loki:/etc/loki:ro
+      - loki_prod_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eomp-net
+
+networks:
+  eomp-net:
+    driver: bridge
+    name: eomp-prod-network
+
+volumes:
+  postgres_prod_data:
+    name: eomp-prod-postgres-data
+  redis_prod_data:
+    name: eomp-prod-redis-data
+  rabbitmq_prod_data:
+    name: eomp-prod-rabbitmq-data
+  minio_prod_data:
+    name: eomp-prod-minio-data
+  qdrant_prod_data:
+    name: eomp-prod-qdrant-data
+  prometheus_prod_data:
+    name: eomp-prod-prometheus-data
+  grafana_prod_data:
+    name: eomp-prod-grafana-data
+  loki_prod_data:
+    name: eomp-prod-loki-data

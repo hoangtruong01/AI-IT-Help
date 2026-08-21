@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eomp
+  labels:
+    app.kubernetes.io/name: eomp
+    app.kubernetes.io/part-of: enterprise-operations-platform
+    environment: production

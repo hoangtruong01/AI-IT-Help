@@ -1,0 +1,339 @@
+# ==============================================================================
+# EOMP — Production Helm Chart Default Values
+# ==============================================================================
+
+global:
+  environment: production
+  imageRegistry: ""
+  imagePullPolicy: IfNotPresent
+  timezone: UTC
+
+# --- Core Secrets ---
+secrets:
+  postgresPassword: "eomp_production_secure_db_pass_2026"
+  jwtSecret: "eomp_production_super_secure_jwt_secret_key_2026"
+  rabbitmqUser: "eomp"
+  rabbitmqPassword: "eomp_production_rabbitmq_pass_2026"
+  minioAccessKey: "eomp_minio_admin"
+  minioSecretKey: "eomp_minio_production_secret_2026"
+  grafanaAdminUser: "admin"
+  grafanaAdminPassword: "eomp_grafana_secure_admin_pass_2026"
+
+# --- Ingress Configuration ---
+ingress:
+  enabled: true
+  className: nginx
+  host: eomp.local
+  tls: []
+  # - secretName: eomp-tls-secret
+  #   hosts:
+  #     - eomp.local
+
+# --- Microservices Declarations ---
+services:
+  gateway:
+    enabled: true
+    image: eomp/gateway:latest
+    port: 8080
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPU: 70
+      targetMemory: 80
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+  auth:
+    enabled: true
+    image: eomp/auth:latest
+    port: 8081
+    replicas: 2
+    dbName: auth_db
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPU: 70
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  employee:
+    enabled: true
+    image: eomp/employee:latest
+    port: 8082
+    replicas: 2
+    dbName: employee_db
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  asset:
+    enabled: true
+    image: eomp/asset:latest
+    port: 8083
+    replicas: 2
+    dbName: asset_db
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPU: 70
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  helpdesk:
+    enabled: true
+    image: eomp/helpdesk:latest
+    port: 8084
+    replicas: 2
+    dbName: helpdesk_db
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPU: 70
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+  workflow:
+    enabled: true
+    image: eomp/workflow:latest
+    port: 8085
+    replicas: 2
+    dbName: workflow_db
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPU: 70
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  notification:
+    enabled: true
+    image: eomp/notification:latest
+    port: 8086
+    replicas: 2
+    dbName: notification_db
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  knowledge:
+    enabled: true
+    image: eomp/knowledge:latest
+    port: 8087
+    replicas: 2
+    dbName: knowledge_db
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  ai:
+    enabled: true
+    image: eomp/ai:latest
+    port: 8088
+    replicas: 2
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  audit:
+    enabled: true
+    image: eomp/audit:latest
+    port: 8089
+    replicas: 2
+    dbName: audit_db
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  reporting:
+    enabled: true
+    image: eomp/reporting:latest
+    port: 8090
+    replicas: 2
+    dbName: reporting_db
+    hpa:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  web:
+    enabled: true
+    image: eomp/web:latest
+    port: 3000
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPU: 70
+      targetMemory: 80
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# --- Infrastructure Components ---
+infrastructure:
+  postgres:
+    enabled: true
+    image: postgres:17-alpine
+    storage: 20Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  redis:
+    enabled: true
+    image: redis:7-alpine
+    storage: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  rabbitmq:
+    enabled: true
+    image: rabbitmq:4-management-alpine
+    storage: 10Gi
+    resources:
+      requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
+        cpu: 800m
+        memory: 1Gi
+
+  minio:
+    enabled: true
+    image: minio/minio:latest
+    storage: 50Gi
+    resources:
+      requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  qdrant:
+    enabled: true
+    image: qdrant/qdrant:latest
+    storage: 20Gi
+    resources:
+      requests:
+        cpu: 150m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  prometheus:
+    enabled: true
+    image: prom/prometheus:latest
+    storage: 30Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  grafana:
+    enabled: true
+    image: grafana/grafana:latest
+    storage: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  loki:
+    enabled: true
+    image: grafana/loki:latest
+    storage: 30Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

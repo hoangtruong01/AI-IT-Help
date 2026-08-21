@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eomp.fullname" . }}-global-config
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.global.environment | quote }}
+  TZ: {{ .Values.global.timezone | quote }}
+  POSTGRES_HOST: "{{ include "eomp.fullname" . }}-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "eomp"
+  REDIS_ADDR: "{{ include "eomp.fullname" . }}-redis:6379"
+  RABBITMQ_HOST: "{{ include "eomp.fullname" . }}-rabbitmq"
+  RABBITMQ_PORT: "5672"
+  MINIO_ENDPOINT: "{{ include "eomp.fullname" . }}-minio:9000"
+  QDRANT_URL: "http://{{ include "eomp.fullname" . }}-qdrant:6333"
+  PROMETHEUS_URL: "http://{{ include "eomp.fullname" . }}-prometheus:9090"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eomp.fullname" . }}-gateway-config
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+data:
+  PORT: "8080"
+  AUTH_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-auth:8081"
+  EMPLOYEE_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-employee:8082"
+  ASSET_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-asset:8083"
+  HELPDESK_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-helpdesk:8084"
+  WORKFLOW_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-workflow:8085"
+  NOTIFICATION_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-notification:8086"
+  KNOWLEDGE_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-knowledge:8087"
+  AI_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-ai:8088"
+  AUDIT_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-audit:8089"
+  REPORTING_SERVICE_URL: "http://{{ include "eomp.fullname" . }}-reporting:8090"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eomp.fullname" . }}-web-config
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.global.environment | quote }}
+  PORT: "3000"
+  HOST: "0.0.0.0"
+  NUXT_PUBLIC_API_BASE_URL: "/api/v1"

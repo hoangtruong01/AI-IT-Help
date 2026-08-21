@@ -1,0 +1,103 @@
+{{- range $svcName, $svcConfig := .Values.services }}
+{{- if $svcConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" $ }}-{{ $svcName }}
+  labels:
+    {{- include "eomp.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $svcName }}
+spec:
+  replicas: {{ $svcConfig.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $svcName }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ $svcName }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: {{ $svcName }}
+          image: {{ $svcConfig.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svcConfig.port }}
+          {{- if eq $svcName "gateway" }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "eomp.fullname" $ }}-global-config
+            - configMapRef:
+                name: {{ include "eomp.fullname" $ }}-gateway-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" $ }}-secrets
+                  key: JWT_SECRET
+          {{- else if eq $svcName "web" }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "eomp.fullname" $ }}-web-config
+          {{- else }}
+          env:
+            - name: APP_ENV
+              value: {{ $.Values.global.environment | quote }}
+            - name: PORT
+              value: {{ $svcConfig.port | quote }}
+            {{- if $svcConfig.dbName }}
+            - name: DB_HOST
+              value: "{{ include "eomp.fullname" $ }}-postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: {{ $svcConfig.dbName | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" $ }}-secrets
+                  key: POSTGRES_PASSWORD
+            {{- end }}
+            {{- if eq $svcName "auth" }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" $ }}-secrets
+                  key: JWT_SECRET
+            {{- else if eq $svcName "notification" }}
+            - name: RABBITMQ_URL
+              value: "amqp://{{ $.Values.secrets.rabbitmqUser }}:{{ $.Values.secrets.rabbitmqPassword }}@{{ include "eomp.fullname" $ }}-rabbitmq:5672/"
+            {{- else if eq $svcName "knowledge" }}
+            - name: QDRANT_URL
+              value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
+            {{- else if eq $svcName "ai" }}
+            - name: QDRANT_URL
+              value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
+            - name: KNOWLEDGE_SERVICE_URL
+              value: "http://{{ include "eomp.fullname" $ }}-knowledge:8087"
+            {{- end }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ if eq $svcName "web" }}/{{ else }}/health{{ end }}
+              port: {{ $svcConfig.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ if eq $svcName "web" }}/{{ else }}/health{{ end }}
+              port: {{ $svcConfig.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml $svcConfig.resources | nindent 12 }}
+{{- end }}
+{{- end }}
