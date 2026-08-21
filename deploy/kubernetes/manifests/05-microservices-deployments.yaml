@@ -1,0 +1,767 @@
+# ==============================================================================
+# EOMP — Kubernetes Microservices Deployments (11 Go Services + Nuxt 4 Frontend)
+# ==============================================================================
+
+# --- 1. API Gateway ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-deployment
+  namespace: eomp
+  labels:
+    app: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: gateway
+          image: eomp/gateway:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: eomp-global-config
+            - configMapRef:
+                name: eomp-gateway-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+---
+# --- 2. Auth Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-deployment
+  namespace: eomp
+  labels:
+    app: auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: auth
+          image: eomp/auth:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8081"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+# --- 3. Employee Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: employee-deployment
+  namespace: eomp
+  labels:
+    app: employee
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: employee
+  template:
+    metadata:
+      labels:
+        app: employee
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: employee
+          image: eomp/employee:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8082"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "employee_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# --- 4. Asset & CMDB Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asset-deployment
+  namespace: eomp
+  labels:
+    app: asset
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: asset
+  template:
+    metadata:
+      labels:
+        app: asset
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: asset
+          image: eomp/asset:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8083"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "asset_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+# --- 5. Helpdesk Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helpdesk-deployment
+  namespace: eomp
+  labels:
+    app: helpdesk
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: helpdesk
+  template:
+    metadata:
+      labels:
+        app: helpdesk
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: helpdesk
+          image: eomp/helpdesk:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8084"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "helpdesk_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+---
+# --- 6. Workflow Engine Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-deployment
+  namespace: eomp
+  labels:
+    app: workflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workflow
+  template:
+    metadata:
+      labels:
+        app: workflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: workflow
+          image: eomp/workflow:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8085"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "workflow_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+# --- 7. Notification Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-deployment
+  namespace: eomp
+  labels:
+    app: notification
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification
+  template:
+    metadata:
+      labels:
+        app: notification
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: notification
+          image: eomp/notification:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8086
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8086"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: RABBITMQ_URL
+              value: "amqp://eomp:eomp_production_rabbitmq_pass_2026@rabbitmq-service:5672/"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# --- 8. Knowledge Base Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-deployment
+  namespace: eomp
+  labels:
+    app: knowledge
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: knowledge
+  template:
+    metadata:
+      labels:
+        app: knowledge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: knowledge
+          image: eomp/knowledge:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8087"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "knowledge_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: QDRANT_URL
+              value: "http://qdrant-service:6333"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# --- 9. AI Operations Copilot Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-deployment
+  namespace: eomp
+  labels:
+    app: ai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai
+  template:
+    metadata:
+      labels:
+        app: ai
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: ai
+          image: eomp/ai:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8088
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8088"
+            - name: QDRANT_URL
+              value: "http://qdrant-service:6333"
+            - name: KNOWLEDGE_SERVICE_URL
+              value: "http://knowledge-service:8087"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# --- 10. Audit Trail Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-deployment
+  namespace: eomp
+  labels:
+    app: audit
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: audit
+  template:
+    metadata:
+      labels:
+        app: audit
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: audit
+          image: eomp/audit:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8089
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8089"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "audit_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# --- 11. Reporting & BI Service ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reporting-deployment
+  namespace: eomp
+  labels:
+    app: reporting
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: reporting
+  template:
+    metadata:
+      labels:
+        app: reporting
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: reporting
+          image: eomp/reporting:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: PORT
+              value: "8090"
+            - name: DB_HOST
+              value: "postgres-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "eomp"
+            - name: DB_NAME
+              value: "reporting_db"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: POSTGRES_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+# --- 12. Frontend Web (Nuxt 4 SSR) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deployment
+  namespace: eomp
+  labels:
+    app: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: web
+          image: eomp/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: eomp-web-config
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

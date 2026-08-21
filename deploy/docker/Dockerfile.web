@@ -1,0 +1,46 @@
+# ==============================================================================
+# EOMP — Multi-Stage Dockerfile for Nuxt 4 Web Frontend
+# ==============================================================================
+
+# --- Stage 1: Build Frontend Bundle ---
+FROM node:22-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Install dependencies with lockfile caching
+COPY apps/web/package.json apps/web/pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+
+# Copy source code and compile production bundle
+COPY apps/web ./
+ENV NODE_ENV=production \
+    NUXT_PUBLIC_API_BASE_URL=/api/v1
+RUN pnpm build
+
+# --- Stage 2: Production Minimal Node SSR Runtime ---
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+RUN addgroup -g 10001 -S nodegroup \
+    && adduser -u 10001 -S nodeuser -G nodegroup
+
+# Copy built server output and static assets from builder
+COPY --from=builder --chown=nodeuser:nodegroup /app/.output ./.output
+
+USER 10001:10001
+
+ENV NODE_ENV=production \
+    NITRO_PORT=3000 \
+    NITRO_HOST=0.0.0.0 \
+    PORT=3000 \
+    HOST=0.0.0.0
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/ || exit 1
+
+CMD ["node", ".output/server/index.mjs"]

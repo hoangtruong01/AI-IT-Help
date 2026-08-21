@@ -1,0 +1,62 @@
+# ==============================================================================
+# EOMP — Universal Multi-Stage Dockerfile for Go Microservices
+# ==============================================================================
+# Usage:
+#   docker build \
+#     --build-arg SERVICE_NAME=auth \
+#     --build-arg PORT=8081 \
+#     -t eomp/auth:latest \
+#     -f deploy/docker/Dockerfile.go-service .
+# ==============================================================================
+
+# --- Stage 1: Build & Compile Binary ---
+FROM golang:1.24-alpine AS builder
+
+ARG SERVICE_NAME
+ARG PORT=8080
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /workspace
+
+# Copy workspace definition and dependencies
+COPY go.work go.work
+COPY packages/shared packages/shared
+COPY services/${SERVICE_NAME} services/${SERVICE_NAME}
+
+# Build static binary without CGO, strip symbols to achieve < 20MB binary size
+WORKDIR /workspace/services/${SERVICE_NAME}
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w -extldflags '-static'" -o /app/server ./cmd/server
+
+# --- Stage 2: Final Minimal Runtime Image (< 25MB) ---
+FROM alpine:3.21 AS runner
+
+ARG SERVICE_NAME
+ARG PORT=8080
+
+# Install SSL certificates & Timezone support
+RUN apk --no-cache add ca-certificates tzdata wget \
+    && addgroup -g 10001 -S appgroup \
+    && adduser -u 10001 -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder --chown=appuser:appgroup /app/server /app/server
+
+# Copy SQL migrations if present
+COPY --from=builder --chown=appuser:appgroup /workspace/services/${SERVICE_NAME}/migrations /app/migrations
+
+# Set security context and environment
+USER 10001:10001
+ENV APP_ENV=production \
+    PORT=${PORT} \
+    TZ=UTC
+
+EXPOSE ${PORT}
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://127.0.0.1:${PORT}/health || exit 1
+
+ENTRYPOINT ["/app/server"]

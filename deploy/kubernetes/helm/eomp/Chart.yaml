@@ -1,0 +1,15 @@
+apiVersion: v2
+name: eomp
+description: EOMP — Enterprise Operations Management Platform Production Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - eomp
+  - itil
+  - microservices
+  - observability
+  - kubernetes
+maintainers:
+  - name: EOMP SRE & DevOps Team
+    email: sre@eomp.local

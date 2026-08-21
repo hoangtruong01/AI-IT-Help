@@ -1,0 +1,36 @@
+{{- range $svcName, $svcConfig := .Values.services }}
+{{- if and $svcConfig.enabled $svcConfig.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "eomp.fullname" $ }}-{{ $svcName }}-hpa
+  labels:
+    {{- include "eomp.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $svcName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "eomp.fullname" $ }}-{{ $svcName }}
+  minReplicas: {{ $svcConfig.hpa.minReplicas | default 2 }}
+  maxReplicas: {{ $svcConfig.hpa.maxReplicas | default 10 }}
+  metrics:
+    {{- if $svcConfig.hpa.targetCPU }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svcConfig.hpa.targetCPU }}
+    {{- end }}
+    {{- if $svcConfig.hpa.targetMemory }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $svcConfig.hpa.targetMemory }}
+    {{- end }}
+{{- end }}
+{{- end }}

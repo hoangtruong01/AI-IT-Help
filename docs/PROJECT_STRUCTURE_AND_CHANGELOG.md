@@ -440,47 +440,35 @@ graph TD
     - Data Dictionary chi tiết cho tất cả các bảng, kiểu dữ liệu, ràng buộc và khóa ngoại.
 - **OpenAPI 3.0 (Swagger) Specification Hub**:
   - Hoàn thiện file đặc tả [`docs/openapi/eomp-openapi-spec.yaml`](file:///d:/IT_help/eomp/docs/openapi/eomp-openapi-spec.yaml) và tài liệu hướng dẫn [`docs/openapi/README.md`](file:///d:/IT_help/eomp/docs/openapi/README.md) chuẩn hóa tất cả các REST API endpoints của 11 microservices.
+
+### 🔹 Phase 13: Production Packaging, Docker & Kubernetes Helm Charts
+- **Trạng thái**: **HOÀN THÀNH (Done)**
+- **Mã nguồn Đóng Gói Docker Tối Ưu**:
+  - Xây dựng [`deploy/docker/Dockerfile.go-service`](file:///d:/IT_help/eomp/deploy/docker/Dockerfile.go-service): Multi-stage build Go tinh gọn (< 25MB), biên dịch tĩnh CGO=0, strip debug symbols, chạy non-root user (UID 10001) trên nền Alpine 3.21.
+  - Xây dựng [`deploy/docker/Dockerfile.web`](file:///d:/IT_help/eomp/deploy/docker/Dockerfile.web): Multi-stage build Nuxt 4 SSR bundle trên nền Node 22 Alpine.
+  - Xây dựng [`deploy/docker-compose.prod.yml`](file:///d:/IT_help/eomp/deploy/docker-compose.prod.yml): Cụm điều phối Production đầy đủ 11 Go microservices, Web App, Nginx Gateway, PostgreSQL 17, Redis 7, RabbitMQ 4, MinIO, Qdrant, Prometheus, Grafana, Loki kèm Resource Limits & Healthchecks.
+  - Cấu hình Nginx Production Reverse Proxy [`deploy/nginx/nginx.conf`](file:///d:/IT_help/eomp/deploy/nginx/nginx.conf) và [`deploy/nginx/conf.d/eomp.conf`](file:///d:/IT_help/eomp/deploy/nginx/conf.d/eomp.conf).
+- **Bộ Kubernetes Manifests Chuẩn Production (`deploy/kubernetes/manifests/`)**:
+  - `00-namespace.yaml`: Namespace `eomp`.
+  - `01-configmaps.yaml` & `02-secrets.yaml`: Quản lý cấu hình tập trung và bí mật doanh nghiệp.
+  - `03-pvcs.yaml`: PersistentVolumeClaims lưu trữ dữ liệu an toàn cho tất cả dịch vụ Stateful.
+  - `04-infrastructure.yaml`: Deployments & Services cho Postgres, Redis, RabbitMQ, MinIO, Qdrant, Prometheus, Grafana, Loki.
+  - `05-microservices-deployments.yaml`: Deployments cho 11 Microservices Go + Web Frontend với Liveness & Readiness Probes (`/health`), Resource Requests & Limits, Non-root SecurityContext.
+  - `06-microservices-services.yaml`: ClusterIP Services kết nối mạng nội bộ.
+  - `07-hpa.yaml`: HorizontalPodAutoscaler (HPA v2) tự động scale từ 2 lên 10 pods khi CPU > 70% hoặc Memory > 80%.
+  - `08-ingress.yaml`: Ingress Nginx Controller phân luồng traffic, SSL termination, CORS và Rate Limiting (100 RPS).
+- **Production Kubernetes Helm Chart (`deploy/kubernetes/helm/eomp/`)**:
+  - Cung cấp `Chart.yaml`, `values.yaml`, và hệ thống templates linh hoạt (`_helpers.tpl`, `configmap.yaml`, `secret.yaml`, `pvc.yaml`, `deployment-services.yaml`, `deployment-infra.yaml`, `service.yaml`, `ingress.yaml`, `hpa.yaml`) hỗ trợ cài đặt 1 lệnh: `helm upgrade --install eomp ./deploy/kubernetes/helm/eomp`.
+- **DevOps & SRE Automation CLI**:
+  - Cung cấp [`scripts/deploy.ps1`](file:///d:/IT_help/eomp/scripts/deploy.ps1) và [`scripts/deploy.sh`](file:///d:/IT_help/eomp/scripts/deploy.sh) tự động hóa kiểm định syntax manifests, kiểm tra image sizes, và điều phối Docker/K8s/Helm.
+- **Tài Liệu Kỹ Thuật**:
+  - Hoàn thiện tài liệu hướng dẫn vận hành và triển khai [`docs/deployment.md`](file:///d:/IT_help/eomp/docs/deployment.md).
 ---
 
-## 8. Quy Trình Phát Triển Chuẩn Cho Các Phase Tiếp Theo (Phase 6 — 12)
+## 8. Kế Hoạch Giai Đoạn Tiếp Theo (Phase 14)
 
-Khi AI hoặc Developer bắt tay vào triển khai các Phase tiếp theo, **BẮT BUỘC** phải tuân theo 7 bước nghiêm ngặt sau:
+- **Phase 14: SRE Operations, Disaster Recovery & Project Handover (`docs/sre/`, `scripts/`)**
+  - Disaster Recovery Plan (RPO < 5 phút, RTO < 15 phút).
+  - Chaos Engineering Runbooks (Database Failover, Queue Jam, Network Partitions).
+  - Production Operations Manual & Final Handover Protocol.
 
-```
-[1. ANALYZE] -> [2. DESIGN] -> [3. IMPLEMENT] -> [4. TEST] -> [5. VERIFY] -> [6. FORMAT] -> [7. COMMIT & PUSH]
-```
-
-### Chi Tiết Kế Hoạch Các Phase Sắp Tới:
-
-- **Phase 6: AI Operations Copilot & RAG Engine (`services/ai` + `services/knowledge`)**
-  - Schema `knowledge_db`: Tài liệu IT, Runbook xử lý sự cố, FAQ, Vector embeddings (Qdrant).
-  - RAG Pipeline: Phân tích nội dung Ticket, tự động gợi ý danh mục, mức độ ưu tiên, nguyên nhân gốc rễ (Root Cause) và giải pháp xử lý.
-  - AI Chatbot UI: Giao diện chat trực tiếp tại `/ai.vue`.
-
-- **Phase 7: Problem & Change Management ITIL (`services/helpdesk` + `services/workflow`)**
-  - Problem Investigation (Known Errors, Workarounds, Root Cause Analysis).
-  - Change Advisory Board (CAB) & Risk Assessment Matrix.
-
-- **Phase 8: Observability, Metrics & Distributed Tracing**
-  - Prometheus `/metrics` trên tất cả các microservices.
-  - Grafana Dashboards giám sát Request Rate, Error Rate, Latency (RED Method).
-  - Structured Logging với Loki.
-
-- **Phase 9: Quality Assurance, Integration Tests & End-to-End Suite**
-  - Automated Integration Tests kịch bản liên service.
-  - Kịch bản test luồng: Login -> Create Ticket -> Trigger SLA -> Launch Workflow -> Approve -> Handover Asset -> Receive Notification.
-
-- **Phase 10: Technical BA Artifacts & Architecture Diagrams**
-  - C4 Model Architecture Diagrams (Context, Container, Component, Code).
-  - Database Entity Relationship Diagrams (ERD).
-  - API Swagger/OpenAPI Specifications.
-
-- **Phase 11: Production Hardening, Rate Limiting & Security Compliance**
-  - Rate Limiting (Token Bucket / Redis) tại API Gateway.
-  - RBAC Strict Policy Enforcement Middleware.
-  - Secrets Management & Security Headers.
-
-- **Phase 12: Production Packaging, Kubernetes & SRE Runbooks**
-  - Docker Multi-stage Builds tối ưu kích thước image (< 25MB cho Go binaries).
-  - Kubernetes Manifests & Helm Charts với Health Probes (Liveness & Readiness).
-  - SRE Disaster Recovery & Rollback Runbooks.
