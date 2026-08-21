@@ -70,3 +70,5 @@ coverage/
 # Data volumes (Docker)
 # ==============================
 data/
+backups/
+
