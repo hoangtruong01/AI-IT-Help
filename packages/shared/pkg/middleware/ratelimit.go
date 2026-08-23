@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,9 +16,91 @@ type ipBucket struct {
 	timestamps []time.Time
 }
 
-// IPRateLimiter creates an in-memory sliding window rate limiter per IP address (Test Case 10.2).
-// When requests exceed the limit within window, it returns HTTP 429 Too Many Requests.
+// ExtractClientIP securely extracts client IP address with anti-spoofing validation.
+// It only trusts X-Forwarded-For / X-Real-IP if the direct request origin (RemoteAddr)
+// is verified to be in the trusted proxy whitelist.
+func ExtractClientIP(r *http.Request, trustedProxies []string) string {
+	remoteHost := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		remoteHost = host
+	}
+	remoteHost = strings.TrimSpace(remoteHost)
+
+	if len(trustedProxies) == 0 {
+		if envProxies := os.Getenv("TRUSTED_PROXIES"); envProxies != "" {
+			parts := strings.Split(envProxies, ",")
+			for _, p := range parts {
+				if t := strings.TrimSpace(p); t != "" {
+					trustedProxies = append(trustedProxies, t)
+				}
+			}
+		}
+		if len(trustedProxies) == 0 {
+			trustedProxies = []string{"127.0.0.1", "::1", "localhost", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+		}
+	}
+
+	// Check if RemoteAddr is a trusted proxy
+	isTrusted := isTrustedIP(remoteHost, trustedProxies)
+
+	if isTrusted {
+		// Trust X-Forwarded-For or X-Real-IP from trusted proxy
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if len(parts) > 0 {
+				clientIP := strings.TrimSpace(parts[0])
+				if clientIP != "" {
+					return clientIP
+				}
+			}
+		}
+		if xRealIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); xRealIP != "" {
+			return xRealIP
+		}
+	}
+
+	// Fallback to RemoteAddr directly (Anti-Spoofing: ignore untrusted XFF)
+	if remoteHost != "" {
+		return remoteHost
+	}
+	return "127.0.0.1"
+}
+
+func isTrustedIP(ipStr string, trustedList []string) bool {
+	if ipStr == "127.0.0.1" || ipStr == "::1" || ipStr == "localhost" {
+		return true
+	}
+	parsedIP := net.ParseIP(ipStr)
+
+	for _, entry := range trustedList {
+		entry = strings.TrimSpace(entry)
+		if entry == ipStr {
+			return true
+		}
+		// Check CIDR block
+		if strings.Contains(entry, "/") {
+			if _, cidrNet, err := net.ParseCIDR(entry); err == nil && parsedIP != nil {
+				if cidrNet.Contains(parsedIP) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// IPRateLimiter creates an in-memory sliding window rate limiter per client IP.
 func IPRateLimiter(limit int, window time.Duration) func(http.Handler) http.Handler {
+	return IPRateLimiterWithProxies(limit, window, nil)
+}
+
+// StrictAuthRateLimiter creates a strict brute-force rate limiter (10 req/min default) for auth endpoints.
+func StrictAuthRateLimiter(limit int, window time.Duration) func(http.Handler) http.Handler {
+	return IPRateLimiterWithProxies(limit, window, nil)
+}
+
+// IPRateLimiterWithProxies creates a rate limiter with custom trusted proxy configuration.
+func IPRateLimiterWithProxies(limit int, window time.Duration, trustedProxies []string) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	clients := make(map[string]*ipBucket)
 
@@ -46,17 +130,7 @@ func IPRateLimiter(limit int, window time.Duration) func(http.Handler) http.Hand
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Extract client IP address
-			clientIP := r.Header.Get("X-Forwarded-For")
-			if clientIP == "" {
-				clientIP = strings.Split(r.RemoteAddr, ":")[0]
-			} else {
-				clientIP = strings.TrimSpace(strings.Split(clientIP, ",")[0])
-			}
-			if clientIP == "" {
-				clientIP = "127.0.0.1"
-			}
-
+			clientIP := ExtractClientIP(r, trustedProxies)
 			now := time.Now()
 
 			mu.Lock()

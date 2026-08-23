@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -28,5 +29,50 @@ func TestGetEnvInt(t *testing.T) {
 
 	if val := GetEnvInt("NON_EXISTING_INT", 99); val != 99 {
 		t.Errorf("expected 99, got %d", val)
+	}
+}
+
+func TestGetEnvBool(t *testing.T) {
+	os.Setenv("TEST_BOOL", "true")
+	defer os.Unsetenv("TEST_BOOL")
+
+	if val := GetEnvBool("TEST_BOOL", false); !val {
+		t.Errorf("expected true, got false")
+	}
+
+	if val := GetEnvBool("NON_EXISTING_BOOL", true); !val {
+		t.Errorf("expected default true, got false")
+	}
+}
+
+func TestGetEnvSlice(t *testing.T) {
+	os.Setenv("TEST_SLICE", "http://localhost:3000, http://127.0.0.1:3000 , https://app.eomp.local")
+	defer os.Unsetenv("TEST_SLICE")
+
+	expected := []string{"http://localhost:3000", "http://127.0.0.1:3000", "https://app.eomp.local"}
+	val := GetEnvSlice("TEST_SLICE", nil)
+	if !reflect.DeepEqual(val, expected) {
+		t.Errorf("expected %v, got %v", expected, val)
+	}
+
+	defaultSlice := []string{"default1", "default2"}
+	fallbackVal := GetEnvSlice("NON_EXISTING_SLICE", defaultSlice)
+	if !reflect.DeepEqual(fallbackVal, defaultSlice) {
+		t.Errorf("expected %v, got %v", defaultSlice, fallbackVal)
+	}
+}
+
+func TestRequireEnv(t *testing.T) {
+	os.Setenv("TEST_REQ", "secret_value")
+	defer os.Unsetenv("TEST_REQ")
+
+	val, err := RequireEnv("TEST_REQ")
+	if err != nil || val != "secret_value" {
+		t.Fatalf("expected 'secret_value', got error: %v", err)
+	}
+
+	_, errMissing := RequireEnv("MISSING_REQ_KEY")
+	if errMissing == nil {
+		t.Fatalf("expected error for missing required env, got nil")
 	}
 }

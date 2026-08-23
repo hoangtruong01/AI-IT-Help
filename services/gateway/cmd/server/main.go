@@ -25,6 +25,12 @@ func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
+	// Fail-fast configuration validation
+	if err := cfg.Validate(); err != nil {
+		log.Error("gateway configuration validation failed (fail-fast)", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, 60*time.Minute, 7*24*time.Hour)
 	authFilter := gwMiddleware.GatewayAuth(jwtManager)
 
@@ -106,8 +112,9 @@ func main() {
 	mux.HandleFunc("POST /api/v1/monitoring/probe/{id}", monitoringHandler.ProbeService)
 	mux.HandleFunc("GET /api/v1/monitoring/logs", monitoringHandler.GetLogs)
 
-	// Auth Service Routing (Public routes for register, login, refresh; me requires token)
-	mux.Handle("/api/v1/auth/", authProxy)
+	// Auth Service Routing with Strict Brute-Force Rate Limiter (10 req/min/IP - Task 1.5)
+	strictAuthLimiter := middleware.IPRateLimiterWithProxies(10, 1*time.Minute, cfg.TrustedProxies)
+	mux.Handle("/api/v1/auth/", strictAuthLimiter(authProxy))
 
 	// Employee & Department Routing
 	mux.Handle("/api/v1/employees", authFilter(employeeProxy))
@@ -156,12 +163,12 @@ func main() {
 	mux.Handle("/api/v1/audit", authFilter(adminRoleFilter(auditProxy)))
 	mux.Handle("/api/v1/audit/", authFilter(adminRoleFilter(auditProxy)))
 
-	// Apply Global Gateway Middleware Stack with Rate Limiting (Test Case 10.2) & RED Metrics
+	// Apply Global Gateway Middleware Stack with Dynamic CORS, Anti-Spoofing Limiter (100 req/min), and RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.IPRateLimiter(100, 1*time.Minute)(
+		middleware.IPRateLimiterWithProxies(100, 1*time.Minute, cfg.TrustedProxies)(
 			metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
 				middleware.RequestLogger(log)(
-					middleware.CORS(mux),
+					middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),
 				),
 			),
 		),

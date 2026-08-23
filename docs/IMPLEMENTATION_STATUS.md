@@ -386,7 +386,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 │ 🔴 MILESTONE 1: PRODUCT & AI CORE (Current Target)                          │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
 │ Phase 0      │ ✅ Baseline verified, schema audited, 100% tests passing.    │
-│ Phase 1      │ ⏳ Fix .env format, eliminate hardcoded secrets, dynamic CORS.│
+│ Phase 1      │ ✅ Security Hardening: .env, Fail-Fast, CORS, Anti-Spoofing. │
 │ Phase 2      │ ⏳ Token revocation /logout, Login audit logs, Asset trace.  │
 │ Phase 3      │ ⏳ Optimistic Locking (version int), ITIL State Machine.     │
 │ Phase 4      │ ⏳ Real Ollama/OpenAI provider, Qdrant ingestion, Evaluation.│

@@ -26,6 +26,11 @@ func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
+	if err := cfg.Validate(); err != nil {
+		log.Error("configuration validation failed (fail-fast)", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	// 1. Initialize PostgreSQL Connection
 	dbCfg := database.Config{
 		Host:     cfg.DBHost,
