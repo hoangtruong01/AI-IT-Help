@@ -24,3 +24,10 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'knowledge_db')\gexec
 
 SELECT 'CREATE DATABASE audit_db'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'audit_db')\gexec
+
+SELECT 'CREATE DATABASE notification_db'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'notification_db')\gexec
+
+SELECT 'CREATE DATABASE reporting_db'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'reporting_db')\gexec
+

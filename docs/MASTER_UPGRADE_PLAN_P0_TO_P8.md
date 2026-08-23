@@ -32,7 +32,7 @@
 Kế hoạch này được thiết kế để nâng cấp nền tảng **EOMP** từ trạng thái hiện tại thành một **Enterprise AI Operations Ecosystem chuẩn chỉnh**, phục vụ mục tiêu vận hành doanh nghiệp thực tế và làm điểm nhấn xuất sắc cho portfolio/CV kỹ thuật cao cấp.
 
 ### Triết lý triển khai: "Đóng Implementation Gap" & "Local First, Cloud Native Ready"
-- **Không đập đi xây lại:** Tận dụng 100% kiến trúc 11 Go Microservices, Nuxt 4 Frontend và 8 PostgreSQL Databases đã được phân chia module rất tốt.
+- **Không đập đi xây lại:** Tận dụng 100% kiến trúc 11 Go Microservices, Nuxt 4 Frontend và 9 PostgreSQL Databases đã được phân chia module rất tốt.
 - **Không over-engineering hạ tầng trước nghiệp vụ:** Đảm bảo toàn bộ **Golden Flow (Login ➔ Ticket ➔ AI Triage ➔ RAG Solution ➔ SLA ➔ Assign ➔ Resolve)** chạy thật trên môi trường Local trước khi đóng gói Kubernetes/CI-CD.
 - **Minh chứng bằng Evidence:** Mọi tuyên bố kỹ thuật (500 VUs, SLA 15m, RPO < 5m, SHA-256 Audit) đều phải có unit test, integration test, K6 benchmark script và log thực tế đi kèm.
 
@@ -107,8 +107,8 @@ flowchart TD
 
 | Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) |
 |---|---|---|---|---|
-| **0.1** | **Codebase Inventory & Gap Baseline** | Rà soát toàn bộ 94 file Go và 11 SQL migrations, đối chiếu 1:1 với OpenAPI spec. | `docs/`, `services/*` | Có file `docs/IMPLEMENTATION_STATUS.md` thể hiện đúng % hoàn thiện thực tế của từng service. |
-| **0.2** | **Database Schema Audit** | Kiểm tra toàn bộ PK, FK, Unique Index, Not Null, Seed data trên 8 PostgreSQL databases. | `services/*/migrations/` | Báo cáo chi tiết các trường còn thiếu (thiếu `version`, thiếu enum constraints). |
+| **0.1** | **Codebase Inventory & Gap Baseline** | Rà soát toàn bộ 129 file Go và 11 SQL migrations, đối chiếu 1:1 với OpenAPI spec và Router handlers. | `docs/IMPLEMENTATION_STATUS.md`, `services/*` | Có file `docs/IMPLEMENTATION_STATUS.md` thể hiện đúng % hoàn thiện thực tế của từng service. |
+| **0.2** | **Database Schema Audit** | Kiểm tra toàn bộ PK, FK, Unique Index, Not Null, Seed data trên 9 PostgreSQL databases. | `services/*/migrations/`, `docs/DATABASE_AUDIT_REPORT.md` | Báo cáo chi tiết các trường còn thiếu (thiếu `version`, thiếu enum constraints). |
 | **0.3** | **Golden Flow Verification** | Chạy thử nghiệm kịch bản E2E kiểm tra tính tương thích giữa các services. | `tests/e2e/` | Kịch bản `e2e_lifecycle_test.go` pass 100% với in-memory mock. |
 
 ---
