@@ -15,7 +15,7 @@ EOMP tuân thủ nguyên tắc cốt lõi của Microservices: **Database-per-Se
 
 ---
 
-## 2. Master Databases Matrix (8 Isolated DBs)
+## 2. Master Databases Matrix (9 Dedicated Microservice Databases)
 
 | Service | Database Name | Entities Owned (Bảng Dữ Liệu) | Vai Trò & Ràng Buộc Chính |
 |---|---|---|---|

@@ -52,6 +52,7 @@ func TestGateway_TestCase_10_2_RateLimiter(t *testing.T) {
 	// Send 5 requests from same IP -> all OK
 	for i := 0; i < 5; i++ {
 		req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+		req.RemoteAddr = "127.0.0.1:51234"
 		req.Header.Set("X-Forwarded-For", "203.0.113.195")
 		rec := httptest.NewRecorder()
 		limiter.ServeHTTP(rec, req)
@@ -62,6 +63,7 @@ func TestGateway_TestCase_10_2_RateLimiter(t *testing.T) {
 
 	// 6th request triggers rate limit -> 429 Too Many Requests
 	reqSpam := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	reqSpam.RemoteAddr = "127.0.0.1:51234"
 	reqSpam.Header.Set("X-Forwarded-For", "203.0.113.195")
 	recSpam := httptest.NewRecorder()
 
@@ -69,5 +71,39 @@ func TestGateway_TestCase_10_2_RateLimiter(t *testing.T) {
 
 	if recSpam.Code != http.StatusTooManyRequests {
 		t.Errorf("expected 429 Too Many Requests on rate limit breach, got %d", recSpam.Code)
+	}
+}
+
+// Test Phase 1 Task 1.5: Gateway Strict Auth Rate Limiting (10 req/min/IP brute force guard).
+func TestGateway_StrictAuthEndpointLimiter(t *testing.T) {
+	mockAuthBackend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"token":"sample_jwt_token"}`))
+	})
+
+	// 10 req / 1s window in test
+	authLimiter := middleware.StrictAuthRateLimiter(10, 1*time.Second)(mockAuthBackend)
+
+	// Send 10 login attempts
+	for i := 1; i <= 10; i++ {
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+		req.RemoteAddr = "192.168.1.99:54321"
+		rec := httptest.NewRecorder()
+		authLimiter.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("login attempt #%d should pass, got %d", i, rec.Code)
+		}
+	}
+
+	// 11th login attempt should be blocked with 429
+	req11 := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	req11.RemoteAddr = "192.168.1.99:54321"
+	rec11 := httptest.NewRecorder()
+
+	authLimiter.ServeHTTP(rec11, req11)
+
+	if rec11.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 Too Many Requests on 11th login attempt, got %d", rec11.Code)
 	}
 }

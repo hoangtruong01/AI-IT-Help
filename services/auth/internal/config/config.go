@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"eomp/packages/shared/pkg/config"
@@ -24,7 +26,7 @@ type Config struct {
 	JWTRefreshTTL  time.Duration
 }
 
-// Load reads configuration from the environment with sensible defaults.
+// Load reads configuration from the environment with validation.
 func Load() *Config {
 	return &Config{
 		ServiceName:    "auth",
@@ -42,4 +44,23 @@ func Load() *Config {
 		JWTAccessTTL:   time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 60)) * time.Minute,
 		JWTRefreshTTL:  time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7)) * 24 * time.Hour,
 	}
+}
+
+// Validate performs fail-fast verification on critical configuration items.
+func (c *Config) Validate() error {
+	if c.JWTSecret == "" {
+		return errors.New("security violation: JWT_SECRET environment variable must not be empty")
+	}
+	if len(c.JWTSecret) < 16 {
+		return fmt.Errorf("security violation: JWT_SECRET must be at least 16 characters long for HMAC-SHA256, got length %d", len(c.JWTSecret))
+	}
+	if c.Environment == "production" {
+		if c.JWTSecret == "eomp-enterprise-super-secret-jwt-key-2026" {
+			return errors.New("security violation: default dev JWT_SECRET is strictly prohibited in production")
+		}
+		if c.DBPassword == "eomp_dev_password" || c.DBPassword == "" {
+			return errors.New("security violation: default dev DB_PASSWORD is strictly prohibited in production")
+		}
+	}
+	return nil
 }

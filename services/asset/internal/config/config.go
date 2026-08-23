@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+
 	"eomp/packages/shared/pkg/config"
 )
 
@@ -34,4 +36,14 @@ func Load() *Config {
 		DBSSLMode:      config.GetEnv("POSTGRES_SSLMODE", "disable"),
 		MigrationsPath: config.GetEnv("ASSET_MIGRATIONS_PATH", "migrations"),
 	}
+}
+
+// Validate performs fail-fast configuration checks.
+func (c *Config) Validate() error {
+	if c.Environment == "production" {
+		if c.DBPassword == "eomp_dev_password" || c.DBPassword == "" {
+			return errors.New("security violation: default dev DB_PASSWORD is prohibited in production")
+		}
+	}
+	return nil
 }
