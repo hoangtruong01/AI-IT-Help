@@ -55,7 +55,7 @@ func main() {
 	// 2. Dependencies
 	repo := repository.NewRepository(db)
 	svc := service.NewEmployeeService(repo)
-	empHandler := handler.NewEmployeeHandler(svc)
+	empHandler := handler.NewEmployeeHandlerWithAssetURL(svc, cfg.AssetServiceURL)
 	healthHandler := handler.NewHealthHandler(cfg)
 
 	// 3. Routes
@@ -69,6 +69,7 @@ func main() {
 	// Employees API
 	mux.HandleFunc("GET /api/v1/employees", empHandler.ListEmployees)
 	mux.HandleFunc("POST /api/v1/employees", empHandler.CreateEmployee)
+	mux.HandleFunc("GET /api/v1/employees/{id}/assets/history", empHandler.GetEmployeeAssetHistory)
 	mux.HandleFunc("GET /api/v1/employees/{id}", empHandler.GetEmployee)
 	mux.HandleFunc("PUT /api/v1/employees/{id}", empHandler.UpdateEmployee)
 	mux.HandleFunc("DELETE /api/v1/employees/{id}", empHandler.DeleteEmployee)
@@ -76,6 +77,7 @@ func main() {
 	// Departments API
 	mux.HandleFunc("GET /api/v1/departments", empHandler.ListDepartments)
 	mux.HandleFunc("POST /api/v1/departments", empHandler.CreateDepartment)
+
 
 	// Apply Middleware with RED Metrics
 	handlerStack := middleware.Recoverer(log)(

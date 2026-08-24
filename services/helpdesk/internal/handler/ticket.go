@@ -251,3 +251,28 @@ func (h *TicketHandler) ListServiceCatalogItems(w http.ResponseWriter, r *http.R
 
 	response.JSON(w, http.StatusOK, items)
 }
+
+// ListTicketsByAsset returns tickets associated with an asset ID
+func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Request) {
+	assetID := r.PathValue("assetId")
+	if assetID == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 1 {
+			assetID = parts[len(parts)-1]
+		}
+	}
+
+	if assetID == "" {
+		errors.WriteHTTP(w, errors.BadRequest("asset id is required"))
+		return
+	}
+
+	tickets, err := h.svc.GetTicketsByAssetID(r.Context(), assetID)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, tickets)
+}
+

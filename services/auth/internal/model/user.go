@@ -45,6 +45,30 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// LogoutRequest contains the refresh token to revoke
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// LoginAuditLog represents an entry in login_audit_logs table
+type LoginAuditLog struct {
+	ID            string    `json:"id"`
+	UserID        *string   `json:"user_id,omitempty"`
+	Email         string    `json:"email"`
+	IPAddress     string    `json:"ip_address"`
+	UserAgent     *string   `json:"user_agent,omitempty"`
+	Status        string    `json:"status"` // SUCCESS, FAILED, LOCKED
+	FailureReason *string   `json:"failure_reason,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// Login audit status constants
+const (
+	LoginStatusSuccess = "SUCCESS"
+	LoginStatusFailed  = "FAILED"
+	LoginStatusLocked  = "LOCKED"
+)
+
 // UserResponse is the public sanitized user representation
 type UserResponse struct {
 	ID           string    `json:"id"`
@@ -77,3 +101,4 @@ func (u *User) ToResponse() UserResponse {
 		CreatedAt:    u.CreatedAt,
 	}
 }
+

@@ -186,6 +186,16 @@ func (m *mockTicketRepoForProblem) FindServiceCatalogItemByID(ctx context.Contex
 func (m *mockTicketRepoForProblem) NextTicketNumber(ctx context.Context) (string, error) {
 	return "TK-1001", nil
 }
+func (m *mockTicketRepoForProblem) ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error) {
+	var list []model.Ticket
+	for _, t := range m.tickets {
+		if t.AffectedCIID != nil && *t.AffectedCIID == assetID {
+			list = append(list, *t)
+		}
+	}
+	return list, nil
+}
+
 
 // Test Case 7.1: Aggregate 3 duplicate Incidents and verify Cascade Resolution when Problem is Resolved.
 func TestProblemManagement_TestCase_7_1(t *testing.T) {

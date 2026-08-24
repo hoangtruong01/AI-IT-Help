@@ -72,6 +72,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", authHandler.RefreshToken)
+	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)
 
 	// Protected routes (accepts either direct Bearer token or Gateway injected headers)
 	authMiddleware := middleware.Authenticate(jwtManager)
@@ -85,6 +86,15 @@ func main() {
 			return
 		}
 		meHandler.ServeHTTP(w, r)
+	})))
+
+	loginHistoryHandler := http.HandlerFunc(authHandler.GetLoginHistory)
+	mux.Handle("GET /api/v1/auth/login-history", gatewayMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if middleware.GetUserID(r.Context()) == "" && r.Header.Get("Authorization") != "" {
+			authMiddleware(loginHistoryHandler).ServeHTTP(w, r)
+			return
+		}
+		loginHistoryHandler.ServeHTTP(w, r)
 	})))
 
 	// Apply global middleware stack with RED Metrics

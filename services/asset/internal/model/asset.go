@@ -115,3 +115,36 @@ type AssetStatsResponse struct {
 	InMaintenance int     `json:"in_maintenance"`
 	TotalValue    float64 `json:"total_value"`
 }
+
+// EmployeeAssetHistoryItem represents an asset assignment record with joined asset details
+type EmployeeAssetHistoryItem struct {
+	AssignmentID      string     `json:"assignment_id"`
+	AssetID           string     `json:"asset_id"`
+	AssetTag          string     `json:"asset_tag"`
+	AssetName         string     `json:"asset_name"`
+	Category          string     `json:"category"`
+	Model             *string    `json:"model,omitempty"`
+	SerialNumber      *string    `json:"serial_number,omitempty"`
+	AssetStatus       string     `json:"asset_status"`
+	AssignedAt        time.Time  `json:"assigned_at"`
+	ReturnedAt        *time.Time `json:"returned_at,omitempty"`
+	ConditionOnAssign string     `json:"condition_on_assign"`
+	ConditionOnReturn *string    `json:"condition_on_return,omitempty"`
+	Notes             *string    `json:"notes,omitempty"`
+}
+
+// AssetIncidentHistoryItem represents an incident/ticket linked to an asset
+type AssetIncidentHistoryItem struct {
+	TicketID     string     `json:"ticket_id"`
+	TicketNumber string     `json:"ticket_number"`
+	Title        string     `json:"title"`
+	Category     string     `json:"category"`
+	Priority     string     `json:"priority"`
+	Status       string     `json:"status"`
+	RequesterID  string     `json:"requester_id"`
+	RequesterName string    `json:"requester_name"`
+	AssigneeName *string    `json:"assignee_name,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	ResolvedAt   *time.Time `json:"resolved_at,omitempty"`
+}
+

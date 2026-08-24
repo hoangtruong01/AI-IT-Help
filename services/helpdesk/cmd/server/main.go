@@ -73,12 +73,14 @@ func main() {
 	// Tickets API
 	mux.HandleFunc("GET /api/v1/tickets", ticketHandler.ListTickets)
 	mux.HandleFunc("POST /api/v1/tickets", ticketHandler.CreateTicket)
+	mux.HandleFunc("GET /api/v1/tickets/asset/{assetId}", ticketHandler.ListTicketsByAsset)
 	mux.HandleFunc("GET /api/v1/tickets/{id}", ticketHandler.GetTicket)
 	mux.HandleFunc("PATCH /api/v1/tickets/{id}/status", ticketHandler.UpdateStatus)
 	mux.HandleFunc("PATCH /api/v1/tickets/{id}/assign", ticketHandler.AssignTicket)
 	mux.HandleFunc("POST /api/v1/tickets/{id}/comments", ticketHandler.AddComment)
 	mux.HandleFunc("GET /api/v1/tickets/{id}/comments", ticketHandler.ListComments)
 	mux.HandleFunc("GET /api/v1/tickets/{id}/timeline", ticketHandler.ListTimeline)
+
 
 	// Problem Management API (ITIL v4)
 	mux.HandleFunc("GET /api/v1/problems/stats", problemHandler.GetStats)

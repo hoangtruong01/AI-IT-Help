@@ -54,7 +54,7 @@ func main() {
 
 	// 2. Dependencies
 	repo := repository.NewRepository(db)
-	assetSvc := service.NewAssetService(repo)
+	assetSvc := service.NewAssetService(repo, cfg.HelpdeskServiceURL)
 	cmdbSvc := service.NewCMDBService(repo)
 
 	assetHandler := handler.NewAssetHandler(assetSvc)
@@ -73,11 +73,14 @@ func main() {
 	mux.HandleFunc("GET /api/v1/assets/stats", assetHandler.GetStats)
 	mux.HandleFunc("GET /api/v1/assets", assetHandler.ListAssets)
 	mux.HandleFunc("POST /api/v1/assets", assetHandler.CreateAsset)
+	mux.HandleFunc("GET /api/v1/assets/employee/{id}/history", assetHandler.GetEmployeeAssetHistory)
 	mux.HandleFunc("GET /api/v1/assets/{id}", assetHandler.GetAsset)
 	mux.HandleFunc("PATCH /api/v1/assets/{id}/status", assetHandler.UpdateStatus)
 	mux.HandleFunc("POST /api/v1/assets/{id}/assign", assetHandler.AssignAsset)
 	mux.HandleFunc("POST /api/v1/assets/{id}/return", assetHandler.ReturnAsset)
 	mux.HandleFunc("GET /api/v1/assets/{id}/assignments", assetHandler.ListAssignments)
+	mux.HandleFunc("GET /api/v1/assets/{id}/incidents", assetHandler.GetAssetIncidents)
+
 
 	// CMDB APIs
 	mux.HandleFunc("GET /api/v1/cmdb/topology", cmdbHandler.GetTopology)

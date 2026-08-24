@@ -46,13 +46,34 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.authService.Login(r.Context(), &req)
+	clientIP := middleware.ExtractClientIP(r, nil)
+	userAgent := r.UserAgent()
+
+	resp, err := h.authService.LoginWithAudit(r.Context(), &req, clientIP, userAgent)
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
 
 	response.JSON(w, http.StatusOK, resp)
+}
+
+// Logout revokes the provided refresh token
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req model.LogoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+		return
+	}
+
+	if err := h.authService.Logout(r.Context(), &req); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, map[string]any{
+		"message": "logged out successfully and token revoked",
+	})
 }
 
 // RefreshToken renews an access token using a valid refresh token
@@ -88,3 +109,24 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	response.JSON(w, http.StatusOK, resp)
 }
+
+// GetLoginHistory returns login audit logs
+func (h *AuthHandler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
+	userRole := middleware.GetUserRole(r.Context())
+	userEmail := middleware.GetUserEmail(r.Context())
+
+	// If not admin, restrict to caller's email
+	queryEmail := r.URL.Query().Get("email")
+	if userRole != model.RoleAdmin && userRole != model.RoleManager {
+		queryEmail = userEmail
+	}
+
+	logs, err := h.authService.GetLoginHistory(r.Context(), queryEmail, 50)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, logs)
+}
+

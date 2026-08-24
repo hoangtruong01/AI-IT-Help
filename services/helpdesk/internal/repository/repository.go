@@ -31,7 +31,9 @@ type Repository interface {
 	ListServiceCatalogItems(ctx context.Context) ([]model.ServiceCatalogItem, error)
 	FindServiceCatalogItemByID(ctx context.Context, id string) (*model.ServiceCatalogItem, error)
 	NextTicketNumber(ctx context.Context) (string, error)
+	ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 }
+
 
 type postgresRepository struct {
 	db *sql.DB
@@ -257,6 +259,73 @@ func (r *postgresRepository) FindTicketByNumber(ctx context.Context, ticketNumbe
 	}
 	return r.FindTicketByID(ctx, id)
 }
+
+func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error) {
+	query := `
+		SELECT 
+			id, ticket_number, title, description, service_item_id, category, priority, status,
+			requester_id, requester_name, requester_email,
+			assignee_id, assignee_name, department_id, affected_ci_id,
+			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
+			sla_status, created_at, updated_at
+		FROM tickets
+		WHERE affected_ci_id = $1
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, assetID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tickets by asset: %w", err)
+	}
+	defer rows.Close()
+
+	tickets := []model.Ticket{}
+	for rows.Next() {
+		var t model.Ticket
+		var assigneeID, assigneeName, deptID, ciID sql.NullString
+		var serviceItemID sql.NullString
+		var respondedAt, resolvedAt, closedAt sql.NullTime
+
+		err := rows.Scan(
+			&t.ID, &t.TicketNumber, &t.Title, &t.Description, &serviceItemID, &t.Category, &t.Priority, &t.Status,
+			&t.RequesterID, &t.RequesterName, &t.RequesterEmail,
+			&assigneeID, &assigneeName, &deptID, &ciID,
+			&t.SLAResponseDeadline, &t.SLAResolutionDeadline, &respondedAt, &resolvedAt, &closedAt,
+			&t.SLAStatus, &t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan ticket by asset: %w", err)
+		}
+
+		if serviceItemID.Valid {
+			t.ServiceItemID = &serviceItemID.String
+		}
+		if assigneeID.Valid {
+			t.AssigneeID = &assigneeID.String
+		}
+		if assigneeName.Valid {
+			t.AssigneeName = &assigneeName.String
+		}
+		if deptID.Valid {
+			t.DepartmentID = &deptID.String
+		}
+		if ciID.Valid {
+			t.AffectedCIID = &ciID.String
+		}
+		if respondedAt.Valid {
+			t.RespondedAt = &respondedAt.Time
+		}
+		if resolvedAt.Valid {
+			t.ResolvedAt = &resolvedAt.Time
+		}
+		if closedAt.Valid {
+			t.ClosedAt = &closedAt.Time
+		}
+
+		tickets = append(tickets, t)
+	}
+	return tickets, nil
+}
+
 
 func (r *postgresRepository) CreateTicket(ctx context.Context, t *model.Ticket) error {
 	query := `
