@@ -24,6 +24,7 @@ type Repository interface {
 	ReturnAsset(ctx context.Context, id, condition string, notes *string) error
 	GetAssetStats(ctx context.Context) (*model.AssetStatsResponse, error)
 	ListAssetAssignments(ctx context.Context, assetID string) ([]model.AssetAssignment, error)
+	ListAssignmentsByEmployee(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error)
 
 	// CMDB methods
 	ListCIs(ctx context.Context, env, ciType, status string) ([]model.ConfigurationItem, error)
@@ -411,6 +412,58 @@ func (r *postgresRepository) ListAssetAssignments(ctx context.Context, assetID s
 	}
 	return list, nil
 }
+
+func (r *postgresRepository) ListAssignmentsByEmployee(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error) {
+	query := `
+		SELECT 
+			aa.id, aa.asset_id, a.asset_tag, a.name, a.category, a.model, a.serial_number, a.status,
+			aa.assigned_at, aa.returned_at, aa.condition_on_assign, aa.condition_on_return, aa.notes
+		FROM asset_assignments aa
+		JOIN assets a ON aa.asset_id = a.id
+		WHERE aa.user_id = $1
+		ORDER BY aa.assigned_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query employee asset assignments: %w", err)
+	}
+	defer rows.Close()
+
+	items := []model.EmployeeAssetHistoryItem{}
+	for rows.Next() {
+		var item model.EmployeeAssetHistoryItem
+		var modelStr, serialStr, condReturn, notesStr sql.NullString
+		var returnedAt sql.NullTime
+
+		err := rows.Scan(
+			&item.AssignmentID, &item.AssetID, &item.AssetTag, &item.AssetName, &item.Category, &modelStr, &serialStr, &item.AssetStatus,
+			&item.AssignedAt, &returnedAt, &item.ConditionOnAssign, &condReturn, &notesStr,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan employee asset history item: %w", err)
+		}
+
+		if modelStr.Valid {
+			item.Model = &modelStr.String
+		}
+		if serialStr.Valid {
+			item.SerialNumber = &serialStr.String
+		}
+		if returnedAt.Valid {
+			item.ReturnedAt = &returnedAt.Time
+		}
+		if condReturn.Valid {
+			item.ConditionOnReturn = &condReturn.String
+		}
+		if notesStr.Valid {
+			item.Notes = &notesStr.String
+		}
+
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 
 func (r *postgresRepository) ListCIs(ctx context.Context, env, ciType, status string) ([]model.ConfigurationItem, error) {
 	where := []string{"1=1"}

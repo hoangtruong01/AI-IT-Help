@@ -51,10 +51,28 @@ const assignCondition = ref('EXCELLENT')
 const assignNotes = ref('')
 const assignLoading = ref(false)
 
-// History Modal State
+// History & Incidents Modal State
+interface AssetIncidentItem {
+  ticket_id: string
+  ticket_number: string
+  title: string
+  category: string
+  priority: string
+  status: string
+  requester_id: string
+  requester_name: string
+  assignee_name?: string
+  created_at: string
+  resolved_at?: string
+}
+
 const isHistoryModalOpen = ref(false)
 const historyAsset = ref<Asset | null>(null)
 const historyRecords = ref<AssetAssignment[]>([])
+const incidentRecords = ref<AssetIncidentItem[]>([])
+const activeHistoryTab = ref<'assignments' | 'incidents'>('assignments')
+const loadingHistory = ref(false)
+
 
 // CMDB State
 const topology = ref<CMDBTopologyGraph | null>(null)
@@ -187,13 +205,23 @@ async function openHistoryModal(asset: Asset) {
   historyAsset.value = asset
   isHistoryModalOpen.value = true
   historyRecords.value = []
+  incidentRecords.value = []
+  activeHistoryTab.value = 'assignments'
+  loadingHistory.value = true
   try {
-    const res = await api.get<AssetAssignment[]>(`/api/v1/assets/${asset.id}/assignments`)
-    historyRecords.value = res || []
+    const [assignments, incidents] = await Promise.all([
+      api.get<AssetAssignment[]>(`/api/v1/assets/${asset.id}/assignments`).catch(() => []),
+      api.get<AssetIncidentItem[]>(`/api/v1/assets/${asset.id}/incidents`).catch(() => [])
+    ])
+    historyRecords.value = assignments || []
+    incidentRecords.value = incidents || []
   } catch (err) {
-    console.error('Failed to load assignments:', err)
+    console.error('Failed to load asset history & incidents:', err)
+  } finally {
+    loadingHistory.value = false
   }
 }
+
 
 async function handleCreateCI() {
   if (!newCI.ci_code || !newCI.name || !newCI.ci_type) return
@@ -1057,5 +1085,127 @@ onMounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- Asset History & Incident Tickets Modal -->
+    <div
+      v-if="isHistoryModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    >
+      <div class="w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4 animate-scale-up">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <UIcon name="i-lucide-history" class="w-5 h-5 text-emerald-400" />
+              <span>Asset Lifecycle & Incident History</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5" v-if="historyAsset">
+              Hardware: <span class="font-mono text-emerald-400 font-bold">{{ historyAsset.asset_tag }}</span> — {{ historyAsset.name }} ({{ historyAsset.status }})
+            </p>
+          </div>
+          <button
+            class="text-slate-400 hover:text-white"
+            @click="isHistoryModalOpen = false"
+          >
+            <UIcon name="i-lucide-x" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- Tabs: Assignments vs Incidents -->
+        <div class="flex border-b border-slate-800 gap-4 text-xs font-semibold">
+          <button
+            class="pb-2 flex items-center gap-1.5 transition-colors border-b-2"
+            :class="activeHistoryTab === 'assignments' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'"
+            @click="activeHistoryTab = 'assignments'"
+          >
+            <UIcon name="i-lucide-users" class="w-4 h-4" />
+            <span>Assignments ({{ historyRecords.length }})</span>
+          </button>
+          <button
+            class="pb-2 flex items-center gap-1.5 transition-colors border-b-2"
+            :class="activeHistoryTab === 'incidents' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'"
+            @click="activeHistoryTab = 'incidents'"
+          >
+            <UIcon name="i-lucide-alert-triangle" class="w-4 h-4" />
+            <span>Incident Tickets ({{ incidentRecords.length }})</span>
+          </button>
+        </div>
+
+        <div v-if="loadingHistory" class="py-12 flex flex-col items-center justify-center space-y-3">
+          <UIcon name="i-lucide-loader-2" class="w-7 h-7 text-emerald-400 animate-spin" />
+          <span class="text-xs text-slate-400">Loading asset logs...</span>
+        </div>
+
+        <!-- Assignments Tab -->
+        <div v-else-if="activeHistoryTab === 'assignments'">
+          <div v-if="historyRecords.length === 0" class="py-8 text-center text-slate-500 text-xs">
+            No assignment history found for this asset.
+          </div>
+          <div v-else class="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+            <div
+              v-for="rec in historyRecords"
+              :key="rec.id"
+              class="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs space-y-1.5"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-white">{{ rec.user_name }}</span>
+                <span
+                  class="text-[10px] px-2 py-0.5 rounded-full border"
+                  :class="rec.returned_at ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'"
+                >
+                  {{ rec.returned_at ? 'RETURNED' : 'IN USE' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-4 text-[11px] text-slate-400">
+                <span>Assigned: {{ new Date(rec.assigned_at).toLocaleDateString() }} ({{ rec.condition_on_assign }})</span>
+                <span v-if="rec.returned_at">Returned: {{ new Date(rec.returned_at).toLocaleDateString() }}</span>
+              </div>
+              <p v-if="rec.notes" class="text-[11px] text-slate-400 italic">"{{ rec.notes }}"</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Incidents Tab -->
+        <div v-else-if="activeHistoryTab === 'incidents'">
+          <div v-if="incidentRecords.length === 0" class="py-8 text-center text-slate-500 text-xs">
+            No incident tickets reported on this hardware.
+          </div>
+          <div v-else class="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+            <div
+              v-for="inc in incidentRecords"
+              :key="inc.ticket_id"
+              class="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs space-y-1.5"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-[11px] font-bold text-amber-400">{{ inc.ticket_number }}</span>
+                  <span class="font-semibold text-white">{{ inc.title }}</span>
+                </div>
+                <span
+                  class="text-[10px] px-2 py-0.5 rounded-full border"
+                  :class="inc.status === 'RESOLVED' || inc.status === 'CLOSED' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'"
+                >
+                  {{ inc.status }}
+                </span>
+              </div>
+              <div class="flex items-center gap-4 text-[11px] text-slate-400">
+                <span>Requester: {{ inc.requester_name }}</span>
+                <span>Priority: <strong class="text-white">{{ inc.priority }}</strong></span>
+                <span>Logged: {{ new Date(inc.created_at).toLocaleDateString() }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 flex justify-end border-t border-slate-800">
+          <button
+            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs"
+            @click="isHistoryModalOpen = false"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+

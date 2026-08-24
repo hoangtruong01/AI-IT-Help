@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/services/asset/internal/model"
@@ -19,15 +22,26 @@ type AssetService interface {
 	UpdateStatus(ctx context.Context, id, status, location string, notes *string) error
 	GetStats(ctx context.Context) (*model.AssetStatsResponse, error)
 	ListAssignments(ctx context.Context, assetID string) ([]model.AssetAssignment, error)
+	GetEmployeeAssetHistory(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error)
+	GetAssetIncidents(ctx context.Context, assetID string) ([]model.AssetIncidentHistoryItem, error)
 }
 
 type assetService struct {
-	repo repository.Repository
+	repo               repository.Repository
+	helpdeskServiceURL string
+	httpClient         *http.Client
 }
 
 // NewAssetService constructs a new AssetService
-func NewAssetService(repo repository.Repository) AssetService {
-	return &assetService{repo: repo}
+func NewAssetService(repo repository.Repository, helpdeskServiceURL string) AssetService {
+	if helpdeskServiceURL == "" {
+		helpdeskServiceURL = "http://localhost:8084"
+	}
+	return &assetService{
+		repo:               repo,
+		helpdeskServiceURL: helpdeskServiceURL,
+		httpClient:         &http.Client{Timeout: 5 * time.Second},
+	}
 }
 
 func (s *assetService) ListAssets(ctx context.Context, query model.AssetListQuery) (*model.AssetListResponse, error) {
@@ -62,11 +76,6 @@ func (s *assetService) CreateAsset(ctx context.Context, req *model.CreateAssetRe
 		req.Location = "Headquarters Warehouse"
 	}
 
-	currentVal := req.PurchaseCost
-	if currentVal <= 0 {
-		currentVal = 0.00
-	}
-
 	asset := &model.Asset{
 		AssetTag:       req.AssetTag,
 		Name:           req.Name,
@@ -76,7 +85,7 @@ func (s *assetService) CreateAsset(ctx context.Context, req *model.CreateAssetRe
 		PurchaseDate:   req.PurchaseDate,
 		PurchaseCost:   req.PurchaseCost,
 		WarrantyExpiry: req.WarrantyExpiry,
-		CurrentValue:   currentVal,
+		CurrentValue:   req.PurchaseCost,
 		Status:         model.StatusInStock,
 		Location:       req.Location,
 		Notes:          req.Notes,
@@ -86,12 +95,12 @@ func (s *assetService) CreateAsset(ctx context.Context, req *model.CreateAssetRe
 		return nil, errors.InternalServerError(fmt.Sprintf("failed to create asset: %v", err))
 	}
 
-	return s.repo.FindAssetByID(ctx, asset.ID)
+	return asset, nil
 }
 
 func (s *assetService) AssignAsset(ctx context.Context, id string, req *model.AssignAssetRequest) error {
 	if req.UserID == "" || req.UserName == "" {
-		return errors.BadRequest("user_id and user_name are required")
+		return errors.BadRequest("user_id and user_name are required for assignment")
 	}
 
 	asset, err := s.repo.FindAssetByID(ctx, id)
@@ -138,4 +147,49 @@ func (s *assetService) GetStats(ctx context.Context) (*model.AssetStatsResponse,
 
 func (s *assetService) ListAssignments(ctx context.Context, assetID string) ([]model.AssetAssignment, error) {
 	return s.repo.ListAssetAssignments(ctx, assetID)
+}
+
+func (s *assetService) GetEmployeeAssetHistory(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error) {
+	if userID == "" {
+		return nil, errors.BadRequest("user_id is required")
+	}
+	return s.repo.ListAssignmentsByEmployee(ctx, userID)
+}
+
+func (s *assetService) GetAssetIncidents(ctx context.Context, assetID string) ([]model.AssetIncidentHistoryItem, error) {
+	if assetID == "" {
+		return nil, errors.BadRequest("asset_id is required")
+	}
+
+	asset, err := s.repo.FindAssetByID(ctx, assetID)
+	if err != nil || asset == nil {
+		return nil, errors.NotFound("asset not found")
+	}
+
+	// Query helpdesk service for tickets associated with this asset ID / CI ID / Asset Tag
+	url := fmt.Sprintf("%s/api/v1/tickets/asset/%s", s.helpdeskServiceURL, assetID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return []model.AssetIncidentHistoryItem{}, nil
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return []model.AssetIncidentHistoryItem{}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []model.AssetIncidentHistoryItem{}, nil
+	}
+
+	var responseEnvelope struct {
+		Success bool                             `json:"success"`
+		Data    []model.AssetIncidentHistoryItem `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&responseEnvelope); err != nil {
+		return []model.AssetIncidentHistoryItem{}, nil
+	}
+
+	return responseEnvelope.Data, nil
 }

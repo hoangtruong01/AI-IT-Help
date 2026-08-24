@@ -50,10 +50,11 @@
 | # | Service Name | Port | Database | Go Files | Migrations / Tables | Backend % | Frontend % | Key Status / Gaps |
 |---|---|---|---|---|---|---|---|---|
 | 1 | **Gateway** | `:8080` | — | 9 | — | 90% | 100% | Reverse proxy, rate limiter in-memory; needs dynamic CORS & anti-spoofing (P1). |
-| 2 | **Auth** | `:8081` | `auth_db` | 8 | 1 file (2 tables) | 88% | 100% | Login/Register/Refresh/Me work; missing `/logout` revoke & audit logs (P2). |
-| 3 | **Employee** | `:8082` | `employee_db` | 8 | 1 file (2 tables) | 90% | 100% | Full CRUD employees/depts; needs asset assignment history integration (P2). |
-| 4 | **Asset** | `:8083` | `asset_db` | 11 | 1 file (4 tables) | 92% | 100% | Asset CRUD, assignments, CMDB topology; missing `version` column (P3). |
-| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 2 files (7 tables) | 90% | 100% | Ticket CRUD, Problem ITIL v4, SLA engine; missing Optimistic Lock (P3). |
+| 2 | **Auth** | `:8081` | `auth_db` | 9 | 2 files (3 tables) | 98% | 100% | Full Auth lifecycle, `/logout` token revocation & `login_audit_logs` (P2 Done). |
+| 3 | **Employee** | `:8082` | `employee_db` | 8 | 1 file (2 tables) | 98% | 100% | Full CRUD employees/depts & asset assignment history integration (P2 Done). |
+| 4 | **Asset** | `:8083` | `asset_db` | 11 | 1 file (4 tables) | 96% | 100% | Asset CRUD, employee history, incident queries; needs `version` column (P3). |
+| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 2 files (7 tables) | 95% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine; missing Lock (P3). |
+
 | 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 2 files (7 tables) | 92% | 100% | Multi-step approval, Change RFC & CAB; needs AMQP trigger (P5). |
 | 7 | **Notification** | `:8086` | `notification_db` | 8 | 1 file (2 tables) | 85% | 100% | In-app alerts, memory bus subscriber; needs real RabbitMQ consumer (P5). |
 | 8 | **Knowledge** | `:8087` | `knowledge_db` | 9 | 1 file (4 tables) | 90% | 100% | SOP Runbooks, Articles, search; vector embeddings sync needed (P4). |
@@ -387,10 +388,11 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 ├──────────────┬──────────────────────────────────────────────────────────────┤
 │ Phase 0      │ ✅ Baseline verified, schema audited, 100% tests passing.    │
 │ Phase 1      │ ✅ Security Hardening: .env, Fail-Fast, CORS, Anti-Spoofing. │
-│ Phase 2      │ ⏳ Token revocation /logout, Login audit logs, Asset trace.  │
+│ Phase 2      │ ✅ Token revocation /logout, Login audit logs, Asset trace.  │
 │ Phase 3      │ ⏳ Optimistic Locking (version int), ITIL State Machine.     │
 │ Phase 4      │ ⏳ Real Ollama/OpenAI provider, Qdrant ingestion, Evaluation.│
 ├──────────────┼──────────────────────────────────────────────────────────────┤
+
 │ 🟠 MILESTONE 2: ENTERPRISE RESILIENCE                                       │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
 │ Phase 5      │ ⏳ Native RabbitMQ AMQP driver, Async audit & notifications. │

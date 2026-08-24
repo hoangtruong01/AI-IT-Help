@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/response"
@@ -14,13 +16,28 @@ import (
 
 // EmployeeHandler handles employee and department HTTP requests
 type EmployeeHandler struct {
-	svc service.EmployeeService
+	svc             service.EmployeeService
+	assetServiceURL string
+	httpClient      *http.Client
 }
 
 // NewEmployeeHandler creates a new EmployeeHandler
 func NewEmployeeHandler(svc service.EmployeeService) *EmployeeHandler {
-	return &EmployeeHandler{svc: svc}
+	return NewEmployeeHandlerWithAssetURL(svc, "http://localhost:8083")
 }
+
+// NewEmployeeHandlerWithAssetURL creates a new EmployeeHandler with explicit asset service URL
+func NewEmployeeHandlerWithAssetURL(svc service.EmployeeService, assetServiceURL string) *EmployeeHandler {
+	if assetServiceURL == "" {
+		assetServiceURL = "http://localhost:8083"
+	}
+	return &EmployeeHandler{
+		svc:             svc,
+		assetServiceURL: assetServiceURL,
+		httpClient:      &http.Client{Timeout: 5 * time.Second},
+	}
+}
+
 
 // ListEmployees returns paginated employees
 func (h *EmployeeHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
@@ -151,3 +168,48 @@ func (h *EmployeeHandler) CreateDepartment(w http.ResponseWriter, r *http.Reques
 
 	response.JSON(w, http.StatusCreated, dept)
 }
+
+// GetEmployeeAssetHistory returns the asset assignment history for an employee
+func (h *EmployeeHandler) GetEmployeeAssetHistory(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 2 {
+			id = parts[len(parts)-2]
+		}
+	}
+
+	if id == "" {
+		errors.WriteHTTP(w, errors.BadRequest("employee id is required"))
+		return
+	}
+
+	// Forward query to Asset Service
+	url := fmt.Sprintf("%s/api/v1/assets/employee/%s/history", h.assetServiceURL, id)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, url, nil)
+	if err != nil {
+		response.JSON(w, http.StatusOK, []any{})
+		return
+	}
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		response.JSON(w, http.StatusOK, []any{})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		response.JSON(w, http.StatusOK, []any{})
+		return
+	}
+
+	var result any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		response.JSON(w, http.StatusOK, []any{})
+		return
+	}
+
+	response.JSON(w, http.StatusOK, result)
+}
+

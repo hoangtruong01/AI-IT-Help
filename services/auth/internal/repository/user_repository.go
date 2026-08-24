@@ -18,6 +18,8 @@ type UserRepository interface {
 	SaveRefreshToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	ValidateRefreshToken(ctx context.Context, tokenHash string) (string, error)
+	RecordLoginAudit(ctx context.Context, log *model.LoginAuditLog) error
+	GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error)
 }
 
 type postgresUserRepository struct {
@@ -129,3 +131,78 @@ func (r *postgresUserRepository) ValidateRefreshToken(ctx context.Context, token
 	}
 	return userID, nil
 }
+
+func (r *postgresUserRepository) RecordLoginAudit(ctx context.Context, log *model.LoginAuditLog) error {
+	query := `
+		INSERT INTO login_audit_logs (user_id, email, ip_address, user_agent, status, failure_reason, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`
+	now := time.Now()
+	log.CreatedAt = now
+	err := r.db.QueryRowContext(
+		ctx, query,
+		log.UserID, log.Email, log.IPAddress, log.UserAgent, log.Status, log.FailureReason, now,
+	).Scan(&log.ID)
+	if err != nil {
+		return fmt.Errorf("failed to record login audit log: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresUserRepository) GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	var query string
+	var args []any
+	if email != "" {
+		query = `
+			SELECT id, user_id, email, ip_address, user_agent, status, failure_reason, created_at
+			FROM login_audit_logs
+			WHERE email = $1
+			ORDER BY created_at DESC
+			LIMIT $2
+		`
+		args = []any{email, limit}
+	} else {
+		query = `
+			SELECT id, user_id, email, ip_address, user_agent, status, failure_reason, created_at
+			FROM login_audit_logs
+			ORDER BY created_at DESC
+			LIMIT $1
+		`
+		args = []any{limit}
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query login audit logs: %w", err)
+	}
+	defer rows.Close()
+
+	logs := []model.LoginAuditLog{}
+	for rows.Next() {
+		var l model.LoginAuditLog
+		var uid, uAgent, fReason sql.NullString
+		err := rows.Scan(
+			&l.ID, &uid, &l.Email, &l.IPAddress, &uAgent, &l.Status, &fReason, &l.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan login audit log: %w", err)
+		}
+		if uid.Valid {
+			l.UserID = &uid.String
+		}
+		if uAgent.Valid {
+			l.UserAgent = &uAgent.String
+		}
+		if fReason.Valid {
+			l.FailureReason = &fReason.String
+		}
+		logs = append(logs, l)
+	}
+	return logs, nil
+}
+

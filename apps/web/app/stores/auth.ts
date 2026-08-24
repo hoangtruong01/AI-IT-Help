@@ -65,7 +65,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const currentRefreshToken = refreshToken.value
+    if (currentRefreshToken) {
+      try {
+        await $fetch(`${apiBase}/api/v1/auth/logout`, {
+          method: 'POST',
+          body: { refresh_token: currentRefreshToken }
+        })
+      } catch (e) {
+        console.warn('Backend logout revocation error:', e)
+      }
+    }
     token.value = null
     refreshToken.value = null
     tokenCookie.value = null
@@ -73,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     navigateTo('/login')
   }
+
 
   // Initialize user profile if token exists on load
   if (token.value && !user.value) {

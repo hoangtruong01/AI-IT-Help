@@ -24,7 +24,9 @@ type TicketService interface {
 
 	ListServiceCategories(ctx context.Context) ([]model.ServiceCategory, error)
 	ListServiceCatalogItems(ctx context.Context) ([]model.ServiceCatalogItem, error)
+	GetTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 }
+
 
 type ticketService struct {
 	repo      repository.Repository
@@ -252,3 +254,11 @@ func (s *ticketService) ListServiceCategories(ctx context.Context) ([]model.Serv
 func (s *ticketService) ListServiceCatalogItems(ctx context.Context) ([]model.ServiceCatalogItem, error) {
 	return s.repo.ListServiceCatalogItems(ctx)
 }
+
+func (s *ticketService) GetTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error) {
+	if assetID == "" {
+		return nil, errors.BadRequest("asset id is required")
+	}
+	return s.repo.ListTicketsByAssetID(ctx, assetID)
+}
+

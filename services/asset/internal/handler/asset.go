@@ -192,3 +192,52 @@ func (h *AssetHandler) ListAssignments(w http.ResponseWriter, r *http.Request) {
 
 	response.JSON(w, http.StatusOK, assignments)
 }
+
+// GetEmployeeAssetHistory returns all asset assignments for a given employee
+func (h *AssetHandler) GetEmployeeAssetHistory(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 2 {
+			id = parts[len(parts)-2]
+		}
+	}
+
+	if id == "" {
+		errors.WriteHTTP(w, errors.BadRequest("employee id is required"))
+		return
+	}
+
+	history, err := h.svc.GetEmployeeAssetHistory(r.Context(), id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, history)
+}
+
+// GetAssetIncidents returns all incident tickets associated with an asset
+func (h *AssetHandler) GetAssetIncidents(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 2 {
+			id = parts[len(parts)-2]
+		}
+	}
+
+	if id == "" {
+		errors.WriteHTTP(w, errors.BadRequest("asset id is required"))
+		return
+	}
+
+	incidents, err := h.svc.GetAssetIncidents(r.Context(), id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, incidents)
+}
+

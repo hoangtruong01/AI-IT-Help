@@ -18,8 +18,11 @@ import (
 type AuthService interface {
 	Register(ctx context.Context, req *model.RegisterRequest) (*model.AuthResponse, error)
 	Login(ctx context.Context, req *model.LoginRequest) (*model.AuthResponse, error)
+	LoginWithAudit(ctx context.Context, req *model.LoginRequest, ipAddress, userAgent string) (*model.AuthResponse, error)
+	Logout(ctx context.Context, req *model.LogoutRequest) error
 	RefreshToken(ctx context.Context, req *model.RefreshTokenRequest) (*model.AuthResponse, error)
 	GetMe(ctx context.Context, userID string) (*model.UserResponse, error)
+	GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error)
 }
 
 type authService struct {
@@ -104,8 +107,16 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 }
 
 func (s *authService) Login(ctx context.Context, req *model.LoginRequest) (*model.AuthResponse, error) {
+	return s.LoginWithAudit(ctx, req, "127.0.0.1", "Unknown")
+}
+
+func (s *authService) LoginWithAudit(ctx context.Context, req *model.LoginRequest, ipAddress, userAgent string) (*model.AuthResponse, error) {
 	if req.Email == "" || req.Password == "" {
 		return nil, errors.BadRequest("email and password are required")
+	}
+
+	if ipAddress == "" {
+		ipAddress = "127.0.0.1"
 	}
 
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
@@ -114,17 +125,53 @@ func (s *authService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 	if err != nil {
 		return nil, errors.InternalServerError(fmt.Sprintf("database error: %v", err))
 	}
+
 	if user == nil {
+		reason := "user not found"
+		_ = s.repo.RecordLoginAudit(ctx, &model.LoginAuditLog{
+			Email:         req.Email,
+			IPAddress:     ipAddress,
+			UserAgent:     &userAgent,
+			Status:        model.LoginStatusFailed,
+			FailureReason: &reason,
+		})
 		return nil, errors.Unauthorized("invalid email or password")
 	}
 
 	if !user.IsActive {
+		reason := "account deactivated"
+		_ = s.repo.RecordLoginAudit(ctx, &model.LoginAuditLog{
+			UserID:        &user.ID,
+			Email:         req.Email,
+			IPAddress:     ipAddress,
+			UserAgent:     &userAgent,
+			Status:        model.LoginStatusLocked,
+			FailureReason: &reason,
+		})
 		return nil, errors.Forbidden("account is deactivated, please contact IT support")
 	}
 
 	if !auth.CheckPassword(req.Password, user.PasswordHash) {
+		reason := "invalid password"
+		_ = s.repo.RecordLoginAudit(ctx, &model.LoginAuditLog{
+			UserID:        &user.ID,
+			Email:         req.Email,
+			IPAddress:     ipAddress,
+			UserAgent:     &userAgent,
+			Status:        model.LoginStatusFailed,
+			FailureReason: &reason,
+		})
 		return nil, errors.Unauthorized("invalid email or password")
 	}
+
+	// Login successful
+	_ = s.repo.RecordLoginAudit(ctx, &model.LoginAuditLog{
+		UserID:    &user.ID,
+		Email:     req.Email,
+		IPAddress: ipAddress,
+		UserAgent: &userAgent,
+		Status:    model.LoginStatusSuccess,
+	})
 
 	var deptID string
 	if user.DepartmentID != nil {
@@ -145,6 +192,18 @@ func (s *authService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 		ExpiresIn:    3600,
 		User:         user.ToResponse(),
 	}, nil
+}
+
+func (s *authService) Logout(ctx context.Context, req *model.LogoutRequest) error {
+	if req.RefreshToken == "" {
+		return errors.BadRequest("refresh_token is required for logout")
+	}
+
+	refreshHash := hashToken(req.RefreshToken)
+	if err := s.repo.RevokeRefreshToken(ctx, refreshHash); err != nil {
+		return errors.InternalServerError(fmt.Sprintf("failed to revoke refresh token: %v", err))
+	}
+	return nil
 }
 
 func (s *authService) RefreshToken(ctx context.Context, req *model.RefreshTokenRequest) (*model.AuthResponse, error) {
@@ -203,3 +262,8 @@ func (s *authService) GetMe(ctx context.Context, userID string) (*model.UserResp
 	resp := user.ToResponse()
 	return &resp, nil
 }
+
+func (s *authService) GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error) {
+	return s.repo.GetLoginHistory(ctx, email, limit)
+}
+

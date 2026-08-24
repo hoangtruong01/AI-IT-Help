@@ -29,6 +29,43 @@ const newEmployee = reactive<CreateEmployeePayload>({
   location: 'Headquarters (Building A)'
 })
 
+// Asset History Modal State
+interface EmployeeAssetHistory {
+  assignment_id: string
+  asset_id: string
+  asset_tag: string
+  asset_name: string
+  category: string
+  model?: string
+  serial_number?: string
+  asset_status: string
+  assigned_at: string
+  returned_at?: string
+  condition_on_assign: string
+  condition_on_return?: string
+  notes?: string
+}
+const isAssetHistoryModalOpen = ref(false)
+const selectedEmployeeForAssets = ref<Employee | null>(null)
+const employeeAssetHistory = ref<EmployeeAssetHistory[]>([])
+const loadingAssetHistory = ref(false)
+
+async function viewEmployeeAssets(emp: Employee) {
+  selectedEmployeeForAssets.value = emp
+  isAssetHistoryModalOpen.value = true
+  loadingAssetHistory.value = true
+  try {
+    const res = await api.get<EmployeeAssetHistory[]>(`/api/v1/employees/${emp.id}/assets/history`)
+    employeeAssetHistory.value = res || []
+  } catch (err) {
+    console.error('Failed to load employee asset history:', err)
+    employeeAssetHistory.value = []
+  } finally {
+    loadingAssetHistory.value = false
+  }
+}
+
+
 async function fetchDepartments() {
   try {
     const res = await api.get<Department[]>('/api/v1/departments')
@@ -312,9 +349,19 @@ onMounted(() => {
             />
             <span class="text-[11px] font-mono">{{ emp.phone }}</span>
           </div>
+          <div class="pt-2 flex justify-end">
+            <button
+              class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[11px] font-medium flex items-center gap-1 transition-colors"
+              @click="viewEmployeeAssets(emp)"
+            >
+              <UIcon name="i-lucide-laptop" class="w-3.5 h-3.5" />
+              <span>Assigned Assets</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
 
     <!-- Add Employee Modal -->
     <div
@@ -477,5 +524,92 @@ onMounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- Employee Asset History Modal -->
+    <div
+      v-if="isAssetHistoryModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    >
+      <div class="w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-4 animate-scale-up">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <UIcon name="i-lucide-laptop" class="w-5 h-5 text-blue-400" />
+              <span>Assigned Equipment History</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5" v-if="selectedEmployeeForAssets">
+              Employee: <span class="text-white font-medium">{{ selectedEmployeeForAssets.first_name }} {{ selectedEmployeeForAssets.last_name }}</span> ({{ selectedEmployeeForAssets.email }})
+            </p>
+          </div>
+          <button
+            class="text-slate-400 hover:text-white"
+            @click="isAssetHistoryModalOpen = false"
+          >
+            <UIcon name="i-lucide-x" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div v-if="loadingAssetHistory" class="py-12 flex flex-col items-center justify-center space-y-3">
+          <UIcon name="i-lucide-loader-2" class="w-7 h-7 text-blue-400 animate-spin" />
+          <span class="text-xs text-slate-400">Loading equipment records...</span>
+        </div>
+
+        <div v-else-if="employeeAssetHistory.length === 0" class="py-10 text-center space-y-2">
+          <UIcon name="i-lucide-inbox" class="w-10 h-10 text-slate-600 mx-auto" />
+          <p class="text-xs text-slate-400">No hardware assets have been assigned to this employee yet.</p>
+        </div>
+
+        <div v-else class="max-h-96 overflow-y-auto space-y-3 pr-1">
+          <div
+            v-for="item in employeeAssetHistory"
+            :key="item.assignment_id"
+            class="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-all space-y-2"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs font-bold text-blue-400">{{ item.asset_tag }}</span>
+                <span class="text-xs font-semibold text-white">{{ item.asset_name }}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">{{ item.category }}</span>
+              </div>
+              <span
+                class="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                :class="item.returned_at ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'"
+              >
+                {{ item.returned_at ? 'RETURNED' : 'CURRENTLY ASSIGNED' }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-400 pt-1 border-t border-slate-850">
+              <div>
+                <span class="text-slate-500 block text-[10px]">Model / S/N:</span>
+                <span class="font-mono text-slate-300">{{ item.model || 'N/A' }} / {{ item.serial_number || 'N/A' }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block text-[10px]">Assigned Date:</span>
+                <span class="text-slate-300">{{ new Date(item.assigned_at).toLocaleDateString() }} ({{ item.condition_on_assign }})</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block text-[10px]">Returned Date:</span>
+                <span class="text-slate-300">{{ item.returned_at ? new Date(item.returned_at).toLocaleDateString() : 'Active' }}</span>
+              </div>
+            </div>
+
+            <div v-if="item.notes" class="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded-xl border border-slate-800/40">
+              "{{ item.notes }}"
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 flex justify-end border-t border-slate-800">
+          <button
+            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs"
+            @click="isAssetHistoryModalOpen = false"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
