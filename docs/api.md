@@ -1,106 +1,131 @@
-# EOMP — API Reference
+# EOMP — Master API Reference & Gateway Routing Hub
 
-> API documentation will be added as services are implemented.
+> **Tài Liệu Đặc Tả Master REST API (Toàn Bộ 11 Microservices)**  
+> **Base URL:** `http://localhost:8080/api/v1`  
+> **Xem thêm OpenAPI 3.0 Spec:** [OpenAPI 3.0 Hub](openapi/README.md) | [eomp-openapi-spec.yaml](openapi/eomp-openapi-spec.yaml)
 
-## API Gateway
+---
 
-Base URL: `http://localhost:8080`
+## 📑 MỤC LỤC
+1. [Bảng Phân Luồng API Gateway (Routing Matrix)](#1-bảng-phân-luồng-api-gateway-routing-matrix)
+2. [Quy Chuẩn Request & Response Envelopes](#2-quy-chuẩn-request--response-envelopes)
+3. [Chi Tiết Endpoints Từng Microservice](#3-chi-tiết-endpoints-từng-microservice)
+   - [3.1 Auth & RBAC Service (:8081)](#31-auth--rbac-service-8081)
+   - [3.2 Employee Directory Service (:8082)](#32-employee-directory-service-8082)
+   - [3.3 Asset & CMDB Topology Service (:8083)](#33-asset--cmdb-topology-service-8083)
+   - [3.4 Helpdesk, SLA & ITIL Problem Service (:8084)](#34-helpdesk-sla--itil-problem-service-8084)
+   - [3.5 Workflow Engine & CAB Service (:8085)](#35-workflow-engine--cab-service-8085)
+   - [3.6 Notification Service (:8086)](#36-notification-service-8086)
+   - [3.7 Knowledge Base & SOP Service (:8087)](#37-knowledge-base--sop-service-8087)
+   - [3.8 AI Operations Copilot (:8088)](#38-ai-operations-copilot-8088)
+   - [3.9 Audit Trail & Compliance Service (:8089)](#39-audit-trail--compliance-service-8089)
+   - [3.10 Reporting & BI Analytics Service (:8090)](#310-reporting--bi-analytics-service-8090)
+   - [3.11 SRE Monitoring & Health Probes (:8080)](#311-sre-monitoring--health-probes-8080)
 
-### Health Check
+---
 
-```
-GET /health
-```
+## 1. Bảng Phân Luồng API Gateway (Routing Matrix)
 
-Response:
+Tất cả các cuộc gọi API từ Frontend hoặc bên ngoài đều đi qua cổng **API Gateway (`http://localhost:8080`)**:
+
+| Microservice | Port Nội Bộ | Gateway Prefix URL | Bộ Lọc Bảo Mật & Xác Thực |
+|---|:---:|---|:---:|
+| **Auth Service** | `:8081` | `/api/v1/auth/*` | Public (Login/Register) / JWT (Me/Refresh) |
+| **Employee Service** | `:8082` | `/api/v1/employees/*`, `/api/v1/departments/*` | JWT Bearer Token |
+| **Asset Service** | `:8083` | `/api/v1/assets/*`, `/api/v1/cmdb/*` | JWT Bearer Token |
+| **Helpdesk Service** | `:8084` | `/api/v1/tickets/*`, `/api/v1/services/*`, `/api/v1/problems/*` | JWT Bearer Token |
+| **Workflow Engine** | `:8085` | `/api/v1/workflows/*`, `/api/v1/approvals/*`, `/api/v1/changes/*` | JWT Bearer Token |
+| **Notification** | `:8086` | `/api/v1/notifications/*` | JWT Bearer Token |
+| **Knowledge Base** | `:8087` | `/api/v1/knowledge/*` | JWT Bearer Token |
+| **AI Copilot** | `:8088` | `/api/v1/ai/*` | JWT Bearer Token |
+| **Audit Service** | `:8089` | `/api/v1/audit/*` | JWT + Strict RBAC (`ADMIN`, `MANAGER`) |
+| **Reporting & BI** | `:8090` | `/api/v1/reports/*` | JWT Bearer Token |
+| **Observability SRE**| `:8080` | `/api/v1/monitoring/*` | JWT Bearer Token |
+
+---
+
+## 2. Quy Chuẩn Request & Response Envelopes
+
+### Phản hồi Thành Công Phân Trang (Standard Paginated Envelope):
 ```json
 {
-  "status": "ok",
-  "service": "gateway",
-  "version": "0.1.0"
+  "data": [ ... ],
+  "total": 42,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 3
 }
 ```
 
-## Service Health Endpoints
-
-Each service exposes a health endpoint:
-
-| Service | Endpoint |
-|---|---|
-| Gateway | `GET /health` |
-| Auth | `GET /health` |
-| Employee | `GET /health` |
-| Asset | `GET /health` |
-| Helpdesk | `GET /health` |
-| Workflow | `GET /health` |
-| Notification | `GET /health` |
-| Knowledge | `GET /health` |
-| AI | `GET /health` |
-| Audit | `GET /health` |
-| Reporting | `GET /health` |
-
-## AI Service Endpoints
-
-Base URL: `http://localhost:8088`
-
-### AI Chat (Assistant)
-
-```
-POST /api/ai/chat
-```
-
-Request:
+### Phản hồi Lỗi Chuẩn (Standard Error Envelope):
 ```json
 {
-  "session_id": "session-123",
-  "messages": [
-    {
-      "role": "user",
-      "content": "How do I request a new laptop?"
-    }
-  ]
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "ticket TK-1099 does not exist",
+    "details": null
+  }
 }
 ```
 
-Response:
-```json
-{
-  "answer": "To request a new laptop, navigate to the Asset Management module...",
-  "citations": [
-    {
-      "article_id": "kb-001",
-      "title": "IT Asset Request Workflow",
-      "score": 0.95
-    }
-  ],
-  "confidence": 0.95,
-  "tokens_used": 120
-}
-```
+---
 
-### AI Ticket Triage & Classification
+## 3. Chi Tiết Endpoints Từng Microservice
 
-```
-POST /api/ai/analyze-ticket
-```
+### 3.1 Auth & RBAC Service (:8081)
+* `POST /api/v1/auth/login` — Đăng nhập hệ thống, trả về `access_token`, `refresh_token`, và `user` object.
+* `POST /api/v1/auth/refresh` — Cấp mới access token từ refresh token.
+* `GET /api/v1/auth/me` — Lấy thông tin định danh và vai trò của tài khoản đang đăng nhập.
 
-Request:
-```json
-{
-  "title": "VPN connection drops every 10 minutes",
-  "description": "User is unable to maintain remote connection to internal services."
-}
-```
+### 3.2 Employee Directory Service (:8082)
+* `GET /api/v1/employees?page=1&search=John` — Danh sách nhân viên phân trang & tìm kiếm.
+* `GET /api/v1/departments` — Danh sách phòng ban và cây tổ chức phân cấp.
+* `POST /api/v1/employees` — Thêm mới nhân viên vào hệ thống.
 
-Response:
-```json
-{
-  "ticket_id": "mock-ticket-001",
-  "suggested_category": "Network / VPN",
-  "priority": "medium",
-  "summary": "Issue regarding: VPN connection drops every 10 minutes",
-  "suggested_resolution": "Check VPN client version and verify MTU settings.",
-  "requires_human_review": true,
-  "created_at": "2026-08-14T10:45:00Z"
-}
-```
+### 3.3 Asset & CMDB Topology Service (:8083)
+* `GET /api/v1/assets?status=IN_USE` — Danh mục phần cứng/phần mềm phân trang.
+* `POST /api/v1/assets/{id}/assign` — Bàn giao thiết bị cho nhân viên.
+* `POST /api/v1/assets/{id}/return` — Thu hồi thiết bị về kho (`IN_STOCK`).
+* `GET /api/v1/cmdb/topology` — Cây đồ thị phân tích phụ thuộc hạ tầng CMDB.
+
+### 3.4 Helpdesk, SLA & ITIL Problem Service (:8084)
+* `GET /api/v1/tickets?status=OPEN&priority=URGENT` — Danh sách Ticket kèm SLA Realtime.
+* `POST /api/v1/tickets` — Tạo yêu cầu hỗ trợ từ Service Catalog.
+* `PATCH /api/v1/tickets/{id}/status` — Cập nhật vòng đời Ticket (`IN_PROGRESS`, `RESOLVED`, `CLOSED`).
+* `GET /api/v1/problems` — Danh sách sự cố ITIL Problem.
+* `POST /api/v1/problems` — Tạo Problem gom nhóm các Incidents trùng lặp và phân tích RCA.
+
+### 3.5 Workflow Engine & CAB Service (:8085)
+* `GET /api/v1/approvals/queue` — Hàng đợi phê duyệt của tôi (My Approvals).
+* `POST /api/v1/approvals/{id}/action` — Phê duyệt (`APPROVED`) hoặc Từ chối (`REJECTED`) kèm lý do.
+* `GET /api/v1/changes` — Danh sách Yêu cầu Thay đổi (RFC) và Hội đồng CAB.
+* `POST /api/v1/changes/{id}/vote` — Bỏ phiếu phê duyệt CAB (Yêu cầu quorum >= 2 votes cho Major/Emergency).
+
+### 3.6 Notification Service (:8086)
+* `GET /api/v1/notifications` — Danh sách thông báo in-app realtime.
+* `PATCH /api/v1/notifications/{id}/read` — Đánh dấu đã đọc 1 thông báo.
+* `POST /api/v1/notifications/read-all` — Đánh dấu đã đọc toàn bộ thông báo.
+
+### 3.7 Knowledge Base & SOP Service (:8087)
+* `GET /api/v1/knowledge/articles` — Danh mục bài viết cẩm nang kỹ thuật.
+* `GET /api/v1/knowledge/search?q=VPN` — Tìm kiếm Full-Text và ngữ nghĩa Qdrant.
+* `GET /api/v1/knowledge/runbooks` — Danh sách quy trình chuẩn SOP Runbooks.
+
+### 3.8 AI Operations Copilot (:8088)
+* `POST /api/v1/ai/chat` — Live Chat với AI Copilot hỗ trợ RAG và trích dẫn tài liệu SOP.
+* `POST /api/v1/ai/analyze-ticket` — Ticket Auto-Triage (Phân loại danh mục, độ ưu tiên, chẩn đoán nguyên nhân gốc rễ).
+
+### 3.9 Audit Trail & Compliance Service (:8089)
+* `GET /api/v1/audit/logs?page=1&action=LOGIN` — Tra cứu nhật ký kiểm toán bất biến kèm **SHA-256 Checksum** (Chỉ dành cho `ADMIN`/`MANAGER`).
+* `GET /api/v1/audit/stats` — Thống kê an ninh và tuân thủ chuẩn SOC2.
+
+### 3.10 Reporting & BI Analytics Service (:8090)
+* `GET /api/v1/reports/sla-summary?range=30d` — Thống kê MTTR, MTTD, SLA Compliance Rate %.
+* `GET /api/v1/reports/agent-performance` — Bảng xếp hạng năng suất kỹ thuật viên (Agent Scorecard).
+* `POST /api/v1/reports/export` — Xuất báo cáo PDF/Excel tốc độ cao (< 3s cho 10,000 bản ghi).
+
+### 3.11 SRE Monitoring & Health Probes (:8080)
+* `GET /api/v1/monitoring/overview` — Tổng hợp KPIs cụm 11 microservices (Active count, RPS, Latency p95, Error Rate).
+* `GET /api/v1/monitoring/services` — Ma trận trạng thái 11 microservices chi tiết.
+* `POST /api/v1/monitoring/probe/{id}` — Kích hoạt Health Probe kiểm tra service tức thì (< 5s).
+* `GET /api/v1/monitoring/logs` — Live log streamer console lọc theo service và log level.

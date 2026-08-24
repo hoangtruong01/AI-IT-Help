@@ -1,0 +1,195 @@
+# ==============================================================================
+# EOMP — Kubernetes ClusterIP Services for Microservices
+# ==============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: eomp
+  labels:
+    app: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: eomp
+  labels:
+    app: auth
+spec:
+  type: ClusterIP
+  selector:
+    app: auth
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: employee-service
+  namespace: eomp
+  labels:
+    app: employee
+spec:
+  type: ClusterIP
+  selector:
+    app: employee
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-service
+  namespace: eomp
+  labels:
+    app: asset
+spec:
+  type: ClusterIP
+  selector:
+    app: asset
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helpdesk-service
+  namespace: eomp
+  labels:
+    app: helpdesk
+spec:
+  type: ClusterIP
+  selector:
+    app: helpdesk
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-service
+  namespace: eomp
+  labels:
+    app: workflow
+spec:
+  type: ClusterIP
+  selector:
+    app: workflow
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: eomp
+  labels:
+    app: notification
+spec:
+  type: ClusterIP
+  selector:
+    app: notification
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8086
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-service
+  namespace: eomp
+  labels:
+    app: knowledge
+spec:
+  type: ClusterIP
+  selector:
+    app: knowledge
+  ports:
+    - name: http
+      port: 8087
+      targetPort: 8087
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: eomp
+  labels:
+    app: ai
+spec:
+  type: ClusterIP
+  selector:
+    app: ai
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  namespace: eomp
+  labels:
+    app: audit
+spec:
+  type: ClusterIP
+  selector:
+    app: audit
+  ports:
+    - name: http
+      port: 8089
+      targetPort: 8089
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reporting-service
+  namespace: eomp
+  labels:
+    app: reporting
+spec:
+  type: ClusterIP
+  selector:
+    app: reporting
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: eomp
+  labels:
+    app: web
+spec:
+  type: ClusterIP
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

@@ -1,82 +1,68 @@
-# EOMP — Environment Variables
+# EOMP — Environment Variables Specification
 
-This document describes all environment variables used by EOMP.
+> **Tài Liệu Cấu Hình Biến Môi Trường Hệ Thống (.env Specification)**  
+> **Áp dụng cho:** Tất cả các Microservices, Frontend và Hệ Thống Container.
 
-See `.env.example` for a complete template.
+---
 
-## Application
+## 1. Global & Core Application
 
-| Variable | Description | Default |
+| Biến Môi Trường | Mô Tả Nghiệp Vụ & Kỹ Thuật | Giá Trị Mặc Định |
 |---|---|---|
-| `APP_ENV` | Environment (`development`, `staging`, `production`) | `development` |
-| `APP_PORT` | Gateway port | `8080` |
+| `APP_ENV` | Môi trường triển khai (`development`, `staging`, `production`) | `development` |
+| `JWT_SECRET` | Khóa bí mật dùng ký JWT Access Token HS256 (60m) | `eomp_jwt_secret_2026` |
+| `TZ` | Múi giờ chuẩn hệ thống | `UTC` |
 
-## PostgreSQL
+---
 
-| Variable | Description | Default |
+## 2. Microservices Network URLs (API Gateway Routing)
+
+| Biến Môi Trường | Cấu Hình URL Microservice Mục Tiêu | Giá Trị Mặc Định |
 |---|---|---|
-| `POSTGRES_HOST` | Database host | `localhost` |
-| `POSTGRES_PORT` | Database port | `5432` |
-| `POSTGRES_USER` | Database user | `eomp` |
-| `POSTGRES_PASSWORD` | Database password | — |
-| `POSTGRES_DB` | Database name | `eomp` |
+| `AUTH_SERVICE_URL` | Địa chỉ Auth & RBAC Service | `http://auth:8081` |
+| `EMPLOYEE_SERVICE_URL` | Địa chỉ Employee Directory Service | `http://employee:8082` |
+| `ASSET_SERVICE_URL` | Địa chỉ Asset & CMDB Topology Service | `http://asset:8083` |
+| `HELPDESK_SERVICE_URL` | Địa chỉ Incident & Problem Service | `http://helpdesk:8084` |
+| `WORKFLOW_SERVICE_URL` | Địa chỉ Workflow Engine & CAB Service | `http://workflow:8085` |
+| `NOTIFICATION_SERVICE_URL` | Địa chỉ In-App Notification Service | `http://notification:8086` |
+| `KNOWLEDGE_SERVICE_URL` | Địa chỉ Knowledge Base & SOP Service | `http://knowledge:8087` |
+| `AI_SERVICE_URL` | Địa chỉ AI Ops Copilot & RAG Service | `http://ai:8088` |
+| `AUDIT_SERVICE_URL` | Địa chỉ Immutable Audit Trail Service | `http://audit:8089` |
+| `REPORTING_SERVICE_URL` | Địa chỉ BI Analytics & SLA Service | `http://reporting:8090` |
 
-## Redis
+---
 
-| Variable | Description | Default |
+## 3. Database & Caching Infrastructure
+
+| Biến Môi Trường | Phân Hệ Sử Dụng | Giá Trị Mặc Định |
 |---|---|---|
-| `REDIS_HOST` | Redis host | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `REDIS_PASSWORD` | Redis password | — |
+| `POSTGRES_HOST` | PostgreSQL Hostname | `localhost` / `postgres` |
+| `POSTGRES_PORT` | PostgreSQL Port | `5432` |
+| `POSTGRES_USER` | PostgreSQL Username | `eomp` |
+| `POSTGRES_PASSWORD` | PostgreSQL Password | `eomp_dev_password` |
+| `REDIS_ADDR` | Redis connection address | `localhost:6379` / `redis:6379` |
+| `RABBITMQ_URL` | AMQP Connection URL cho CloudEvents | `amqp://eomp:eomp_dev_password@rabbitmq:5672/` |
+| `MINIO_ENDPOINT` | S3 MinIO Storage API | `localhost:9000` / `minio:9000` |
+| `MINIO_ACCESS_KEY` | MinIO Root User | `eomp_minio` |
+| `MINIO_SECRET_KEY` | MinIO Secret Key | `eomp_minio_secret` |
+| `QDRANT_URL` | Vector Database URL cho RAG AI | `http://localhost:6333` |
 
-## RabbitMQ
+---
 
-| Variable | Description | Default |
+## 4. Observability & SRE Dashboards
+
+| Biến Môi Trường | Mục Đích Sử Dụng | Giá Trị Mặc Định |
 |---|---|---|
-| `RABBITMQ_HOST` | RabbitMQ host | `localhost` |
-| `RABBITMQ_PORT` | AMQP port | `5672` |
-| `RABBITMQ_USER` | RabbitMQ user | `eomp` |
-| `RABBITMQ_PASSWORD` | RabbitMQ password | — |
-| `RABBITMQ_MANAGEMENT_PORT` | Management UI port | `15672` |
+| `GRAFANA_ADMIN_USER` | Tài khoản quản trị Grafana | `admin` |
+| `GRAFANA_ADMIN_PASSWORD` | Mật khẩu quản trị Grafana | `eomp_grafana` |
+| `PROMETHEUS_PORT` | Cổng thu thập metrics Prometheus | `9090` |
+| `LOKI_PORT` | Cổng lưu trữ log tập trung Loki | `3100` |
 
-## MinIO
+---
 
-| Variable | Description | Default |
+## 5. Frontend Nuxt 4 Configuration
+
+| Biến Môi Trường | Mục Đích Sử Dụng | Giá Trị Mặc Định |
 |---|---|---|
-| `MINIO_ENDPOINT` | MinIO endpoint | `localhost:9000` |
-| `MINIO_ACCESS_KEY` | Access key | — |
-| `MINIO_SECRET_KEY` | Secret key | — |
-| `MINIO_CONSOLE_PORT` | Console UI port | `9001` |
-
-## Qdrant
-
-| Variable | Description | Default |
-|---|---|---|
-| `QDRANT_HOST` | Qdrant host | `localhost` |
-| `QDRANT_PORT` | REST API port | `6333` |
-| `QDRANT_GRPC_PORT` | gRPC port | `6334` |
-
-## AI
-
-| Variable | Description | Default |
-|---|---|---|
-| `AI_API_KEY` | LLM provider API key | — |
-| `AI_MODEL` | LLM model name | — |
-| `EMBEDDING_MODEL` | Embedding model name | — |
-
-## Monitoring
-
-| Variable | Description | Default |
-|---|---|---|
-| `GRAFANA_PORT` | Grafana UI port | `3001` |
-| `GRAFANA_ADMIN_USER` | Grafana admin username | `admin` |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password | — |
-| `PROMETHEUS_PORT` | Prometheus port | `9090` |
-| `LOKI_PORT` | Loki port | `3100` |
-
-## Frontend
-
-| Variable | Description | Default |
-|---|---|---|
-| `NUXT_PORT` | Nuxt dev server port | `3000` |
-| `NUXT_PUBLIC_API_URL` | Public API URL for frontend | `http://localhost:8080` |
+| `PORT` / `NITRO_PORT` | Cổng lắng nghe Web Frontend | `3000` |
+| `NUXT_PUBLIC_API_BASE_URL` | Base API Gateway URL gọi từ trình duyệt | `/api/v1` |

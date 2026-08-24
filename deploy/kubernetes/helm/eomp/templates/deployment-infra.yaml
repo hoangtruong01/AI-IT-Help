@@ -1,0 +1,308 @@
+{{- if .Values.infrastructure.postgres.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-postgres
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: postgres
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.infrastructure.postgres.image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "eomp"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: "eomp"
+          resources:
+            {{- toYaml .Values.infrastructure.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-postgres-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.redis.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-redis
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: redis
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.infrastructure.redis.image }}
+          command: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          resources:
+            {{- toYaml .Values.infrastructure.redis.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-redis-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.rabbitmq.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-rabbitmq
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rabbitmq
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rabbitmq
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.infrastructure.rabbitmq.image }}
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: RABBITMQ_PASSWORD
+          resources:
+            {{- toYaml .Values.infrastructure.rabbitmq.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-rabbitmq-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.minio.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-minio
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: minio
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: minio
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: minio
+          image: {{ .Values.infrastructure.minio.image }}
+          command: ["server", "/data", "--console-address", ":9001"]
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: MINIO_SECRET_KEY
+          resources:
+            {{- toYaml .Values.infrastructure.minio.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-minio-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.qdrant.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-qdrant
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: qdrant
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: qdrant
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: qdrant
+          image: {{ .Values.infrastructure.qdrant.image }}
+          ports:
+            - containerPort: 6333
+            - containerPort: 6334
+          resources:
+            {{- toYaml .Values.infrastructure.qdrant.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /qdrant/storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-qdrant-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.prometheus.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-prometheus
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: prometheus
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: prometheus
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.infrastructure.prometheus.image }}
+          ports:
+            - containerPort: 9090
+          resources:
+            {{- toYaml .Values.infrastructure.prometheus.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /prometheus
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-prometheus-pvc
+{{- end }}
+
+{{- if .Values.infrastructure.grafana.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eomp.fullname" . }}-grafana
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: grafana
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: grafana
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: grafana
+          image: {{ .Values.infrastructure.grafana.image }}
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: GRAFANA_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.fullname" . }}-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          resources:
+            {{- toYaml .Values.infrastructure.grafana.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "eomp.fullname" . }}-grafana-pvc
+{{- end }}

@@ -1,0 +1,166 @@
+{{- range $svcName, $svcConfig := .Values.services }}
+{{- if $svcConfig.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" $ }}-{{ $svcName }}
+  labels:
+    {{- include "eomp.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $svcName }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: {{ $svcName }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+  ports:
+    - name: http
+      port: {{ $svcConfig.port }}
+      targetPort: {{ $svcConfig.port }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.infrastructure.postgres.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-postgres
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 5432
+      targetPort: 5432
+{{- end }}
+
+{{- if .Values.infrastructure.redis.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-redis
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+{{- end }}
+
+{{- if .Values.infrastructure.rabbitmq.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-rabbitmq
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: rabbitmq
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+{{- end }}
+
+{{- if .Values.infrastructure.minio.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-minio
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: minio
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+{{- end }}
+
+{{- if .Values.infrastructure.qdrant.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-qdrant
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: qdrant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+{{- end }}
+
+{{- if .Values.infrastructure.prometheus.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-prometheus
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 9090
+      targetPort: 9090
+{{- end }}
+
+{{- if .Values.infrastructure.grafana.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "eomp.fullname" . }}-grafana
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 3000
+      targetPort: 3000
+{{- end }}

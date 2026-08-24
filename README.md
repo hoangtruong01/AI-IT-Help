@@ -1,179 +1,214 @@
 # EOMP — Enterprise Operations Management Platform
 
-[![CI Pipeline](https://img.shields.io/badge/CI-Jenkins-blue.svg)](Jenkinsfile)
-[![Nuxt 4](https://img.shields.io/badge/Frontend-Nuxt%204.5-00DC82.svg?logo=nuxt.js)](apps/web)
-[![Go 1.24](https://img.shields.io/badge/Backend-Go%201.24-00ADD8.svg?logo=go)](services)
-[![Docker](https://img.shields.io/badge/Infra-Docker%20Compose-2496ED.svg?logo=docker)](docker-compose.yml)
-[![License](https://img.shields.io/badge/License-Proprietary-lightgrey.svg)](#)
+[![CI Pipeline](https://img.shields.io/badge/CI-Jenkins%20Multi--Stage-blue.svg)](Jenkinsfile)
+[![Nuxt 4](https://img.shields.io/badge/Frontend-Nuxt%204.5%20%7C%20Vue%203%20%7C%20Tailwind-00DC82.svg?logo=nuxt.js)](apps/web)
+[![Go 1.24](https://img.shields.io/badge/Backend-11%20Go%20Microservices-00ADD8.svg?logo=go)](services)
+[![Docker](https://img.shields.io/badge/Docker-Multi--Stage%20%3C25MB-2496ED.svg?logo=docker)](deploy/docker)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm%20Chart%20%26%20HPA-326CE5.svg?logo=kubernetes)](deploy/kubernetes)
+[![SRE & DR](https://img.shields.io/badge/SRE-RPO%20%3C5m%20%7C%20RTO%20%3C15m-success.svg)](docs/sre)
+[![Status](https://img.shields.io/badge/14%20Phases-100%25%20COMPLETE-brightgreen.svg)](#-bảng-tiến-độ-14-phases-master-roadmap)
 
-> An enterprise-grade, modular, microservices-based operations management platform.
-
----
-
-## Overview
-
-EOMP provides an integrated operations foundation encompassing:
-
-- **Employee Management** — Organizational hierarchy, profiles & departments
-- **Asset Management** — IT asset tracking, hardware lifecycle & license management
-- **IT Help Desk** — Ticketing system, SLA management & incident resolution
-- **Workflow & Approval** — Multi-step business processes & approval state machines
-- **Knowledge Base** — Documentation, manuals & Qdrant vector-powered search
-- **Notification Service** — Multi-channel communications (Email, Web, Push)
-- **AI Operations Assistant** — LLM-powered ticket triage & RAG retrieval
-- **Reporting & BI** — Operations analytics, metrics & audit logs
-- **Audit Logging** — Immutable compliance and security event trail
-- **Observability** — Prometheus metrics, Grafana dashboards & Loki log aggregation
+> **Enterprise-grade, modular, event-driven microservices operations management platform designed for high-scale organizations.**
 
 ---
 
-## Architecture & Technology Stack
+## 📑 Table of Contents
+1. [Platform Overview & Core Modules](#-platform-overview--core-modules)
+2. [Master Architecture (C4 Model & RED Method)](#-master-architecture-c4-model--red-method)
+3. [Service & Network Port Matrix](#-service--network-port-matrix)
+4. [Quick Start (Local & Production Setup)](#-quick-start-local--production-setup)
+5. [Development & Operations CLI](#-development--operations-cli)
+6. [Master Roadmap (14 Phases Complete)](#-master-roadmap-14-phases-complete)
+7. [Engineering Documentation Hub](#-engineering-documentation-hub)
+
+---
+
+## 🌟 Platform Overview & Core Modules
+
+EOMP provides an end-to-end, integrated operations ecosystem structured across 11 Golang microservices and a modern Nuxt 4 SSR Web Application:
+
+1. **Authentication & RBAC (`services/auth` - :8081)**: Multi-role access control (`ADMIN`, `MANAGER`, `AGENT`, `USER`), JWT HS256 authentication, Bcrypt password hashing, and token refresh.
+2. **Employee Directory (`services/employee` - :8082)**: Organizational structure, department hierarchy, search & employee profile management.
+3. **Asset Management & CMDB (`services/asset` - :8083)**: IT hardware lifecycle, stock allocation/return, and CMDB Infrastructure Dependency Topology graph.
+4. **IT Helpdesk & SLA Engine (`services/helpdesk` - :8084)**: Incident ticketing, dynamic SLA deadline calculations (`URGENT` 15m/2h, `HIGH` 30m/4h), and ITIL Problem Management with RCA 5-Whys.
+5. **Workflow & Approval Engine (`services/workflow` - :8085)**: State machine workflow execution, multi-level approvals, and Change Advisory Board (CAB) voting.
+6. **Notification Service (`services/notification` - :8086)**: CloudEvents v1.0 event bus consumer, in-app notification center, and email delivery.
+7. **Knowledge Base & SOP Runbooks (`services/knowledge` - :8087)**: IT standard operating procedures, documentation management, and vector embeddings.
+8. **AI Operations Copilot (`services/ai` - :8088)**: LLM ticket auto-triage, semantic search with Qdrant vector store, and RAG root-cause assistant.
+9. **Audit Trail & Compliance (`services/audit` - :8089)**: Immutable audit logging with **SHA-256 Checksum** and automated data masking (`********`).
+10. **Reporting & BI Analytics (`services/reporting` - :8090)**: Realtime MTTR/MTTD, SLA compliance rate %, agent performance scorecard, and high-speed PDF/Excel report export (< 3s).
+11. **API Gateway (`services/gateway` - :8080)**: Reverse proxy routing, rate limiting (100 req/min/IP), correlation ID injection, and SRE monitoring aggregation.
+12. **Frontend Web App (`apps/web` - :3000)**: Nuxt 4, Vue 3, Tailwind CSS, Dark Glassmorphism aesthetic, realtime live widgets & SSE streaming.
+
+---
+
+## 🏛️ Master Architecture (C4 Model & RED Method)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (Nuxt 4)                       │
-│        Vue 3 · TypeScript · Nuxt UI · Tailwind CSS v4        │
-│          Pinia · TanStack Query · VueUse · Port 3000         │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ REST API
-┌──────────────────────────────▼──────────────────────────────┐
-│                      API Gateway (Go)                        │
-│            Routing · Rate Limit · Auth · Port 8080           │
-└──┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬───┘
-   │      │      │      │      │      │      │      │      │
-   ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼      ▼
-┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐
-│ Auth ││Employ││Asset ││Help  ││Work  ││Notif ││Knowl ││  AI  │
-│:8081 ││ee:8082││:8083 ││desk  ││flow  ││:8086 ││edge  ││:8088 │
-└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘└──────┘
-   │       │       │       │       │       │       │       │
-   ▼       ▼       ▼       ▼       ▼       ▼       ▼       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Infrastructure                           │
-│  PostgreSQL (7 DBs) · Redis · RabbitMQ · MinIO · Qdrant     │
-│             Prometheus · Grafana · Loki                      │
-└─────────────────────────────────────────────────────────────┘
+                            ┌──────────────────────────────────────────┐
+                            │        Nuxt 4 Web Frontend (:3000)       │
+                            │   Vue 3 · Tailwind CSS · Pinia · SSR    │
+                            └────────────────────┬─────────────────────┘
+                                                 │ REST / SSE
+                            ┌────────────────────▼─────────────────────┐
+                            │         API Gateway Go (:8080)           │
+                            │  Reverse Proxy · JWT · Rate Limit · RED  │
+                            └───────┬────────────┬─────────────┬───────┘
+                                    │            │             │
+        ┌───────────────────────────┼────────────┴─────────────┼───────────────────────────┐
+        ▼                           ▼                          ▼                           ▼
+ ┌──────────────┐            ┌──────────────┐           ┌──────────────┐            ┌──────────────┐
+ │     Auth     │            │   Employee   │           │    Asset     │            │   Helpdesk   │
+ │    :8081     │            │    :8082     │           │    :8083     │            │    :8084     │
+ └──────┬───────┘            └──────┬───────┘           └──────┬───────┘            └──────┬───────┘
+        │                           │                          │                           │
+        ▼                           ▼                          ▼                           ▼
+ ┌──────────────┐            ┌──────────────┐           ┌──────────────┐            ┌──────────────┐
+ │   Workflow   │            │ Notification │           │  Knowledge   │            │  AI Copilot  │
+ │    :8085     │            │    :8086     │           │    :8087     │            │    :8088     │
+ └──────┬───────┘            └──────┬───────┘           └──────┬───────┘            └──────┬───────┘
+        │                           │                          │                           │
+        ▼                           ▼                          ▼                           ▼
+ ┌──────────────┐            ┌──────────────┐           ┌──────────────────────────────────────────┐
+ │ Audit Trail  │            │ Reporting/BI │           │          CloudEvents EventBus            │
+ │    :8089     │            │    :8090     │           │       RabbitMQ 4 · Asynchronous          │
+ └──────┬───────┘            └──────┬───────┘           └──────────────────────────────────────────┘
+        │                           │
+        └───────────────────────────┴──────────────────────────┐
+                                                               ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                                   Distributed Infrastructure                                │
+ │   PostgreSQL 17 (8 Isolated DBs) · Redis 7 · MinIO S3 · Qdrant Vector Store                 │
+ │   Prometheus Metrics · Grafana Dashboards (:3002) · Loki Log Aggregator                     │
+ └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Quick Start (Developer Setup)
+## 🔌 Service & Network Port Matrix
 
-### 1. Prerequisites
-- **Node.js**: >= 20.x (`v20.19+`)
-- **pnpm**: >= 10.x
-- **Go**: >= 1.24.x
-- **Docker & Docker Compose**: >= 28.x / 2.39+
-- **Git**: >= 2.40+
+| Service / Infrastructure | Port | Protocol | Data Store / Role |
+|---|:---:|:---:|---|
+| **Frontend Web App** | `:3000` | HTTP | Nuxt 4 SSR UI Portal |
+| **API Gateway** | `:8080` | HTTP | Stateless Reverse Proxy & SRE Aggregator |
+| **Auth Service** | `:8081` | HTTP | `auth_db` (PostgreSQL) |
+| **Employee Service** | `:8082` | HTTP | `employee_db` (PostgreSQL) |
+| **Asset & CMDB** | `:8083` | HTTP | `asset_db` (PostgreSQL) |
+| **Helpdesk & SLA** | `:8084` | HTTP | `helpdesk_db` (PostgreSQL) |
+| **Workflow Engine** | `:8085` | HTTP | `workflow_db` (PostgreSQL) |
+| **Notification** | `:8086` | HTTP | `notification_db` + RabbitMQ |
+| **Knowledge Base** | `:8087` | HTTP | `knowledge_db` + Qdrant |
+| **AI Copilot** | `:8088` | HTTP | RAG SmartRetriever (Stateless) |
+| **Audit Trail** | `:8089` | HTTP | `audit_db` (SHA-256 Checksum) |
+| **Reporting & BI** | `:8090` | HTTP | `reporting_db` (PostgreSQL) |
+| **PostgreSQL Engine** | `:5432` | TCP | 8 Isolated DBs Pool |
+| **Redis Cache** | `:6379` | TCP | Session & Token Bucket Store |
+| **RabbitMQ AMQP / UI** | `:5672` / `:15672` | TCP/HTTP | CloudEvents Message Broker |
+| **MinIO Storage / UI** | `:9000` / `:9001` | HTTP | S3 Object Storage |
+| **Qdrant Vector DB** | `:6333` / `:6334` | HTTP/gRPC | Vector Embeddings Store |
+| **Prometheus** | `:9090` | HTTP | SRE RED Method Time-Series |
+| **Grafana** | `:3002` | HTTP | Executive & Operational Dashboards |
+| **Loki** | `:3100` | HTTP | Structured Log Aggregation |
 
-### 2. Setup Step-by-Step
+---
+
+## 🚀 Quick Start (Local & Production Setup)
+
+### 1. Development Mode
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/hoangtruong01/AI-IT-Help.git
 cd AI-IT-Help
 
-# 2. Configure Environment Variables
+# 2. Setup Environment Variables
 cp .env.example .env
-# Edit .env with your secrets (NEVER commit .env)
 
-# 3. Start Infrastructure (Postgres, Redis, RabbitMQ, MinIO, Qdrant, Prometheus, Grafana, Loki)
-# On Windows PowerShell:
+# 3. Start Infrastructure via PowerShell CLI (Windows)
 .\scripts\dev.ps1 docker-up
-
-# On Linux/macOS:
-make docker-up
-
-# 4. Verify Infrastructure Health
-# On Windows PowerShell:
 .\scripts\dev.ps1 health
 
-# On Linux/macOS:
+# Or via Makefile (Linux/macOS)
+make docker-up
 make health
 
-# 5. Start Frontend Dev Server (http://localhost:3000)
-cd apps/web
-pnpm install
-pnpm dev
-
-# 6. Start a Backend Service (e.g., API Gateway on port 8080)
-cd services/gateway
-go run ./cmd/server
+# 4. Start Frontend Web Server (http://localhost:3000)
+cd apps/web && pnpm install && pnpm dev
 ```
 
----
+### 2. Production Docker & Kubernetes Deployment
 
-## Service Port Matrix
-
-| Service | Protocol / Port | Local URL |
-|---|---|---|
-| **Frontend (Nuxt 4)** | HTTP `3000` | http://localhost:3000 |
-| **API Gateway** | HTTP `8080` | http://localhost:8080 |
-| **Auth Service** | HTTP `8081` | http://localhost:8081 |
-| **Employee Service** | HTTP `8082` | http://localhost:8082 |
-| **Asset Service** | HTTP `8083` | http://localhost:8083 |
-| **Helpdesk Service** | HTTP `8084` | http://localhost:8084 |
-| **Workflow Service** | HTTP `8085` | http://localhost:8085 |
-| **Notification Service** | HTTP `8086` | http://localhost:8086 |
-| **Knowledge Service** | HTTP `8087` | http://localhost:8087 |
-| **AI Service** | HTTP `8088` | http://localhost:8088 |
-| **Audit Service** | HTTP `8089` | http://localhost:8089 |
-| **Reporting Service** | HTTP `8090` | http://localhost:8090 |
-| **PostgreSQL** | TCP `5432` | `localhost:5432` |
-| **Redis** | TCP `6379` | `localhost:6379` |
-| **RabbitMQ AMQP** | TCP `5672` | `localhost:5672` |
-| **RabbitMQ Management** | HTTP `15672` | http://localhost:15672 |
-| **MinIO API / Console** | HTTP `9000` / `9001` | http://localhost:9001 |
-| **Qdrant Vector DB** | HTTP `6333` / gRPC `6334` | http://localhost:6333 |
-| **Prometheus** | HTTP `9090` | http://localhost:9090 |
-| **Grafana** | HTTP `3002` | http://localhost:3002 |
-| **Loki** | HTTP `3100` | `http://localhost:3100` |
-
----
-
-## Development Commands
-
-### Windows (PowerShell)
-```powershell
-.\scripts\dev.ps1 help         # Show all available commands
-.\scripts\dev.ps1 dev          # Start Nuxt frontend dev server
-.\scripts\dev.ps1 build        # Build all 11 Go services and frontend
-.\scripts\dev.ps1 test         # Run unit tests across all services
-.\scripts\dev.ps1 lint         # Run ESLint & go vet
-.\scripts\dev.ps1 format       # Format all Go code (gofmt)
-.\scripts\dev.ps1 docker-up    # Start all infrastructure
-.\scripts\dev.ps1 docker-down  # Stop all infrastructure
-.\scripts\dev.ps1 health       # Check health of all infrastructure
-.\scripts\qa.ps1               # Run full automated QA/QC test suite
-```
-
-### Linux / CI (Makefile)
 ```bash
-make help          # Show help
-make dev           # Start frontend
-make build         # Build all services
-make test          # Run all unit tests
-make lint          # Run linters
-make docker-up     # Start containers
-make docker-down   # Stop containers
-make health        # Check health
+# Production Docker Compose (All 11 Services + Web + Nginx + DBs)
+.\scripts\deploy.ps1 prod-up
+
+# Deploy to Kubernetes via Native Manifests
+.\scripts\deploy.ps1 k8s-apply
+
+# Deploy to Kubernetes via Production Helm Chart
+.\scripts\deploy.ps1 helm-install
 ```
 
 ---
 
-## Documentation Links
+## 🛠️ Development & Operations CLI
 
-- [Architecture Overview](docs/architecture.md)
-- [Developer Setup Guide](docs/setup.md)
-- [Development Guidelines](docs/development.md)
-- [Environment Variables](docs/environment.md)
-- [API Reference](docs/api.md)
-- [Database Schema & Ownership](docs/database.md)
-- [Testing Strategy](docs/testing.md)
-- [CI/CD & Deployment](docs/deployment.md)
+EOMP provides automated CLI toolkits for developer, testing, deployment and SRE workflows:
+
+| Script | Purpose | Key Commands |
+|---|---|---|
+| [`scripts/dev.ps1`](scripts/dev.ps1) / `Makefile` | Local developer workflow | `docker-up`, `dev`, `build`, `test`, `lint`, `health` |
+| [`scripts/qa.ps1`](scripts/qa.ps1) | Automated 6-tier QA/QC verification | `.\scripts\qa.ps1` (E2E, unit tests, linters, probes) |
+| [`scripts/deploy.ps1`](scripts/deploy.ps1) / [`deploy.sh`](scripts/deploy.sh) | Production deployment orchestration | `validate`, `prod-up`, `k8s-apply`, `helm-install` |
+| [`scripts/chaos.ps1`](scripts/chaos.ps1) / [`chaos.sh`](scripts/chaos.sh) | SRE Chaos Engineering simulations | `simulate-db-down`, `simulate-rabbit-jam`, `run-all-chaos` |
+| [`scripts/backup_restore.ps1`](scripts/backup_restore.ps1) | Multi-DB Backup & Disaster Recovery | `backup`, `list`, `test-restore` |
 
 ---
 
-## License
+## 🚀 Master Roadmap (14 Phases Complete)
 
-Proprietary © Enterprise Operations Management Platform. All rights reserved.
+| Phase | Module Scope | Status |
+|:---:|---|:---:|
+| **Phase 0** | Repository Audit, Codebase Clean-up & Architecture Strategy | **COMPLETED (Done)** |
+| **Phase 1** | Business Foundation, Auth/RBAC, Employee Service & Nuxt 4 Integration | **COMPLETED (Done)** |
+| **Phase 2** | Incident Management, Service Catalog & Realtime SLA Engine | **COMPLETED (Done)** |
+| **Phase 3** | IT Asset Management & CMDB Dependency Topology Graph | **COMPLETED (Done)** |
+| **Phase 4** | Workflow State Machine Engine, Multi-level Approvals & Audit Trail | **COMPLETED (Done)** |
+| **Phase 5** | Event-Driven Architecture, CloudEvents EventBus & Notification Service | **COMPLETED (Done)** |
+| **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **COMPLETED (Done)** |
+| **Phase 7** | ITIL Problem Management, RCA 5-Whys & Change Advisory Board (CAB) | **COMPLETED (Done)** |
+| **Phase 8** | Enterprise Observability (Prometheus RED Metrics, Grafana, Loki Logs) | **COMPLETED (Done)** |
+| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **COMPLETED (Done)** |
+| **Phase 10** | Security Hardening, Strict RBAC, Rate Limiting & Immutable Audit Trail | **COMPLETED (Done)** |
+| **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load 500 VUs) | **COMPLETED (Done)** |
+| **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI 3.0 Spec Hub | **COMPLETED (Done)** |
+| **Phase 13** | Production Packaging, Docker Multi-stage (<25MB) & Kubernetes Helm Charts | **COMPLETED (Done)** |
+| **Phase 14** | SRE Operations, Disaster Recovery (RPO<5m, RTO<15m) & Platform Handover | **COMPLETED (Done)** |
+
+---
+
+## 📚 Engineering Documentation Hub
+
+Detailed specifications and architectural artifacts:
+
+- **Core Guides:**
+  - 📖 **[Developer & Intern Comprehensive Guide](docs/INTERN_DEVELOPER_GUIDE.md)** *(A-Z onboarding)*
+  - 📋 **[Project Structure & Daily Changelog](docs/PROJECT_STRUCTURE_AND_CHANGELOG.md)** *(Single Source of Truth)*
+  - 🎯 **[Phase 6 to 14 Multi-Role Specification](docs/PHASE_6_TO_14_ROADMAP_SPECIFICATION.md)**
+- **Architecture & API:**
+  - 🏛️ **[C4 Architecture Diagrams (Levels 1-4)](docs/architecture/c4_model_diagrams.md)**
+  - 🗄️ **[Master ERD & Data Dictionary](docs/architecture/database_erd_and_data_dictionary.md)**
+  - 🔌 **[OpenAPI 3.0 Specification Hub](docs/openapi/eomp-openapi-spec.yaml)**
+- **Operations & SRE:**
+  - 🚢 **[Production Deployment & Kubernetes Guide](docs/deployment.md)**
+  - 🛡️ **[Disaster Recovery Plan (RPO<5m, RTO<15m)](docs/sre/disaster_recovery_plan.md)**
+  - 🚨 **[Incident Response Playbook (SEV 1-4)](docs/sre/incident_response_playbook.md)**
+  - 📖 **[SRE Operations Manual (Day-2 Ops)](docs/sre/operations_manual.md)**
+  - 🔥 **[Chaos Engineering Runbook](docs/sre/chaos_engineering_runbook.md)**
+  - 📜 **[Master Platform Handover Certificate](docs/sre/project_handover_acceptance.md)**
+
+---
+
+## 📄 License
+
+Proprietary © 2026 Enterprise Operations Management Platform. All rights reserved.

@@ -1,0 +1,52 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "eomp.fullname" . }}-ingress
+  labels:
+    {{- include "eomp.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className | default "nginx" | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-User-ID,X-User-Role,X-User-Email"
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+spec:
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # API Gateway Route
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "eomp.fullname" . }}-gateway
+                port:
+                  number: 8080
+          # Grafana Monitoring Route
+          - path: /monitoring/grafana/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "eomp.fullname" . }}-grafana
+                port:
+                  number: 3000
+          # Frontend Web Route
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "eomp.fullname" . }}-web
+                port:
+                  number: 3000
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+{{- end }}

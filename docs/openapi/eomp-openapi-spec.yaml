@@ -1,0 +1,284 @@
+openapi: 3.0.3
+info:
+  title: EOMP Enterprise Operations Management Platform API Hub
+  description: |
+    Comprehensive Unified OpenAPI 3.0 Specification for EOMP Microservices Ecosystem:
+    Authentication, Employee CMDB, Helpdesk, Workflows, Notification Center, AI Operations Copilot,
+    Enterprise Observability, BI Reporting, and SOC2 Immutable Audit Trail.
+  version: 1.0.0
+  contact:
+    name: EOMP Architecture & SRE Team
+    email: sre-lead@eomp.local
+
+servers:
+  - url: http://localhost:8080
+    description: Local API Gateway Router
+  - url: https://api.eomp.enterprise.internal
+    description: Production Kubernetes Ingress Gateway
+
+paths:
+  # =========================================================================
+  # 1. AUTHENTICATION & RBAC
+  # =========================================================================
+  /api/v1/auth/login:
+    post:
+      summary: User authentication & JWT token issuance
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  example: admin@eomp.local
+                password:
+                  type: string
+                  example: AdminSecretPass123!
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Too many failed login attempts (Rate Limiter Lockout)
+
+  /api/v1/auth/me:
+    get:
+      summary: Get current authenticated user profile and roles
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile details
+
+  # =========================================================================
+  # 2. HELPDESK & TICKETING
+  # =========================================================================
+  /api/v1/tickets:
+    get:
+      summary: List support tickets with multi-filter and pagination
+      tags: [Helpdesk]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: priority
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated tickets list
+    post:
+      summary: Create new incident or service request ticket
+      tags: [Helpdesk]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, category, priority]
+              properties:
+                title:
+                  type: string
+                  example: Request New MacBook Pro M3 Max
+                category:
+                  type: string
+                  example: hardware
+                priority:
+                  type: string
+                  example: HIGH
+      responses:
+        '201':
+          description: Ticket created successfully
+
+  # =========================================================================
+  # 3. ASSETS & CMDB TOPOLOGY
+  # =========================================================================
+  /api/v1/assets:
+    get:
+      summary: List hardware and software assets from CMDB
+      tags: [Asset Management]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of CMDB assets
+
+  /api/v1/cmdb/topology:
+    get:
+      summary: Get infrastructure dependency graph (GraphViz / Neo4j format)
+      tags: [Asset Management]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: CMDB topology nodes and links
+
+  # =========================================================================
+  # 4. WORKFLOW & APPROVALS
+  # =========================================================================
+  /api/v1/workflows:
+    get:
+      summary: List workflow instances
+      tags: [Workflow Engine]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of active workflows
+
+  /api/v1/approvals/{id}/decision:
+    post:
+      summary: Manager approve or reject workflow step
+      tags: [Workflow Engine]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Decision recorded
+
+  # =========================================================================
+  # 5. OBSERVABILITY & SRE MONITORING (Phase 8)
+  # =========================================================================
+  /api/v1/monitoring/overview:
+    get:
+      summary: SRE Console Cluster Health & RED Overview
+      tags: [Observability & SRE]
+      responses:
+        '200':
+          description: Cluster KPIs (Health %, RPS, Latency p95, Error Rate %)
+
+  /api/v1/monitoring/probe/{id}:
+    post:
+      summary: Trigger 1-click active health probe against microservice
+      tags: [Observability & SRE]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Probe execution results
+
+  # =========================================================================
+  # 6. REPORTING & BI ANALYTICS (Phase 9)
+  # =========================================================================
+  /api/v1/reports/overview:
+    get:
+      summary: Executive BI KPI Summary (MTTR, MTTD, SLA %, CSAT)
+      tags: [Reporting & BI Analytics]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [today, 7d, 30d, quarter, empty]
+      responses:
+        '200':
+          description: Executive BI metrics
+
+  /api/v1/reports/export:
+    post:
+      summary: High-speed export of operational reports (PDF / Excel in < 3s)
+      tags: [Reporting & BI Analytics]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  enum: [pdf, csv]
+                range:
+                  type: string
+                limit_rows:
+                  type: integer
+                  default: 1000
+      responses:
+        '200':
+          description: Base64-encoded PDF/CSV report payload
+
+  # =========================================================================
+  # 7. SECURITY & IMMUTABLE AUDIT TRAIL (Phase 10)
+  # =========================================================================
+  /api/v1/audit/logs:
+    get:
+      summary: Query immutable audit logs with multi-filters (Admin/Manager Only)
+      tags: [Security & Audit]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: event_type
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated audit log records with SHA-256 Checksums
+        '403':
+          description: Access denied (Strict RBAC enforcement)
+
+  /api/v1/audit/stats:
+    get:
+      summary: Get SOC2 security compliance metrics & threat signals
+      tags: [Security & Audit]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Audit stats (Total logs, Blocked violations, Alerts)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

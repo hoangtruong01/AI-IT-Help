@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/logger"
+	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/ai/internal/config"
 	"eomp/services/ai/internal/handler"
@@ -24,25 +25,42 @@ func main() {
 	cfg := config.Load()
 	log := logger.InitLogger(cfg.ServiceName, cfg.Environment)
 
-	// Initialize AI providers (mock provider for local/offline dev)
-	mockProvider := provider.NewMockProvider()
-	mockRetriever := rag.NewMockRetriever()
+	if err := cfg.Validate(); err != nil {
+		log.Error("ai configuration validation failed (fail-fast)", slog.Any("error", err))
+		os.Exit(1)
+	}
 
-	// Initialize Service and Handlers
-	aiService := service.NewAIService(mockProvider, mockProvider, mockRetriever)
+	// 1. Initialize AI Providers & Resilient RAG Retriever
+	mockProvider := provider.NewMockProvider()
+	smartRetriever := rag.NewSmartRetriever("localhost", 6333, "knowledge_base")
+
+	// 2. Initialize Service and Handlers
+	aiService := service.NewAIService(mockProvider, mockProvider, smartRetriever)
 	aiHandler := handler.NewAIHandler(aiService)
 	healthHandler := handler.NewHealthHandler(cfg)
 
+	// 3. Routing
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
+
+	// Standard API v1 routes
+	mux.HandleFunc("POST /api/v1/ai/chat", aiHandler.Chat)
+	mux.HandleFunc("POST /api/v1/ai/analyze-ticket", aiHandler.AnalyzeTicket)
+
+	// Legacy / Direct routes
 	mux.HandleFunc("POST /api/ai/chat", aiHandler.Chat)
 	mux.HandleFunc("POST /api/ai/analyze-ticket", aiHandler.AnalyzeTicket)
 
-	// Apply middleware stack
+	// 4. Apply middleware stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.RequestLogger(log)(
-			middleware.CORS(mux),
+		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+			middleware.RequestLogger(log)(
+				middleware.ExtractGatewayHeaders()(
+					middleware.CORS(mux),
+				),
+			),
 		),
 	)
 

@@ -1,7 +1,17 @@
 <script setup lang="ts">
+import type { Notification, PaginatedResponse, NotificationStats } from '~/types'
+
 const route = useRoute()
+const authStore = useAuthStore()
+const api = useApi()
 
 const isSidebarOpen = ref(true)
+
+// Notification Dropdown State
+const isNotificationsOpen = ref(false)
+const notifications = ref<Notification[]>([])
+const notifStats = ref<NotificationStats>({ total: 0, unread: 0, incidents: 0, approvals: 0 })
+const notifLoading = ref(false)
 
 const navigationGroups = [
   {
@@ -20,10 +30,22 @@ const navigationGroups = [
         badge: '24'
       },
       {
+        label: 'Problem Management',
+        icon: 'i-lucide-alert-octagon',
+        to: '/problems',
+        badge: 'KEDB'
+      },
+      {
+        label: 'Change Advisory (CAB)',
+        icon: 'i-lucide-git-pull-request',
+        to: '/changes',
+        badge: 'RFC'
+      },
+      {
         label: 'AI Ops Assistant',
         icon: 'i-lucide-bot',
         to: '/ai',
-        badge: 'New'
+        badge: 'Copilot'
       }
     ]
   },
@@ -51,6 +73,12 @@ const navigationGroups = [
   {
     title: 'Intelligence & Insights',
     items: [
+      {
+        label: 'Observability & SRE',
+        icon: 'i-lucide-activity',
+        to: '/monitoring',
+        badge: 'RED'
+      },
       {
         label: 'Knowledge Base',
         icon: 'i-lucide-book-open',
@@ -80,6 +108,61 @@ const systemServices = [
 function toggleSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value
 }
+
+async function fetchNotifications() {
+  notifLoading.value = true
+  try {
+    const [listRes, statsRes] = await Promise.all([
+      api.get<PaginatedResponse<Notification>>('/api/v1/notifications', { page: 1, page_size: 10 }),
+      api.get<NotificationStats>('/api/v1/notifications/stats')
+    ])
+    notifications.value = listRes?.data || []
+    if (statsRes) notifStats.value = statsRes
+  } catch (err) {
+    console.error('Failed to load notifications:', err)
+  } finally {
+    notifLoading.value = false
+  }
+}
+
+async function markNotificationAsRead(id: string) {
+  try {
+    await api.patch(`/api/v1/notifications/${id}/read`)
+    const target = notifications.value.find(n => n.id === id)
+    if (target) target.is_read = true
+    if (notifStats.value.unread > 0) notifStats.value.unread--
+  } catch (err) {
+    console.error('Failed to mark read:', err)
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    await api.post('/api/v1/notifications/read-all')
+    notifications.value.forEach((n) => {
+      n.is_read = true
+    })
+    notifStats.value.unread = 0
+  } catch (err) {
+    console.error('Failed to mark all read:', err)
+  }
+}
+
+function getCategoryColor(cat: string) {
+  switch (cat) {
+    case 'INCIDENT': return 'text-rose-400 bg-rose-500/15 border-rose-500/30'
+    case 'APPROVAL': return 'text-amber-400 bg-amber-500/15 border-amber-500/30'
+    case 'ASSET': return 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+    case 'SLA': return 'text-purple-400 bg-purple-500/15 border-purple-500/30'
+    default: return 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30'
+  }
+}
+
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    fetchNotifications()
+  }
+})
 </script>
 
 <template>
@@ -224,10 +307,13 @@ function toggleSidebar() {
 
       <!-- User Profile Footer -->
       <div class="p-3 border-t border-slate-800/80 bg-slate-950/40">
-        <div class="flex items-center gap-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700/80 transition-colors">
+        <div
+          v-if="authStore.isAuthenticated && authStore.user"
+          class="flex items-center gap-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700/80 transition-colors"
+        >
           <div class="relative shrink-0">
             <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center font-bold text-white text-sm shadow-md">
-              AD
+              {{ authStore.user.full_name ? authStore.user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'US' }}
             </div>
             <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900" />
           </div>
@@ -236,13 +322,11 @@ function toggleSidebar() {
             v-if="isSidebarOpen"
             class="flex-1 min-w-0"
           >
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-white truncate">
-                Admin Officer
-              </p>
-            </div>
-            <p class="text-xs text-slate-400 truncate">
-              admin@eomp.local
+            <p class="text-xs font-bold text-white truncate">
+              {{ authStore.user.full_name }}
+            </p>
+            <p class="text-[10px] text-indigo-400 font-semibold truncate">
+              {{ authStore.user.role }}
             </p>
           </div>
 
@@ -250,11 +334,33 @@ function toggleSidebar() {
             v-if="isSidebarOpen"
             class="flex items-center gap-1"
           >
-            <UColorModeButton
-              size="xs"
-              class="text-slate-400 hover:text-white"
-            />
+            <button
+              class="p-1 text-slate-400 hover:text-rose-400 transition-colors"
+              title="Sign Out"
+              @click="authStore.logout"
+            >
+              <UIcon
+                name="i-lucide-log-out"
+                class="w-4 h-4"
+              />
+            </button>
           </div>
+        </div>
+
+        <div
+          v-else
+          class="p-2"
+        >
+          <NuxtLink
+            to="/login"
+            class="w-full py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+          >
+            <UIcon
+              name="i-lucide-log-in"
+              class="w-4 h-4"
+            />
+            <span v-if="isSidebarOpen">Sign In</span>
+          </NuxtLink>
         </div>
       </div>
     </aside>
@@ -292,17 +398,92 @@ function toggleSidebar() {
             <span>11 Microservices Online</span>
           </div>
 
-          <!-- Notification Bell -->
-          <button
-            class="relative p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
-            title="Notifications"
-          >
-            <UIcon
-              name="i-lucide-bell"
-              class="w-4 h-4"
-            />
-            <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-slate-950" />
-          </button>
+          <!-- Notification Bell & Dropdown -->
+          <div class="relative">
+            <button
+              class="relative p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
+              title="Notifications"
+              @click="isNotificationsOpen = !isNotificationsOpen; if (isNotificationsOpen) fetchNotifications()"
+            >
+              <UIcon
+                name="i-lucide-bell"
+                class="w-4 h-4"
+              />
+              <span
+                v-if="notifStats.unread > 0"
+                class="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-bold text-[9px] ring-2 ring-slate-950 animate-bounce"
+              >
+                {{ notifStats.unread }}
+              </span>
+            </button>
+
+            <!-- Notifications Dropdown Popover -->
+            <div
+              v-if="isNotificationsOpen"
+              class="absolute right-0 mt-2 w-80 sm:w-96 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-4 z-50 space-y-3"
+            >
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-xs font-bold text-white uppercase tracking-wider">
+                    Notifications
+                  </h4>
+                  <span
+                    v-if="notifStats.unread > 0"
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300"
+                  >
+                    {{ notifStats.unread }} new
+                  </span>
+                </div>
+                <button
+                  class="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold"
+                  @click="markAllNotificationsAsRead"
+                >
+                  Mark all read
+                </button>
+              </div>
+
+              <!-- Notifications List -->
+              <div class="space-y-2 max-h-72 overflow-y-auto">
+                <div
+                  v-if="notifLoading && notifications.length === 0"
+                  class="p-6 text-center text-slate-500 text-xs animate-pulse"
+                >
+                  Loading alerts...
+                </div>
+
+                <div
+                  v-else-if="notifications.length === 0"
+                  class="p-6 text-center text-slate-500 text-xs"
+                >
+                  No notifications yet.
+                </div>
+
+                <div
+                  v-for="n in notifications"
+                  :key="n.id"
+                  class="p-3 rounded-2xl border text-xs space-y-1 transition-colors cursor-pointer"
+                  :class="n.is_read ? 'bg-slate-950/40 border-slate-800/60 text-slate-400' : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-indigo-500/40'"
+                  @click="markNotificationAsRead(n.id)"
+                >
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span
+                      class="px-2 py-0.5 rounded-full font-bold text-[9px] border"
+                      :class="getCategoryColor(n.category)"
+                    >
+                      {{ n.category }}
+                    </span>
+                    <span class="text-slate-500 text-[10px]">{{ new Date(n.created_at).toLocaleTimeString() }}</span>
+                  </div>
+                  <p class="font-bold text-white text-[12px]">
+                    {{ n.title }}
+                  </p>
+                  <p class="text-slate-300 text-[11px] line-clamp-2">
+                    {{ n.message }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- Quick Create Action Button -->
           <NuxtLink

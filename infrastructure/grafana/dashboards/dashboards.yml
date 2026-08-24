@@ -1,0 +1,16 @@
+# ==============================
+# EOMP — Grafana Dashboard Provisioning
+# ==============================
+
+apiVersion: 1
+
+providers:
+  - name: 'EOMP SRE Dashboards'
+    orgId: 1
+    folder: 'EOMP Observability'
+    folderUid: 'eomp-sre'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

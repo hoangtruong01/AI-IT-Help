@@ -1,0 +1,17 @@
+{{- range $infraName, $infraConfig := .Values.infrastructure }}
+{{- if and $infraConfig.enabled $infraConfig.storage }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "eomp.fullname" $ }}-{{ $infraName }}-pvc
+  labels:
+    {{- include "eomp.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $infraConfig.storage }}
+{{- end }}
+{{- end }}
