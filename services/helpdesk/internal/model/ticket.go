@@ -29,6 +29,33 @@ const (
 	SLABreached  = "BREACHED"
 )
 
+// ValidTicketTransitions defines ITIL v4 compliant ticket lifecycle state transitions
+var ValidTicketTransitions = map[string][]string{
+	StatusOpen:        {StatusAssigned, StatusInProgress, StatusClosed},
+	StatusAssigned:    {StatusInProgress, StatusWaitingUser, StatusOpen},
+	StatusInProgress:  {StatusWaitingUser, StatusResolved, StatusAssigned},
+	StatusWaitingUser: {StatusInProgress, StatusResolved},
+	StatusResolved:    {StatusClosed, StatusInProgress},
+	StatusClosed:      {}, // Terminal State - No further transitions allowed
+}
+
+// IsValidTransition checks if moving from one status to another is permitted
+func IsValidTransition(from, to string) bool {
+	if from == to {
+		return true
+	}
+	allowed, exists := ValidTicketTransitions[from]
+	if !exists {
+		return false
+	}
+	for _, s := range allowed {
+		if s == to {
+			return true
+		}
+	}
+	return false
+}
+
 // Ticket entity
 type Ticket struct {
 	ID                    string     `json:"id"`
@@ -52,6 +79,7 @@ type Ticket struct {
 	ResolvedAt            *time.Time `json:"resolved_at,omitempty"`
 	ClosedAt              *time.Time `json:"closed_at,omitempty"`
 	SLAStatus             string     `json:"sla_status"`
+	Version               int        `json:"version"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 }
@@ -76,12 +104,14 @@ type UpdateTicketStatusRequest struct {
 	Notes        string  `json:"notes,omitempty"`
 	AssigneeID   *string `json:"assignee_id,omitempty"`
 	AssigneeName *string `json:"assignee_name,omitempty"`
+	Version      *int    `json:"version,omitempty"`
 }
 
 // AssignTicketRequest DTO
 type AssignTicketRequest struct {
 	AssigneeID   string `json:"assignee_id"`
 	AssigneeName string `json:"assignee_name"`
+	Version      *int   `json:"version,omitempty"`
 }
 
 // TicketComment entity

@@ -162,7 +162,7 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 			id, instance_number, definition_id, definition_name, entity_type, entity_id,
 			title, requester_id, requester_name, requester_email,
 			current_step_name, status, context_data::text, started_at, completed_at,
-			created_at, updated_at
+			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM workflow_instances
 		WHERE %s
 		ORDER BY created_at DESC
@@ -187,7 +187,7 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 			&inst.ID, &inst.InstanceNumber, &inst.DefinitionID, &inst.DefinitionName, &inst.EntityType, &inst.EntityID,
 			&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail,
 			&inst.CurrentStepName, &inst.Status, &ctxStr, &inst.StartedAt, &completedAt,
-			&inst.CreatedAt, &inst.UpdatedAt,
+			&inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan instance: %w", err)
@@ -220,7 +220,7 @@ func (r *postgresRepository) FindInstanceByID(ctx context.Context, id string) (*
 			id, instance_number, definition_id, definition_name, entity_type, entity_id,
 			title, requester_id, requester_name, requester_email,
 			current_step_name, status, context_data::text, started_at, completed_at,
-			created_at, updated_at
+			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM workflow_instances
 		WHERE id = $1
 	`
@@ -232,7 +232,7 @@ func (r *postgresRepository) FindInstanceByID(ctx context.Context, id string) (*
 		&inst.ID, &inst.InstanceNumber, &inst.DefinitionID, &inst.DefinitionName, &inst.EntityType, &inst.EntityID,
 		&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail,
 		&inst.CurrentStepName, &inst.Status, &ctxStr, &inst.StartedAt, &completedAt,
-		&inst.CreatedAt, &inst.UpdatedAt,
+		&inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -256,13 +256,13 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 		INSERT INTO workflow_instances (
 			instance_number, definition_id, definition_name, entity_type, entity_id,
 			title, requester_id, requester_name, requester_email,
-			current_step_name, status, context_data, started_at, created_at, updated_at
+			current_step_name, status, context_data, started_at, version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
-			$10, $11, $12::jsonb, $13, $14, $15
+			$10, $11, $12::jsonb, $13, 1, $14, $15
 		)
-		RETURNING id, created_at, updated_at
+		RETURNING id, version, created_at, updated_at
 	`
 	now := time.Now()
 	ctxData := "{}"
@@ -275,7 +275,7 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 		inst.InstanceNumber, inst.DefinitionID, inst.DefinitionName, inst.EntityType, inst.EntityID,
 		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail,
 		inst.CurrentStepName, inst.Status, ctxData, now, now, now,
-	).Scan(&inst.ID, &inst.CreatedAt, &inst.UpdatedAt)
+	).Scan(&inst.ID, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert workflow instance: %w", err)
@@ -286,7 +286,7 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 func (r *postgresRepository) UpdateInstanceStatus(ctx context.Context, id, status, currentStep string, completedAt *time.Time) error {
 	query := `
 		UPDATE workflow_instances
-		SET status = $2, current_step_name = $3, completed_at = COALESCE($4, completed_at), updated_at = CURRENT_TIMESTAMP
+		SET status = $2, current_step_name = $3, completed_at = COALESCE($4, completed_at), version = version + 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 	`
 	_, err := r.db.ExecContext(ctx, query, id, status, currentStep, completedAt)

@@ -103,7 +103,7 @@ func (r *postgresRepository) ListAssets(ctx context.Context, query model.AssetLi
 			id, asset_tag, name, category, model, serial_number,
 			purchase_date::text, purchase_cost, warranty_expiry::text, current_value,
 			status, location, assigned_to_user_id, assigned_to_user_name, assigned_at,
-			notes, created_at, updated_at
+			notes, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM assets
 		WHERE %s
 		ORDER BY created_at DESC
@@ -128,7 +128,7 @@ func (r *postgresRepository) ListAssets(ctx context.Context, query model.AssetLi
 			&a.ID, &a.AssetTag, &a.Name, &a.Category, &modelStr, &serialStr,
 			&pDate, &a.PurchaseCost, &wExpiry, &a.CurrentValue,
 			&a.Status, &a.Location, &assignedUID, &assignedUName, &assignedAt,
-			&notesStr, &a.CreatedAt, &a.UpdatedAt,
+			&notesStr, &a.Version, &a.CreatedAt, &a.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan asset: %w", err)
@@ -179,7 +179,7 @@ func (r *postgresRepository) FindAssetByID(ctx context.Context, id string) (*mod
 			id, asset_tag, name, category, model, serial_number,
 			purchase_date::text, purchase_cost, warranty_expiry::text, current_value,
 			status, location, assigned_to_user_id, assigned_to_user_name, assigned_at,
-			notes, created_at, updated_at
+			notes, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM assets
 		WHERE id = $1
 	`
@@ -191,7 +191,7 @@ func (r *postgresRepository) FindAssetByID(ctx context.Context, id string) (*mod
 		&a.ID, &a.AssetTag, &a.Name, &a.Category, &modelStr, &serialStr,
 		&pDate, &a.PurchaseCost, &wExpiry, &a.CurrentValue,
 		&a.Status, &a.Location, &assignedUID, &assignedUName, &assignedAt,
-		&notesStr, &a.CreatedAt, &a.UpdatedAt,
+		&notesStr, &a.Version, &a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -246,13 +246,13 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, a *model.Asset) er
 		INSERT INTO assets (
 			asset_tag, name, category, model, serial_number,
 			purchase_date, purchase_cost, warranty_expiry, current_value,
-			status, location, notes, created_at, updated_at
+			status, location, notes, version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
-			$10, $11, $12, $13, $14
+			$10, $11, $12, 1, $13, $14
 		)
-		RETURNING id, created_at, updated_at
+		RETURNING id, version, created_at, updated_at
 	`
 	now := time.Now()
 	err := r.db.QueryRowContext(
@@ -260,7 +260,7 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, a *model.Asset) er
 		a.AssetTag, a.Name, a.Category, a.Model, a.SerialNumber,
 		a.PurchaseDate, a.PurchaseCost, a.WarrantyExpiry, a.CurrentValue,
 		a.Status, a.Location, a.Notes, now, now,
-	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
+	).Scan(&a.ID, &a.Version, &a.CreatedAt, &a.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert asset: %w", err)
@@ -271,7 +271,7 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, a *model.Asset) er
 func (r *postgresRepository) UpdateAssetStatus(ctx context.Context, id, status, location string, notes *string) error {
 	query := `
 		UPDATE assets
-		SET status = $2, location = COALESCE(NULLIF($3, ''), location), notes = COALESCE($4, notes), updated_at = CURRENT_TIMESTAMP
+		SET status = $2, location = COALESCE(NULLIF($3, ''), location), notes = COALESCE($4, notes), version = version + 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 	`
 	_, err := r.db.ExecContext(ctx, query, id, status, location, notes)
@@ -293,7 +293,7 @@ func (r *postgresRepository) AssignAsset(ctx context.Context, id, userID, userNa
 	// 1. Update Asset
 	updateQuery := `
 		UPDATE assets
-		SET status = 'IN_USE', assigned_to_user_id = $2, assigned_to_user_name = $3, assigned_at = $4, updated_at = $4
+		SET status = 'IN_USE', assigned_to_user_id = $2, assigned_to_user_name = $3, assigned_at = $4, version = version + 1, updated_at = $4
 		WHERE id = $1
 	`
 	if _, err := tx.ExecContext(ctx, updateQuery, id, userID, userName, now); err != nil {
@@ -334,7 +334,7 @@ func (r *postgresRepository) ReturnAsset(ctx context.Context, id, condition stri
 	// 2. Update Asset
 	updateQuery := `
 		UPDATE assets
-		SET status = 'IN_STOCK', assigned_to_user_id = NULL, assigned_to_user_name = NULL, assigned_at = NULL, updated_at = $2
+		SET status = 'IN_STOCK', assigned_to_user_id = NULL, assigned_to_user_name = NULL, assigned_at = NULL, version = version + 1, updated_at = $2
 		WHERE id = $1
 	`
 	if _, err := tx.ExecContext(ctx, updateQuery, id, now); err != nil {
@@ -506,7 +506,7 @@ func (r *postgresRepository) ListCIs(ctx context.Context, env, ciType, status st
 		err := rows.Scan(
 			&ci.ID, &ci.CICode, &ci.Name, &ci.CIType, &ci.Environment,
 			&ownerID, &ownerName, &ci.Status, &ipStr, &assetID, &descStr,
-			&ci.CreatedAt, &ci.UpdatedAt,
+			&ci.Version, &ci.CreatedAt, &ci.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan CI: %w", err)
@@ -534,7 +534,7 @@ func (r *postgresRepository) ListCIs(ctx context.Context, env, ciType, status st
 
 func (r *postgresRepository) FindCIByID(ctx context.Context, id string) (*model.ConfigurationItem, error) {
 	query := `
-		SELECT id, ci_code, name, ci_type, environment, owner_id, owner_name, status, ip_address, asset_id, description, created_at, updated_at
+		SELECT id, ci_code, name, ci_type, environment, owner_id, owner_name, status, ip_address, asset_id, description, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM configuration_items
 		WHERE id = $1
 	`
@@ -543,7 +543,7 @@ func (r *postgresRepository) FindCIByID(ctx context.Context, id string) (*model.
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&ci.ID, &ci.CICode, &ci.Name, &ci.CIType, &ci.Environment,
 		&ownerID, &ownerName, &ci.Status, &ipStr, &assetID, &descStr,
-		&ci.CreatedAt, &ci.UpdatedAt,
+		&ci.Version, &ci.CreatedAt, &ci.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -573,9 +573,9 @@ func (r *postgresRepository) FindCIByID(ctx context.Context, id string) (*model.
 
 func (r *postgresRepository) CreateCI(ctx context.Context, ci *model.ConfigurationItem) error {
 	query := `
-		INSERT INTO configuration_items (ci_code, name, ci_type, environment, owner_id, owner_name, status, ip_address, asset_id, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING id, created_at, updated_at
+		INSERT INTO configuration_items (ci_code, name, ci_type, environment, owner_id, owner_name, status, ip_address, asset_id, description, version, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12)
+		RETURNING id, version, created_at, updated_at
 	`
 	now := time.Now()
 	err := r.db.QueryRowContext(
@@ -583,7 +583,7 @@ func (r *postgresRepository) CreateCI(ctx context.Context, ci *model.Configurati
 		ci.CICode, ci.Name, ci.CIType, ci.Environment,
 		ci.OwnerID, ci.OwnerName, ci.Status, ci.IPAddress, ci.AssetID, ci.Description,
 		now, now,
-	).Scan(&ci.ID, &ci.CreatedAt, &ci.UpdatedAt)
+	).Scan(&ci.ID, &ci.Version, &ci.CreatedAt, &ci.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert CI: %w", err)
@@ -592,7 +592,7 @@ func (r *postgresRepository) CreateCI(ctx context.Context, ci *model.Configurati
 }
 
 func (r *postgresRepository) UpdateCIStatus(ctx context.Context, id, status string) error {
-	query := "UPDATE configuration_items SET status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1"
+	query := "UPDATE configuration_items SET status = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1"
 	_, err := r.db.ExecContext(ctx, query, id, status)
 	if err != nil {
 		return fmt.Errorf("failed to update CI status: %w", err)

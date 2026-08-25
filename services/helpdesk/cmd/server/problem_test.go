@@ -153,13 +153,19 @@ func (m *mockTicketRepoForProblem) FindTicketByNumber(ctx context.Context, ticke
 func (m *mockTicketRepoForProblem) CreateTicket(ctx context.Context, ticket *model.Ticket) error {
 	return nil
 }
-func (m *mockTicketRepoForProblem) UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time) error {
+func (m *mockTicketRepoForProblem) UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int) error {
 	if t, ok := m.tickets[id]; ok {
 		t.Status = status
+		t.Version++
 	}
 	return nil
 }
-func (m *mockTicketRepoForProblem) AssignTicket(ctx context.Context, id, assigneeID, assigneeName string) error {
+func (m *mockTicketRepoForProblem) AssignTicket(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int) error {
+	if t, ok := m.tickets[id]; ok {
+		t.AssigneeID = &assigneeID
+		t.AssigneeName = &assigneeName
+		t.Version++
+	}
 	return nil
 }
 func (m *mockTicketRepoForProblem) AddComment(ctx context.Context, comment *model.TicketComment) error {
