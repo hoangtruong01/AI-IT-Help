@@ -205,17 +205,17 @@ The EOMP platform implements a strict **Database-per-Service** pattern on **Post
 
 ## 4. CROSS-CUTTING GAPS & REMEDIATION PLAN
 
-### Gap 1: Missing Optimistic Concurrency `version` Columns
+### Gap 1: Missing Optimistic Concurrency `version` Columns (Fixed - Phase 3)
 * **Problem:** In high-concurrency environments (e.g. 500 VUs or 2 agents modifying the same ticket at the same time), the last write wins, overwriting previous changes without warning (Lost Update Anomaly).
-* **Remediation (Phase 3 Task 3.2):**
-  * Add `version INT NOT NULL DEFAULT 1` to mutable tables: `tickets`, `problems`, `assets`, `workflow_instances`, `change_requests`.
-  * Update Repository SQL queries to perform atomic CAS (Compare-And-Swap):
+* **Remediation (Executed in Phase 3 Task 3.2):**
+  * Added `version INT NOT NULL DEFAULT 1` to mutable tables: `tickets`, `problems` (`helpdesk_db`), `assets`, `configuration_items` (`asset_db`), `workflow_instances`, `change_requests` (`workflow_db`).
+  * Updated Repository SQL queries to perform atomic CAS (Compare-And-Swap):
     ```sql
     UPDATE tickets 
-    SET status = $1, assignee_id = $2, version = version + 1, updated_at = NOW() 
-    WHERE id = $3 AND version = $4;
+    SET status = $2, assignee_id = COALESCE($3, assignee_id), version = version + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND version = $7;
     ```
-  * If rows affected == 0, return `HTTP 409 Conflict`.
+  * If rows affected == 0, returns `HTTP 409 Conflict`.
 
 ---
 
@@ -225,10 +225,10 @@ The EOMP platform implements a strict **Database-per-Service** pattern on **Post
 
 ---
 
-### Gap 3: String Enums vs SQL Check Constraints
+### Gap 3: String Enums vs SQL Check Constraints (Fixed - Phase 3)
 * **Problem:** Status values (`status`, `priority`, `role`) are stored as `VARCHAR(50)` without SQL `CHECK` constraints, relying purely on application-layer Go validation.
-* **Remediation (Phase 3):**
-  * Add SQL `CHECK` constraints or explicit validation rules in Go domain services to guarantee data integrity across direct DB operations.
+* **Remediation (Executed in Phase 3):**
+  * Added strict ITIL v4 state machine transition engine (`IsValidTransition`) in Go domain services and rejection of invalid status transitions with `HTTP 400 Bad Request`.
 
 ---
 
@@ -242,27 +242,14 @@ The EOMP platform implements a strict **Database-per-Service** pattern on **Post
 
 ---
 
-## 5. DATABASE CONCURRENCY UPGRADE SPECIFICATIONS (PHASE 3 PREP)
+## 5. DATABASE CONCURRENCY UPGRADE SPECIFICATIONS (PHASE 3 COMPLETED)
 
-Migration preview for Phase 3 Concurrency Control:
+Migrations applied in Phase 3 for Concurrency Control:
 
-```sql
--- Migration: 003_add_optimistic_locking_version.sql
--- Target: helpdesk_db, asset_db, workflow_db
-
--- Helpdesk DB
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-ALTER TABLE problems ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-
--- Asset DB
-ALTER TABLE assets ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-ALTER TABLE configuration_items ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-
--- Workflow DB
-ALTER TABLE workflow_instances ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
-```
+* `services/helpdesk/migrations/003_add_optimistic_locking_version.sql` (`tickets`, `problems`)
+* `services/asset/migrations/002_add_optimistic_locking_version.sql` (`assets`, `configuration_items`)
+* `services/workflow/migrations/003_add_optimistic_locking_version.sql` (`workflow_instances`, `change_requests`)
 
 ---
 
-> ✅ **Audit Sign-off:** All 9 microservice databases, schemas, constraints, and gaps cataloged. Ready for Phase 1 Security Foundation & Phase 3 Concurrency implementation.
+> ✅ **Audit Sign-off:** All 9 microservice databases, schemas, constraints, and gaps cataloged. Phase 1 Security, Phase 2 Identity, and Phase 3 Concurrency Control fully implemented and verified.

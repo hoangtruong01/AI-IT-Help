@@ -51,6 +51,7 @@ type ConfigurationItem struct {
 	IPAddress   *string   `json:"ip_address,omitempty"`
 	AssetID     *string   `json:"asset_id,omitempty"`
 	Description *string   `json:"description,omitempty"`
+	Version     int       `json:"version"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
