@@ -13,6 +13,7 @@ const (
 	CodeForbidden           = "FORBIDDEN"
 	CodeNotFound            = "NOT_FOUND"
 	CodeConflict            = "CONFLICT"
+	CodePayloadTooLarge     = "PAYLOAD_TOO_LARGE"
 	CodeInternalServerError = "INTERNAL_SERVER_ERROR"
 	CodeUnprocessableEntity = "UNPROCESSABLE_ENTITY"
 )
@@ -71,6 +72,11 @@ func NotFound(message string) *AppError {
 // Conflict helper
 func Conflict(message string) *AppError {
 	return New(http.StatusConflict, CodeConflict, message)
+}
+
+// PayloadTooLarge helper
+func PayloadTooLarge(message string) *AppError {
+	return New(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, message)
 }
 
 // InternalServerError helper

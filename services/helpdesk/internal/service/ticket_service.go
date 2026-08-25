@@ -145,6 +145,11 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 	oldStatus := ticket.Status
 	newStatus := req.Status
 
+	// 1. Enforce strict ITIL v4 State Machine Transition Rules
+	if !model.IsValidTransition(oldStatus, newStatus) {
+		return nil, errors.BadRequest(fmt.Sprintf("invalid ticket state transition from '%s' to '%s'", oldStatus, newStatus))
+	}
+
 	var resolvedAt, closedAt *time.Time
 	now := time.Now()
 
@@ -155,8 +160,17 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		closedAt = &now
 	}
 
-	err = s.repo.UpdateTicketStatus(ctx, id, newStatus, req.AssigneeID, req.AssigneeName, resolvedAt, closedAt)
+	// 2. Determine Expected Version for Optimistic Locking
+	expectedVersion := req.Version
+	if expectedVersion == nil {
+		expectedVersion = &ticket.Version
+	}
+
+	err = s.repo.UpdateTicketStatus(ctx, id, newStatus, req.AssigneeID, req.AssigneeName, resolvedAt, closedAt, expectedVersion)
 	if err != nil {
+		if appErr, ok := err.(*errors.AppError); ok {
+			return nil, appErr
+		}
 		return nil, errors.InternalServerError(fmt.Sprintf("failed to update ticket status: %v", err))
 	}
 
@@ -189,8 +203,16 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 		oldAssignee = *ticket.AssigneeName
 	}
 
-	err = s.repo.AssignTicket(ctx, id, req.AssigneeID, req.AssigneeName)
+	expectedVersion := req.Version
+	if expectedVersion == nil {
+		expectedVersion = &ticket.Version
+	}
+
+	err = s.repo.AssignTicket(ctx, id, req.AssigneeID, req.AssigneeName, expectedVersion)
 	if err != nil {
+		if appErr, ok := err.(*errors.AppError); ok {
+			return nil, appErr
+		}
 		return nil, errors.InternalServerError(fmt.Sprintf("failed to assign ticket: %v", err))
 	}
 

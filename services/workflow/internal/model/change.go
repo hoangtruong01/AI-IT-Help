@@ -32,6 +32,7 @@ type ChangeRequest struct {
 	DowntimeMinutes    int        `json:"downtime_minutes" db:"downtime_minutes"`
 	CABRequiredCount   int        `json:"cab_required_count" db:"cab_required_count"`
 	CABApprovedCount   int        `json:"cab_approved_count" db:"cab_approved_count"`
+	Version            int        `json:"version" db:"version"`
 	CreatedAt          time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at" db:"updated_at"`
 }

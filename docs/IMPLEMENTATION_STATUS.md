@@ -49,13 +49,12 @@
 
 | # | Service Name | Port | Database | Go Files | Migrations / Tables | Backend % | Frontend % | Key Status / Gaps |
 |---|---|---|---|---|---|---|---|---|
-| 1 | **Gateway** | `:8080` | — | 9 | — | 90% | 100% | Reverse proxy, rate limiter in-memory; needs dynamic CORS & anti-spoofing (P1). |
+| 1 | **Gateway** | `:8080` | — | 9 | — | 98% | 100% | Reverse proxy, rate limiter, dynamic CORS & anti-spoofing, 5MB body limit (P3 Done). |
 | 2 | **Auth** | `:8081` | `auth_db` | 9 | 2 files (3 tables) | 98% | 100% | Full Auth lifecycle, `/logout` token revocation & `login_audit_logs` (P2 Done). |
 | 3 | **Employee** | `:8082` | `employee_db` | 8 | 1 file (2 tables) | 98% | 100% | Full CRUD employees/depts & asset assignment history integration (P2 Done). |
-| 4 | **Asset** | `:8083` | `asset_db` | 11 | 1 file (4 tables) | 96% | 100% | Asset CRUD, employee history, incident queries; needs `version` column (P3). |
-| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 2 files (7 tables) | 95% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine; missing Lock (P3). |
-
-| 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 2 files (7 tables) | 92% | 100% | Multi-step approval, Change RFC & CAB; needs AMQP trigger (P5). |
+| 4 | **Asset** | `:8083` | `asset_db` | 11 | 2 files (4 tables) | 98% | 100% | Asset CRUD, employee history, incident queries, Optimistic Locking `version` (P3 Done). |
+| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 3 files (7 tables) | 98% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine, Optimistic Lock (P3 Done). |
+| 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 3 files (7 tables) | 96% | 100% | Multi-step approval, Change RFC & CAB, Optimistic Lock (P3 Done); needs AMQP trigger (P5). |
 | 7 | **Notification** | `:8086` | `notification_db` | 8 | 1 file (2 tables) | 85% | 100% | In-app alerts, memory bus subscriber; needs real RabbitMQ consumer (P5). |
 | 8 | **Knowledge** | `:8087` | `knowledge_db` | 9 | 1 file (4 tables) | 90% | 100% | SOP Runbooks, Articles, search; vector embeddings sync needed (P4). |
 | 9 | **AI Copilot** | `:8088` | Qdrant | 12 | — | 75% | 100% | Chat & Analyze APIs active with `MockProvider`; needs real Ollama/OpenAI (P4). |
@@ -389,7 +388,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 │ Phase 0      │ ✅ Baseline verified, schema audited, 100% tests passing.    │
 │ Phase 1      │ ✅ Security Hardening: .env, Fail-Fast, CORS, Anti-Spoofing. │
 │ Phase 2      │ ✅ Token revocation /logout, Login audit logs, Asset trace.  │
-│ Phase 3      │ ⏳ Optimistic Locking (version int), ITIL State Machine.     │
+│ Phase 3      │ ✅ Optimistic Locking (version int), ITIL State Machine.     │
 │ Phase 4      │ ⏳ Real Ollama/OpenAI provider, Qdrant ingestion, Evaluation.│
 ├──────────────┼──────────────────────────────────────────────────────────────┤
 

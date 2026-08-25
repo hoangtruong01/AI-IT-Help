@@ -163,12 +163,14 @@ func main() {
 	mux.Handle("/api/v1/audit", authFilter(adminRoleFilter(auditProxy)))
 	mux.Handle("/api/v1/audit/", authFilter(adminRoleFilter(auditProxy)))
 
-	// Apply Global Gateway Middleware Stack with Dynamic CORS, Anti-Spoofing Limiter (100 req/min), and RED Metrics
+	// Apply Global Gateway Middleware Stack with Body Size Limit (5MB), Dynamic CORS, Anti-Spoofing Limiter (100 req/min), and RED Metrics
 	handlerStack := middleware.Recoverer(log)(
-		middleware.IPRateLimiterWithProxies(100, 1*time.Minute, cfg.TrustedProxies)(
-			metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
-				middleware.RequestLogger(log)(
-					middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),
+		middleware.MaxBodySize(5 * 1024 * 1024)(
+			middleware.IPRateLimiterWithProxies(100, 1*time.Minute, cfg.TrustedProxies)(
+				metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+					middleware.RequestLogger(log)(
+						middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),
+					),
 				),
 			),
 		),

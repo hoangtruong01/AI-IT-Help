@@ -99,7 +99,7 @@ func (r *postgresChangeRepository) ListChanges(ctx context.Context, changeType, 
 			reason_for_change, implementation_plan, rollback_plan, test_plan,
 			scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time,
 			downtime_required, downtime_minutes, cab_required_count, cab_approved_count,
-			created_at, updated_at
+			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM change_requests
 		%s
 		ORDER BY created_at DESC
@@ -124,7 +124,7 @@ func (r *postgresChangeRepository) ListChanges(ctx context.Context, changeType, 
 			&c.ReasonForChange, &c.ImplementationPlan, &c.RollbackPlan, &c.TestPlan,
 			&c.ScheduledStartTime, &c.ScheduledEndTime, &c.ActualStartTime, &c.ActualEndTime,
 			&c.DowntimeRequired, &c.DowntimeMinutes, &c.CABRequiredCount, &c.CABApprovedCount,
-			&c.CreatedAt, &c.UpdatedAt,
+			&c.Version, &c.CreatedAt, &c.UpdatedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan change: %w", err)
@@ -148,7 +148,7 @@ func (r *postgresChangeRepository) GetChangeByID(ctx context.Context, id string)
 			reason_for_change, implementation_plan, rollback_plan, test_plan,
 			scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time,
 			downtime_required, downtime_minutes, cab_required_count, cab_approved_count,
-			created_at, updated_at
+			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM change_requests
 		WHERE id = $1 OR change_number = $1
 	`
@@ -161,7 +161,7 @@ func (r *postgresChangeRepository) GetChangeByID(ctx context.Context, id string)
 		&c.ReasonForChange, &c.ImplementationPlan, &c.RollbackPlan, &c.TestPlan,
 		&c.ScheduledStartTime, &c.ScheduledEndTime, &c.ActualStartTime, &c.ActualEndTime,
 		&c.DowntimeRequired, &c.DowntimeMinutes, &c.CABRequiredCount, &c.CABApprovedCount,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.Version, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -186,7 +186,7 @@ func (r *postgresChangeRepository) CreateChange(ctx context.Context, c *model.Ch
 			reason_for_change, implementation_plan, rollback_plan, test_plan,
 			scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time,
 			downtime_required, downtime_minutes, cab_required_count, cab_approved_count,
-			created_at, updated_at
+			version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
@@ -194,7 +194,7 @@ func (r *postgresChangeRepository) CreateChange(ctx context.Context, c *model.Ch
 			$17, $18, $19, $20,
 			$21, $22, $23, $24,
 			$25, $26, $27, $28,
-			$29, $30
+			1, $29, $30
 		)
 	`
 	_, err := r.db.ExecContext(
@@ -226,6 +226,7 @@ func (r *postgresChangeRepository) UpdateChange(ctx context.Context, c *model.Ch
 			implementation_plan = $12, rollback_plan = $13, test_plan = $14,
 			scheduled_start_time = $15, scheduled_end_time = $16,
 			downtime_required = $17, downtime_minutes = $18,
+			version = version + 1,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $19
 	`
@@ -252,6 +253,7 @@ func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, s
 			status = $1,
 			actual_start_time = COALESCE($2, actual_start_time),
 			actual_end_time = COALESCE($3, actual_end_time),
+			version = version + 1,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $4
 	`

@@ -140,6 +140,7 @@ export interface Ticket {
   resolved_at?: string | null
   closed_at?: string | null
   sla_status: 'WITHIN_SLA' | 'WARNING' | 'BREACHED' | string
+  version?: number
   created_at: string
   updated_at: string
 }
@@ -201,6 +202,7 @@ export interface Asset {
   assigned_to_user_name?: string | null
   assigned_at?: string | null
   notes?: string | null
+  version?: number
   created_at: string
   updated_at: string
 }
@@ -255,6 +257,7 @@ export interface ConfigurationItem {
   ip_address?: string | null
   asset_id?: string | null
   description?: string | null
+  version?: number
   created_at: string
   updated_at: string
 }
@@ -323,6 +326,7 @@ export interface WorkflowInstance {
   context_data?: string | null
   started_at: string
   completed_at?: string | null
+  version?: number
   created_at: string
   updated_at: string
 }
@@ -597,6 +601,7 @@ export interface Problem {
   resolution?: string | null
   is_known_error: boolean
   linked_count: number
+  version?: number
   created_at: string
   updated_at: string
   resolved_at?: string | null
@@ -689,6 +694,7 @@ export interface ChangeRequest {
   downtime_minutes: number
   cab_required_count: number
   cab_approved_count: number
+  version?: number
   created_at: string
   updated_at: string
 }
