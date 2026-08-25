@@ -20,6 +20,7 @@ type Problem struct {
 	Resolution    *string    `json:"resolution,omitempty" db:"resolution"`
 	IsKnownError  bool       `json:"is_known_error" db:"is_known_error"`
 	LinkedCount   int        `json:"linked_count" db:"linked_count"`
+	Version       int        `json:"version" db:"version"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 	ResolvedAt    *time.Time `json:"resolved_at,omitempty" db:"resolved_at"`

@@ -498,4 +498,33 @@ graph TD
 14. Phase 13: Production Packaging, Docker Multi-stage & Helm Charts (Done)
 15. Phase 14: SRE Operations, Disaster Recovery & Final Handover (Done)
 
+---
+
+## 9. Master Upgrade Plan Execution Log (P0 — P8)
+
+| Phase | Milestone | Scope / Target | Trạng Thái |
+|---|---|---|---|
+| **P0** | System Baseline & Schema Audit | Khởi tạo baseline, đối chiếu PostgreSQL 17 init script (9 DBs), audit schema toàn diện | ✅ **Done** |
+| **P1** | Security Foundation & API Hardening | Fail-Fast config, Dynamic CORS, Anti-Spoofing Client IP, Rate Limiter | ✅ **Done** |
+| **P2** | Enterprise Identity & Asset Traceability | `/logout` Token Revocation, `login_audit_logs`, Employee ↔ Asset ↔ Incident Traceability | ✅ **Done** |
+| **P3** | ITSM / Helpdesk & Concurrency Control | ITIL v4 State Machine, Optimistic Locking (version + CAS), Gateway 5MB Body Limit | ✅ **Done** |
+| **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ⏳ *Next* |
+| **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ⏳ *Pending* |
+| **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ⏳ *Pending* |
+| **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ⏳ *Pending* |
+| **P8** | Production Readiness Sign-off & Handover | Chaos Engineering, 100% test coverage sign-off, Portfolio packaging | ⏳ *Pending* |
+
+### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 3: ITSM / Helpdesk & Concurrency Control
+* **Strict ITIL v4 State Machine (`services/helpdesk`)**:
+  * Thiết lập ma trận chuyển đổi hợp lệ `ValidTicketTransitions` trong `internal/model/ticket.go`: `OPEN ➔ ASSIGNED ➔ IN_PROGRESS ➔ WAITING_USER ➔ RESOLVED ➔ CLOSED`.
+  * Khóa trạng thái `CLOSED` không cho phép chuyển tiếp ngược, từ chối vi phạm với `HTTP 400 Bad Request`.
+* **Optimistic Locking Concurrency Control (version INT + Atomic CAS)**:
+  * Tạo SQL migrations: `services/helpdesk/migrations/003_add_optimistic_locking_version.sql`, `services/asset/migrations/002_add_optimistic_locking_version.sql`, `services/workflow/migrations/003_add_optimistic_locking_version.sql`.
+  * Cập nhật tất cả các lệnh `UPDATE` sử dụng CAS: `WHERE id = $1 AND version = $X`, tăng `version = version + 1`. Chặn đứng xung đột ghi đè đồng thời với `HTTP 409 Conflict`.
+* **API Gateway 5MB Request Body Size Limiter (`packages/shared/pkg/middleware`)**:
+  * Triển khai middleware `MaxBodySize(5 * 1024 * 1024)` bảo vệ toàn bộ API endpoints trước tấn công DoS bằng payload lớn, trả về `HTTP 413 Payload Too Large`.
+* **Kiểm thử tự động tích hợp & Race Condition (50 Goroutines)**:
+  * Xây dựng `services/helpdesk/cmd/server/concurrency_test.go` và `tests/e2e/phase3_concurrency_test.go` kiểm chứng thành công 100% kịch bản 50 Goroutines cùng tranh chấp cập nhật Version 1 $\implies$ đúng 1 chiến thắng, 49 bị chặn 409 Conflict.
+
+
 

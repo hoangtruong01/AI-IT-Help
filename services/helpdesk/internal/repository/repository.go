@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appErrors "eomp/packages/shared/pkg/errors"
 	"eomp/services/helpdesk/internal/model"
 )
 
@@ -18,8 +19,8 @@ type Repository interface {
 	FindTicketByID(ctx context.Context, id string) (*model.Ticket, error)
 	FindTicketByNumber(ctx context.Context, ticketNumber string) (*model.Ticket, error)
 	CreateTicket(ctx context.Context, ticket *model.Ticket) error
-	UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time) error
-	AssignTicket(ctx context.Context, id, assigneeID, assigneeName string) error
+	UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int) error
+	AssignTicket(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int) error
 
 	AddComment(ctx context.Context, comment *model.TicketComment) error
 	ListComments(ctx context.Context, ticketID string) ([]model.TicketComment, error)
@@ -33,7 +34,6 @@ type Repository interface {
 	NextTicketNumber(ctx context.Context) (string, error)
 	ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 }
-
 
 type postgresRepository struct {
 	db *sql.DB
@@ -118,7 +118,7 @@ func (r *postgresRepository) ListTickets(ctx context.Context, query model.Ticket
 			requester_id, requester_name, requester_email,
 			assignee_id, assignee_name, department_id, affected_ci_id,
 			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
-			sla_status, created_at, updated_at
+			sla_status, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM tickets
 		WHERE %s
 		ORDER BY created_at DESC
@@ -145,7 +145,7 @@ func (r *postgresRepository) ListTickets(ctx context.Context, query model.Ticket
 			&t.RequesterID, &t.RequesterName, &t.RequesterEmail,
 			&assigneeID, &assigneeName, &deptID, &ciID,
 			&t.SLAResponseDeadline, &t.SLAResolutionDeadline, &respondedAt, &resolvedAt, &closedAt,
-			&t.SLAStatus, &t.CreatedAt, &t.UpdatedAt,
+			&t.SLAStatus, &t.Version, &t.CreatedAt, &t.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ticket: %w", err)
@@ -197,7 +197,7 @@ func (r *postgresRepository) FindTicketByID(ctx context.Context, id string) (*mo
 			requester_id, requester_name, requester_email,
 			assignee_id, assignee_name, department_id, affected_ci_id,
 			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
-			sla_status, created_at, updated_at
+			sla_status, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM tickets
 		WHERE id = $1
 	`
@@ -210,7 +210,7 @@ func (r *postgresRepository) FindTicketByID(ctx context.Context, id string) (*mo
 		&t.RequesterID, &t.RequesterName, &t.RequesterEmail,
 		&assigneeID, &assigneeName, &deptID, &ciID,
 		&t.SLAResponseDeadline, &t.SLAResolutionDeadline, &respondedAt, &resolvedAt, &closedAt,
-		&t.SLAStatus, &t.CreatedAt, &t.UpdatedAt,
+		&t.SLAStatus, &t.Version, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -267,7 +267,7 @@ func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID s
 			requester_id, requester_name, requester_email,
 			assignee_id, assignee_name, department_id, affected_ci_id,
 			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
-			sla_status, created_at, updated_at
+			sla_status, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM tickets
 		WHERE affected_ci_id = $1
 		ORDER BY created_at DESC
@@ -290,7 +290,7 @@ func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID s
 			&t.RequesterID, &t.RequesterName, &t.RequesterEmail,
 			&assigneeID, &assigneeName, &deptID, &ciID,
 			&t.SLAResponseDeadline, &t.SLAResolutionDeadline, &respondedAt, &resolvedAt, &closedAt,
-			&t.SLAStatus, &t.CreatedAt, &t.UpdatedAt,
+			&t.SLAStatus, &t.Version, &t.CreatedAt, &t.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan ticket by asset: %w", err)
@@ -326,23 +326,22 @@ func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID s
 	return tickets, nil
 }
 
-
 func (r *postgresRepository) CreateTicket(ctx context.Context, t *model.Ticket) error {
 	query := `
 		INSERT INTO tickets (
 			ticket_number, title, description, service_item_id, category, priority, status,
 			requester_id, requester_name, requester_email,
 			assignee_id, assignee_name, department_id, affected_ci_id,
-			sla_response_deadline, sla_resolution_deadline, sla_status,
+			sla_response_deadline, sla_resolution_deadline, sla_status, version,
 			created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10,
 			$11, $12, $13, $14,
-			$15, $16, $17,
+			$15, $16, $17, 1,
 			$18, $19
 		)
-		RETURNING id, created_at, updated_at
+		RETURNING id, version, created_at, updated_at
 	`
 	now := time.Now()
 	err := r.db.QueryRowContext(
@@ -352,7 +351,7 @@ func (r *postgresRepository) CreateTicket(ctx context.Context, t *model.Ticket) 
 		t.AssigneeID, t.AssigneeName, t.DepartmentID, t.AffectedCIID,
 		t.SLAResponseDeadline, t.SLAResolutionDeadline, t.SLAStatus,
 		now, now,
-	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.Version, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert ticket: %w", err)
@@ -360,39 +359,99 @@ func (r *postgresRepository) CreateTicket(ctx context.Context, t *model.Ticket) 
 	return nil
 }
 
-func (r *postgresRepository) UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time) error {
-	query := `
-		UPDATE tickets
-		SET 
-			status = $2,
-			assignee_id = COALESCE($3, assignee_id),
-			assignee_name = COALESCE($4, assignee_name),
-			resolved_at = COALESCE($5, resolved_at),
-			closed_at = COALESCE($6, closed_at),
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`
-	_, err := r.db.ExecContext(ctx, query, id, status, assigneeID, assigneeName, resolvedAt, closedAt)
+func (r *postgresRepository) UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int) error {
+	var query string
+	var res sql.Result
+	var err error
+
+	if expectedVersion != nil {
+		query = `
+			UPDATE tickets
+			SET 
+				status = $2,
+				assignee_id = COALESCE($3, assignee_id),
+				assignee_name = COALESCE($4, assignee_name),
+				resolved_at = COALESCE($5, resolved_at),
+				closed_at = COALESCE($6, closed_at),
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND version = $7
+		`
+		res, err = r.db.ExecContext(ctx, query, id, status, assigneeID, assigneeName, resolvedAt, closedAt, *expectedVersion)
+	} else {
+		query = `
+			UPDATE tickets
+			SET 
+				status = $2,
+				assignee_id = COALESCE($3, assignee_id),
+				assignee_name = COALESCE($4, assignee_name),
+				resolved_at = COALESCE($5, resolved_at),
+				closed_at = COALESCE($6, closed_at),
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		res, err = r.db.ExecContext(ctx, query, id, status, assigneeID, assigneeName, resolvedAt, closedAt)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to update ticket status: %w", err)
 	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
+	}
+
 	return nil
 }
 
-func (r *postgresRepository) AssignTicket(ctx context.Context, id, assigneeID, assigneeName string) error {
-	query := `
-		UPDATE tickets
-		SET 
-			assignee_id = $2,
-			assignee_name = $3,
-			status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`
-	_, err := r.db.ExecContext(ctx, query, id, assigneeID, assigneeName)
+func (r *postgresRepository) AssignTicket(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int) error {
+	var query string
+	var res sql.Result
+	var err error
+
+	if expectedVersion != nil {
+		query = `
+			UPDATE tickets
+			SET 
+				assignee_id = $2,
+				assignee_name = $3,
+				status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND version = $4
+		`
+		res, err = r.db.ExecContext(ctx, query, id, assigneeID, assigneeName, *expectedVersion)
+	} else {
+		query = `
+			UPDATE tickets
+			SET 
+				assignee_id = $2,
+				assignee_name = $3,
+				status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		res, err = r.db.ExecContext(ctx, query, id, assigneeID, assigneeName)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to assign ticket: %w", err)
 	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
+	}
+
 	return nil
 }
 

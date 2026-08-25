@@ -46,6 +46,7 @@ type Asset struct {
 	AssignedToUserName *string    `json:"assigned_to_user_name,omitempty"`
 	AssignedAt         *time.Time `json:"assigned_at,omitempty"`
 	Notes              *string    `json:"notes,omitempty"`
+	Version            int        `json:"version"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
