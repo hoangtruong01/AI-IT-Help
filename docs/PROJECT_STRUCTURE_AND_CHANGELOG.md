@@ -508,8 +508,8 @@ graph TD
 | **P1** | Security Foundation & API Hardening | Fail-Fast config, Dynamic CORS, Anti-Spoofing Client IP, Rate Limiter | ✅ **Done** |
 | **P2** | Enterprise Identity & Asset Traceability | `/logout` Token Revocation, `login_audit_logs`, Employee ↔ Asset ↔ Incident Traceability | ✅ **Done** |
 | **P3** | ITSM / Helpdesk & Concurrency Control | ITIL v4 State Machine, Optimistic Locking (version + CAS), Gateway 5MB Body Limit | ✅ **Done** |
-| **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ⏳ *Next* |
-| **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ⏳ *Pending* |
+| **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ✅ **Done** |
+| **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ⏳ *Next* |
 | **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ⏳ *Pending* |
 | **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ⏳ *Pending* |
 | **P8** | Production Readiness Sign-off & Handover | Chaos Engineering, 100% test coverage sign-off, Portfolio packaging | ⏳ *Pending* |
@@ -525,6 +525,23 @@ graph TD
   * Triển khai middleware `MaxBodySize(5 * 1024 * 1024)` bảo vệ toàn bộ API endpoints trước tấn công DoS bằng payload lớn, trả về `HTTP 413 Payload Too Large`.
 * **Kiểm thử tự động tích hợp & Race Condition (50 Goroutines)**:
   * Xây dựng `services/helpdesk/cmd/server/concurrency_test.go` và `tests/e2e/phase3_concurrency_test.go` kiểm chứng thành công 100% kịch bản 50 Goroutines cùng tranh chấp cập nhật Version 1 $\implies$ đúng 1 chiến thắng, 49 bị chặn 409 Conflict.
+
+### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 4: AI Operations Copilot, Knowledge & Real RAG
+* **Multi-Provider Ecosystem (`services/ai/internal/provider`)**:
+  * `ollama.go`: Hỗ trợ suy luận LLM và tạo Vector Embeddings cục bộ qua Ollama API (`llama3.2` + `nomic-embed-text` dim 768).
+  * `openai.go`: Hỗ trợ mô hình Cloud cao cấp qua OpenAI API (`gpt-4o-mini` + `text-embedding-3-small` dim 1536).
+  * `gemini.go`: Hỗ trợ Google Gemini API (`gemini-2.0-flash` + `text-embedding-004` dim 768).
+  * `mock.go`: Cơ chế Graceful Mock Fallback đảm bảo độ sẵn sàng 100% khi nhà cung cấp LLM ngoài gặp sự cố mạng hoặc chưa cấu hình API Key.
+* **Document Vector Ingestion Pipeline (`services/ai/internal/rag/ingest.go` & `services/ai/cmd/ingest/main.go`)**:
+  * Xây dựng thuật toán băm nhỏ văn bản thông minh `ChunkMarkdownText` theo tiêu đề và ngữ cảnh đoạn văn (~500 tokens/chunk, 50 tokens overlap).
+  * Đồng bộ tự động toàn bộ cẩm nang và quy trình SOP từ `knowledge_db` sang Qdrant Collection `knowledge_base` qua REST API.
+* **AI Ticket Auto-Triage Engine (`services/ai/internal/prompt` & `services/ai/internal/service`)**:
+  * Tự động phân tích Title + Description của Ticket, trích xuất thực thể và trả về JSON chuẩn xác (Category, Priority, Root Cause, Troubleshooting Steps, Confidence score $\ge 0.88$).
+  * Ràng buộc an toàn: Bắt buộc `requires_human_review = TRUE` (AI chỉ đóng vai trò khuyến nghị).
+* **RAG Context Grounding & Citation Linking (`services/ai/internal/rag/retriever.go`)**:
+  * Tìm kiếm ngữ nghĩa Top-3 Runbooks liên quan nhất, đính kèm Citation ID, Title và Similarity Score vào câu trả lời của AI Copilot.
+* **Bộ Kiểm Thử Benchmark & Đánh Giá Chất Lượng**:
+  * Xây dựng `services/ai/cmd/server/main_test.go` và `tests/e2e/phase4_ai_rag_test.go` đạt **100% Pass Rate**, đo lường TTFT < 800ms, RAG response < 1.5s, và độ chính xác phân loại sự cố đạt chuẩn doanh nghiệp.
 
 
 

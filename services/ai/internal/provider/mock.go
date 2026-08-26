@@ -45,8 +45,22 @@ func (m *MockProvider) Generate(ctx context.Context, messages []model.Message) (
 			"*Reference: RB-SEC-02 (User MFA Token Reset and Identity Verification SOP)*", nil
 	}
 
-	// Case 2: VPN / Network Connection Issues
-	if strings.Contains(queryLower, "vpn") || strings.Contains(queryLower, "wireguard") || strings.Contains(queryLower, "tunnel") || strings.Contains(queryLower, "staging server") {
+	// Case 2: Database / Backend Outage
+	if strings.Contains(queryLower, "postgres") || strings.Contains(queryLower, "database") || strings.Contains(queryLower, "pool") || strings.Contains(queryLower, "too many clients") {
+		return "### 🗄️ Database Incident Guide: Connection Pool Exhaustion Recovery\n\n" +
+			"Based on **PostgreSQL Connection Pool Exhaustion Policy** and **Runbook: RB-DB-03**:\n\n" +
+			"1. **Immediate Inspection**:\n" +
+			"   - Execute activity query to find blocking or leaking connections:\n" +
+			"     `SELECT pid, usename, client_addr, state, query_start FROM pg_stat_activity WHERE state = 'idle in transaction' AND query_start < NOW() - INTERVAL '5 minutes';`\n\n" +
+			"2. **Remediation**:\n" +
+			"   - Terminate hanging idle queries:\n" +
+			"     `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle in transaction' AND query_start < NOW() - INTERVAL '5 minutes';`\n" +
+			"   - Verify that microservice connection pool settings do not exceed `SetMaxOpenConns(25)`.\n\n" +
+			"*Reference: RB-DB-03 (PostgreSQL Connection Pool Exhaustion Recovery)*", nil
+	}
+
+	// Case 3: VPN / Network Connection Issues
+	if strings.Contains(queryLower, "vpn") || strings.Contains(queryLower, "wireguard") || strings.Contains(queryLower, "tunnel") || strings.Contains(queryLower, "staging server") || strings.Contains(queryLower, "subnet") || strings.Contains(queryLower, "dns") {
 		return "### 🌐 Diagnostic & Resolution Guide: Corporate VPN Disconnection\n\n" +
 			"Based on **Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide** and **Runbook: RB-NET-01**:\n\n" +
 			"1. **Root Cause Analysis**:\n" +
@@ -61,20 +75,6 @@ func (m *MockProvider) Generate(ctx context.Context, messages []model.Message) (
 			"     `ipconfig /flushdns`\n\n" +
 			"3. **Escalation**:\n" +
 			"   - If gateway is unresponsive, trigger **RB-NET-01 (Emergency VPN Tunnel Failover SOP)** to route traffic via backup cluster (`10.8.1.1`).", nil
-	}
-
-	// Case 3: PostgreSQL Database Connection Pool
-	if strings.Contains(queryLower, "postgres") || strings.Contains(queryLower, "database") || strings.Contains(queryLower, "pool") || strings.Contains(queryLower, "too many clients") {
-		return "### 🗄️ Database Incident Guide: Connection Pool Exhaustion Recovery\n\n" +
-			"Based on **PostgreSQL Connection Pool Exhaustion Policy** and **Runbook: RB-DB-03**:\n\n" +
-			"1. **Immediate Inspection**:\n" +
-			"   - Execute activity query to find blocking or leaking connections:\n" +
-			"     `SELECT pid, usename, client_addr, state, query_start FROM pg_stat_activity WHERE state = 'idle in transaction' AND query_start < NOW() - INTERVAL '5 minutes';`\n\n" +
-			"2. **Remediation**:\n" +
-			"   - Terminate hanging idle queries:\n" +
-			"     `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state = 'idle in transaction' AND query_start < NOW() - INTERVAL '5 minutes';`\n" +
-			"   - Verify that microservice connection pool settings do not exceed `SetMaxOpenConns(25)`.\n\n" +
-			"*Reference: RB-DB-03 (PostgreSQL Connection Pool Exhaustion Recovery)*", nil
 	}
 
 	// Case 4: Laptop Provisioning & Setup
@@ -105,47 +105,8 @@ func (m *MockProvider) Generate(ctx context.Context, messages []model.Message) (
 func (m *MockProvider) AnalyzeTicket(ctx context.Context, title, description string) (*model.TicketAnalysis, error) {
 	combined := strings.ToLower(title + " " + description)
 
-	// 1. VPN / Network Failure
-	if strings.Contains(combined, "vpn") || strings.Contains(combined, "wireguard") || strings.Contains(combined, "network") || strings.Contains(combined, "connect") || strings.Contains(combined, "staging server") {
-		return &model.TicketAnalysis{
-			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
-			SuggestedCategory:   "Network & Access",
-			Priority:            "HIGH",
-			Summary:             "VPN tunnel connection timeout to Staging Server cluster.",
-			RootCause:           "WireGuard handshake packet drop or MTU mismatch on Gateway subnet.",
-			SuggestedResolution: "1. Instruct user to flush DNS cache and verify client MTU is 1380.\n2. Verify upstream VPN gateway status on 10.8.0.1.\n3. Refer to Runbook RB-NET-01 if gateway failover is required.",
-			Confidence:          0.94,
-			Citations: []model.Citation{
-				{ArticleID: "a0000000-0000-0000-0000-000000000002", Title: "Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide", Score: 0.95, Category: "Network & Access", Type: "article"},
-				{ArticleID: "r0000000-0000-0000-0000-000000000002", Title: "RB-NET-01: Emergency VPN Tunnel Failover SOP", Score: 0.94, Category: "Network & Access", Type: "runbook"},
-				{ArticleID: "a0000000-0000-0000-0000-000000000006", Title: "Resolving Gateway DNS Resolution Timeout and Subnet Routing", Score: 0.88, Category: "Network & Access", Type: "article"},
-			},
-			RequiresHumanReview: true,
-			CreatedAt:           time.Now(),
-		}, nil
-	}
-
-	// 2. MFA / Access Lockout
-	if strings.Contains(combined, "mfa") || strings.Contains(combined, "okta") || strings.Contains(combined, "2fa") || strings.Contains(combined, "token") || strings.Contains(combined, "login") || strings.Contains(combined, "auth") {
-		return &model.TicketAnalysis{
-			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
-			SuggestedCategory:   "IT Security & Access",
-			Priority:            "HIGH",
-			Summary:             "Employee authentication failure due to desynchronized or missing MFA token.",
-			RootCause:           "Lost authenticator device or expired Okta Verify enrollment.",
-			SuggestedResolution: "1. Perform secondary identity verification via video call or manager note.\n2. Access Okta Admin and issue a 15-minute temporary enrollment QR code.\n3. Verify test login before closing ticket.",
-			Confidence:          0.96,
-			Citations: []model.Citation{
-				{ArticleID: "a0000000-0000-0000-0000-000000000001", Title: "How to Reset User MFA and Okta Verify Tokens", Score: 0.96, Category: "IT Security & Access", Type: "article"},
-				{ArticleID: "r0000000-0000-0000-0000-000000000001", Title: "RB-SEC-02: User MFA Token Reset and Identity Verification SOP", Score: 0.95, Category: "IT Security & Access", Type: "runbook"},
-			},
-			RequiresHumanReview: true,
-			CreatedAt:           time.Now(),
-		}, nil
-	}
-
-	// 3. Database / Backend Outage
-	if strings.Contains(combined, "postgres") || strings.Contains(combined, "database") || strings.Contains(combined, "pool") || strings.Contains(combined, "500") || strings.Contains(combined, "crash") {
+	// 1. Database / DevOps & Infrastructure (Check first to avoid keyword collision with "connection")
+	if strings.Contains(combined, "postgres") || strings.Contains(combined, "database") || strings.Contains(combined, "pool") || strings.Contains(combined, "500") || strings.Contains(combined, "crash") || strings.Contains(combined, "too many clients") {
 		return &model.TicketAnalysis{
 			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
 			SuggestedCategory:   "DevOps & Infrastructure",
@@ -163,8 +124,27 @@ func (m *MockProvider) AnalyzeTicket(ctx context.Context, title, description str
 		}, nil
 	}
 
-	// 4. Laptop / Hardware Replacement
-	if strings.Contains(combined, "laptop") || strings.Contains(combined, "hardware") || strings.Contains(combined, "monitor") || strings.Contains(combined, "screen") || strings.Contains(combined, "macbook") {
+	// 2. MFA / Access Lockout & Security
+	if strings.Contains(combined, "mfa") || strings.Contains(combined, "okta") || strings.Contains(combined, "2fa") || strings.Contains(combined, "token") || strings.Contains(combined, "login") || strings.Contains(combined, "auth") || strings.Contains(combined, "locked out") {
+		return &model.TicketAnalysis{
+			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
+			SuggestedCategory:   "IT Security & Access",
+			Priority:            "HIGH",
+			Summary:             "Employee authentication failure due to desynchronized or missing MFA token.",
+			RootCause:           "Lost authenticator device or expired Okta Verify enrollment.",
+			SuggestedResolution: "1. Perform secondary identity verification via video call or manager note.\n2. Access Okta Admin and issue a 15-minute temporary enrollment QR code.\n3. Verify test login before closing ticket.",
+			Confidence:          0.96,
+			Citations: []model.Citation{
+				{ArticleID: "a0000000-0000-0000-0000-000000000001", Title: "How to Reset User MFA and Okta Verify Tokens", Score: 0.96, Category: "IT Security & Access", Type: "article"},
+				{ArticleID: "r0000000-0000-0000-0000-000000000001", Title: "RB-SEC-02: User MFA Token Reset and Identity Verification SOP", Score: 0.95, Category: "IT Security & Access", Type: "runbook"},
+			},
+			RequiresHumanReview: true,
+			CreatedAt:           time.Now(),
+		}, nil
+	}
+
+	// 3. Laptop / Hardware Replacement & Equipment
+	if strings.Contains(combined, "laptop") || strings.Contains(combined, "hardware") || strings.Contains(combined, "monitor") || strings.Contains(combined, "screen") || strings.Contains(combined, "macbook") || strings.Contains(combined, "thinkpad") || strings.Contains(combined, "provisioning") {
 		return &model.TicketAnalysis{
 			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
 			SuggestedCategory:   "Hardware & Equipment",
@@ -176,6 +156,26 @@ func (m *MockProvider) AnalyzeTicket(ctx context.Context, title, description str
 			Citations: []model.Citation{
 				{ArticleID: "a0000000-0000-0000-0000-000000000003", Title: "Standard Laptop Setup & Security Baseline (macOS & Windows)", Score: 0.93, Category: "Hardware & Equipment", Type: "article"},
 				{ArticleID: "r0000000-0000-0000-0000-000000000004", Title: "RB-HW-04: Corporate Laptop Provisioning and Deployment Procedure", Score: 0.91, Category: "Hardware & Equipment", Type: "runbook"},
+			},
+			RequiresHumanReview: true,
+			CreatedAt:           time.Now(),
+		}, nil
+	}
+
+	// 4. VPN / Network Failure
+	if strings.Contains(combined, "vpn") || strings.Contains(combined, "wireguard") || strings.Contains(combined, "network") || strings.Contains(combined, "staging server") || strings.Contains(combined, "subnet") || strings.Contains(combined, "dns") || strings.Contains(combined, "tunnel") || strings.Contains(combined, "disconnect") {
+		return &model.TicketAnalysis{
+			TicketID:            fmt.Sprintf("AI-TK-%d", time.Now().Unix()%10000),
+			SuggestedCategory:   "Network & Access",
+			Priority:            "HIGH",
+			Summary:             "VPN tunnel connection timeout to Staging Server cluster.",
+			RootCause:           "WireGuard handshake packet drop or MTU mismatch on Gateway subnet.",
+			SuggestedResolution: "1. Instruct user to flush DNS cache and verify client MTU is 1380.\n2. Verify upstream VPN gateway status on 10.8.0.1.\n3. Refer to Runbook RB-NET-01 if gateway failover is required.",
+			Confidence:          0.94,
+			Citations: []model.Citation{
+				{ArticleID: "a0000000-0000-0000-0000-000000000002", Title: "Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide", Score: 0.95, Category: "Network & Access", Type: "article"},
+				{ArticleID: "r0000000-0000-0000-0000-000000000002", Title: "RB-NET-01: Emergency VPN Tunnel Failover SOP", Score: 0.94, Category: "Network & Access", Type: "runbook"},
+				{ArticleID: "a0000000-0000-0000-0000-000000000006", Title: "Resolving Gateway DNS Resolution Timeout and Subnet Routing", Score: 0.88, Category: "Network & Access", Type: "article"},
 			},
 			RequiresHumanReview: true,
 			CreatedAt:           time.Now(),

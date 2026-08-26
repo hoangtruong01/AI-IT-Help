@@ -31,11 +31,49 @@ func main() {
 	}
 
 	// 1. Initialize AI Providers & Resilient RAG Retriever
-	mockProvider := provider.NewMockProvider()
-	smartRetriever := rag.NewSmartRetriever("localhost", 6333, "knowledge_base")
+	var llmProvider provider.LLMProvider
+	var embedProvider provider.EmbeddingProvider
+
+	switch cfg.AIProvider {
+	case "ollama":
+		log.Info("initializing Ollama provider",
+			slog.String("base_url", cfg.OllamaBaseURL),
+			slog.String("model", cfg.AIModel),
+			slog.String("embedding_model", cfg.EmbeddingModel),
+		)
+		ollama := provider.NewOllamaProvider(cfg.OllamaBaseURL, cfg.AIModel, cfg.EmbeddingModel)
+		llmProvider = ollama
+		embedProvider = ollama
+
+	case "openai":
+		log.Info("initializing OpenAI provider",
+			slog.String("model", cfg.AIModel),
+			slog.String("embedding_model", cfg.EmbeddingModel),
+		)
+		openai := provider.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.AIModel, cfg.EmbeddingModel)
+		llmProvider = openai
+		embedProvider = openai
+
+	case "gemini":
+		log.Info("initializing Google Gemini provider",
+			slog.String("model", cfg.AIModel),
+			slog.String("embedding_model", cfg.EmbeddingModel),
+		)
+		gemini := provider.NewGeminiProvider(cfg.GeminiAPIKey, cfg.AIModel, cfg.EmbeddingModel)
+		llmProvider = gemini
+		embedProvider = gemini
+
+	default:
+		log.Info("initializing MockProvider (local domain intelligence)")
+		mock := provider.NewMockProvider()
+		llmProvider = mock
+		embedProvider = mock
+	}
+
+	smartRetriever := rag.NewSmartRetriever(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection)
 
 	// 2. Initialize Service and Handlers
-	aiService := service.NewAIService(mockProvider, mockProvider, smartRetriever)
+	aiService := service.NewAIService(llmProvider, embedProvider, smartRetriever)
 	aiHandler := handler.NewAIHandler(aiService)
 	healthHandler := handler.NewHealthHandler(cfg)
 
@@ -68,7 +106,7 @@ func main() {
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      handlerStack,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 45 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -80,8 +118,10 @@ func main() {
 		log.Info("ai service starting",
 			slog.Int("port", cfg.Port),
 			slog.String("version", cfg.Version),
+			slog.String("provider", cfg.AIProvider),
 			slog.String("model", cfg.AIModel),
 			slog.String("embedding_model", cfg.EmbeddingModel),
+			slog.String("qdrant_url", cfg.QdrantURL),
 		)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("server failed to start", slog.Any("error", err))
