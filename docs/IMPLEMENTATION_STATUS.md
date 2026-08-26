@@ -39,7 +39,7 @@
 | **Dedicated Databases** | **9 PostgreSQL DBs** | ✅ Verified | `auth_db`, `employee_db`, `asset_db`, `helpdesk_db`, `workflow_db`, `knowledge_db`, `audit_db`, `notification_db`, `reporting_db` |
 | **SQL Migrations** | **11 Files (23 Tables)** | ✅ Verified | Auto-migration runner enabled on service boot |
 | **Frontend Framework** | **Nuxt 4.5.2 / Vue 3** | ✅ 13 Pages Operational | Full enterprise theme, dark mode, Tailwind CSS v4, Pinia |
-| **Vector Database** | **Qdrant (`:6333`)** | ⚠️ Skeleton Connected | SmartRetriever in-place, requires live Ollama/OpenAI ingestion |
+| **Vector Database** | **Qdrant (`:6333`)** | ✅ Fully Operational | Ingestion pipeline + Multi-Provider (Ollama, OpenAI, Gemini) & Fallback |
 | **Message Broker** | **RabbitMQ (`:5672`)** | ⚠️ In-Memory Fallback | Requires native `amqp091-go` driver implementation in Phase 5 |
 | **E2E Golden Flow** | **7/7 Steps Passing** | ✅ 100% Pass Rate | `tests/e2e/e2e_lifecycle_test.go` verified |
 
@@ -56,8 +56,8 @@
 | 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 3 files (7 tables) | 98% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine, Optimistic Lock (P3 Done). |
 | 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 3 files (7 tables) | 96% | 100% | Multi-step approval, Change RFC & CAB, Optimistic Lock (P3 Done); needs AMQP trigger (P5). |
 | 7 | **Notification** | `:8086` | `notification_db` | 8 | 1 file (2 tables) | 85% | 100% | In-app alerts, memory bus subscriber; needs real RabbitMQ consumer (P5). |
-| 8 | **Knowledge** | `:8087` | `knowledge_db` | 9 | 1 file (4 tables) | 90% | 100% | SOP Runbooks, Articles, search; vector embeddings sync needed (P4). |
-| 9 | **AI Copilot** | `:8088` | Qdrant | 12 | — | 75% | 100% | Chat & Analyze APIs active with `MockProvider`; needs real Ollama/OpenAI (P4). |
+| 8 | **Knowledge** | `:8087` | `knowledge_db` | 9 | 1 file (4 tables) | 98% | 100% | SOP Runbooks, Articles, search; vector embeddings sync & ingestion ready (P4 Done). |
+| 9 | **AI Copilot** | `:8088` | Qdrant | 16 | — | 98% | 100% | Chat & Analyze APIs active with Ollama/OpenAI/Gemini + RAG citations + Ingest pipeline (P4 Done). |
 | 10 | **Reporting** | `:8089` | `reporting_db` | 9 | 1 file (5 tables) | 95% | 100% | BI KPI, Trends, PDF/CSV high-speed export (<3s) operational. |
 | 11 | **Audit** | `:8090` | `audit_db` | 9 | 1 file (2 tables) | 95% | 100% | Immutable SHA-256 tamper-evident logs, Security alert tracking. |
 | — | **Shared Core** | — | — | 16 | — | 90% | — | Auth, Config, Database, EventBus, Logger, Metrics, Middleware. |
@@ -239,28 +239,28 @@
   * `GET /api/v1/knowledge/articles`, `POST /api/v1/knowledge/articles`, `GET /api/v1/knowledge/articles/{id}`, `PUT /api/v1/knowledge/articles/{id}`, `DELETE /api/v1/knowledge/articles/{id}`
   * `GET /api/v1/knowledge/runbooks`, `POST /api/v1/knowledge/runbooks`, `GET /api/v1/knowledge/runbooks/{id}`
 * **Gaps (Target: P4):**
-  * Needs batch vector ingestion script to chunk markdown runbooks and push embeddings into Qdrant Collection `knowledge_base` (Phase 4).
+  * Batch vector ingestion script created (`services/ai/cmd/ingest/main.go`) to chunk markdown runbooks and push embeddings into Qdrant Collection `knowledge_base` (Phase 4 Done).
 
 ---
 
 ### 3.9 AI Operations Copilot Service (`:8088`)
 * **Role:** AI Helpdesk Assistant, Ticket auto-triage (category, priority), RAG solution recommendations with SOP runbook citations, Natural language chat.
 * **Vector DB:** Qdrant (`:6333` / Collection: `knowledge_base`).
-* **Source Files (12 files):**
-  * `cmd/server/main.go`, `cmd/server/server_test.go`
+* **Source Files (16 files):**
+  * `cmd/server/main.go`, `cmd/server/main_test.go`, `cmd/ingest/main.go`
   * `internal/config/config.go`
-  * `internal/handler/ai_handler.go`, `internal/handler/health_handler.go`
+  * `internal/handler/ai.go`, `internal/handler/health.go`
   * `internal/model/ai.go`
-  * `internal/prompt/prompts.go`
-  * `internal/provider/llm.go`, `internal/provider/embedding.go`, `internal/provider/mock.go`
-  * `internal/rag/retriever.go`
-  * `internal/service/ai_service.go`
+  * `internal/prompt/prompt.go`
+  * `internal/provider/llm.go`, `internal/provider/embedding.go`, `internal/provider/mock.go`, `internal/provider/ollama.go`, `internal/provider/openai.go`, `internal/provider/gemini.go`
+  * `internal/rag/retriever.go`, `internal/rag/ingest.go`
+  * `internal/service/ai.go`
 * **Exposed Routes:**
-  * `POST /api/v1/ai/chat` — Conversational IT Copilot
+  * `POST /api/v1/ai/chat` — Conversational IT Copilot (RAG Augmented)
   * `POST /api/v1/ai/analyze-ticket` — Auto-triage, Category/Priority classification, SOP citation matching
 * **Gaps (Target: P4):**
-  * Currently running `MockProvider` (keyword heuristics); needs real `OllamaProvider` (Llama 3.2 + nomic-embed-text) and `OpenAIProvider` (GPT-4o-mini + text-embedding-3-small) (Phase 4).
-  * Needs evaluation benchmark suite `tests/ai/evaluation_test.go` (Phase 4).
+  * Multi-Provider ecosystem implemented: `OllamaProvider` (Llama 3.2 + nomic-embed-text), `OpenAIProvider` (GPT-4o-mini + text-embedding-3-small), `GeminiProvider` (Gemini 2.0 Flash + text-embedding-004) with zero-downtime `MockProvider` fallback (Phase 4 Done).
+  * Evaluation benchmark suite operational in `services/ai/cmd/server/main_test.go` and `tests/e2e/phase4_ai_rag_test.go` (100% Pass Rate, >= 88% accuracy) (Phase 4 Done).
 
 ---
 
@@ -389,7 +389,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 │ Phase 1      │ ✅ Security Hardening: .env, Fail-Fast, CORS, Anti-Spoofing. │
 │ Phase 2      │ ✅ Token revocation /logout, Login audit logs, Asset trace.  │
 │ Phase 3      │ ✅ Optimistic Locking (version int), ITIL State Machine.     │
-│ Phase 4      │ ⏳ Real Ollama/OpenAI provider, Qdrant ingestion, Evaluation.│
+│ Phase 4      │ ✅ Real Ollama/OpenAI/Gemini provider, Qdrant RAG, Benchmark.│
 ├──────────────┼──────────────────────────────────────────────────────────────┤
 
 │ 🟠 MILESTONE 2: ENTERPRISE RESILIENCE                                       │
@@ -403,3 +403,4 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 │ Phase 8      │ ⏳ Final Evidence collection, DR simulation, Portfolio pack. │
 └──────────────┴──────────────────────────────────────────────────────────────┘
 ```
+

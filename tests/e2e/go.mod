@@ -4,12 +4,14 @@ go 1.25.0
 
 require (
 	eomp/packages/shared v0.0.0
+	eomp/services/ai v0.0.0
 	eomp/services/asset v0.0.0
 	eomp/services/audit v0.0.0
 	eomp/services/auth v0.0.0
 	eomp/services/employee v0.0.0
 	eomp/services/gateway v0.0.0
 	eomp/services/helpdesk v0.0.0
+	eomp/services/knowledge v0.0.0
 	eomp/services/notification v0.0.0
 	eomp/services/reporting v0.0.0
 	eomp/services/workflow v0.0.0
