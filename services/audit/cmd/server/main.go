@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/database"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
@@ -52,9 +53,21 @@ func main() {
 		}
 	}
 
-	// 2. Instantiate Dependencies
+	// 2. Instantiate Dependencies & EventBus Consumer
+	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
 	repo := repository.NewRepository(db)
 	svc := service.NewService(repo)
+
+	// Subscribe Audit Service to all domain events (#) for tamper-evident cryptographic log sealing
+	_ = bus.Subscribe("*", func(ctx context.Context, event eventbus.Event) error {
+		log.Info("audit service received domain event",
+			slog.String("event_type", event.Type),
+			slog.String("source", event.Source),
+			slog.String("id", event.ID),
+		)
+		return svc.IngestDomainEvent(ctx, event)
+	})
+
 	auditHandler := handler.NewAuditHandler(svc)
 	healthHandler := handler.NewHealthHandler(cfg)
 

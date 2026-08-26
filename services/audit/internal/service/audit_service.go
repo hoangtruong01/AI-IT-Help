@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/audit/internal/model"
 	"eomp/services/audit/internal/repository"
@@ -17,6 +18,7 @@ type Service interface {
 	CreateAuditLog(ctx context.Context, req model.CreateAuditLogRequest) (*model.AuditLog, error)
 	GetStats(ctx context.Context) (*model.AuditStats, error)
 	GetSecurityEvents(ctx context.Context, limit int) ([]model.SecurityEvent, error)
+	IngestDomainEvent(ctx context.Context, event eventbus.Event) error
 }
 
 type auditService struct {
@@ -89,3 +91,59 @@ func (s *auditService) GetSecurityEvents(ctx context.Context, limit int) ([]mode
 	}
 	return s.repo.GetSecurityEvents(ctx, limit)
 }
+
+// IngestDomainEvent consumes CloudEvents from AMQP EventBus, computes tamper-evident hash and persists to audit_db.
+func (s *auditService) IngestDomainEvent(ctx context.Context, event eventbus.Event) error {
+	actorEmail := "system@eomp.local"
+	actorRole := "ROLE_SYSTEM"
+	actorName := "System Event Worker"
+	resourceID := event.ID
+	resourceType := "event"
+
+	// Parse fields if data is a map
+	var newVals map[string]any
+	if m, ok := event.Data.(map[string]any); ok {
+		newVals = m
+		if email, ok := m["actor_email"].(string); ok && email != "" {
+			actorEmail = email
+		} else if email, ok := m["reporter_email"].(string); ok && email != "" {
+			actorEmail = email
+		}
+		if role, ok := m["actor_role"].(string); ok && role != "" {
+			actorRole = role
+		}
+		if name, ok := m["actor_name"].(string); ok && name != "" {
+			actorName = name
+		}
+		if id, ok := m["id"].(string); ok && id != "" {
+			resourceID = id
+		} else if id, ok := m["ticket_id"].(string); ok && id != "" {
+			resourceID = id
+			resourceType = "ticket"
+		} else if id, ok := m["asset_id"].(string); ok && id != "" {
+			resourceID = id
+			resourceType = "asset"
+		} else if id, ok := m["instance_id"].(string); ok && id != "" {
+			resourceID = id
+			resourceType = "workflow"
+		}
+	}
+
+	req := model.CreateAuditLogRequest{
+		EventType:    event.Type,
+		ActorName:    actorName,
+		ActorEmail:   actorEmail,
+		ActorRole:    actorRole,
+		ServiceName:  event.Source,
+		IPAddress:    "127.0.0.1",
+		UserAgent:    "eomp-eventbus-consumer",
+		Status:       "SUCCESS",
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		NewValues:    newVals,
+	}
+
+	_, err := s.CreateAuditLog(ctx, req)
+	return err
+}
+

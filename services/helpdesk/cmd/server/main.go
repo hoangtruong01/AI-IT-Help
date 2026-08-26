@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/database"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
@@ -52,11 +53,12 @@ func main() {
 		}
 	}
 
-	// 2. Dependencies
+	// 2. Dependencies & EventBus
+	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
 	slaEngine := service.NewSLAEngine()
 	repo := repository.NewRepository(db)
 	problemRepo := repository.NewProblemRepository(db)
-	ticketSvc := service.NewTicketService(repo, slaEngine)
+	ticketSvc := service.NewTicketService(repo, slaEngine, bus)
 	problemSvc := service.NewProblemService(problemRepo, repo)
 	ticketHandler := handler.NewTicketHandler(ticketSvc)
 	problemHandler := handler.NewProblemHandler(problemSvc)
