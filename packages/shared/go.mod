@@ -7,3 +7,5 @@ require (
 	github.com/lib/pq v1.12.3
 	golang.org/x/crypto v0.55.0
 )
+
+require github.com/rabbitmq/amqp091-go v1.14.0 // indirect

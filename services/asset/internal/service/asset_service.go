@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/services/asset/internal/model"
 	"eomp/services/asset/internal/repository"
 )
@@ -30,10 +31,11 @@ type assetService struct {
 	repo               repository.Repository
 	helpdeskServiceURL string
 	httpClient         *http.Client
+	bus                eventbus.EventBus
 }
 
 // NewAssetService constructs a new AssetService
-func NewAssetService(repo repository.Repository, helpdeskServiceURL string) AssetService {
+func NewAssetService(repo repository.Repository, helpdeskServiceURL string, bus eventbus.EventBus) AssetService {
 	if helpdeskServiceURL == "" {
 		helpdeskServiceURL = "http://localhost:8084"
 	}
@@ -41,6 +43,7 @@ func NewAssetService(repo repository.Repository, helpdeskServiceURL string) Asse
 		repo:               repo,
 		helpdeskServiceURL: helpdeskServiceURL,
 		httpClient:         &http.Client{Timeout: 5 * time.Second},
+		bus:                bus,
 	}
 }
 
@@ -117,7 +120,27 @@ func (s *assetService) AssignAsset(ctx context.Context, id string, req *model.As
 		cond = "GOOD"
 	}
 
-	return s.repo.AssignAsset(ctx, id, req.UserID, req.UserName, req.DepartmentID, cond, req.Notes)
+	if err := s.repo.AssignAsset(ctx, id, req.UserID, req.UserName, req.DepartmentID, cond, req.Notes); err != nil {
+		return err
+	}
+
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "asset",
+			Type:   eventbus.TopicAssetAssigned,
+			Data: map[string]any{
+				"asset_id":      id,
+				"asset_tag":     asset.AssetTag,
+				"asset_name":    asset.Name,
+				"user_id":       req.UserID,
+				"user_name":     req.UserName,
+				"department_id": req.DepartmentID,
+				"condition":     cond,
+			},
+		})
+	}
+
+	return nil
 }
 
 func (s *assetService) ReturnAsset(ctx context.Context, id string, condition string, notes *string) error {
@@ -130,7 +153,24 @@ func (s *assetService) ReturnAsset(ctx context.Context, id string, condition str
 		condition = "GOOD"
 	}
 
-	return s.repo.ReturnAsset(ctx, id, condition, notes)
+	if err := s.repo.ReturnAsset(ctx, id, condition, notes); err != nil {
+		return err
+	}
+
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "asset",
+			Type:   eventbus.TopicAssetReturned,
+			Data: map[string]any{
+				"asset_id":   id,
+				"asset_tag":  asset.AssetTag,
+				"asset_name": asset.Name,
+				"condition":  condition,
+			},
+		})
+	}
+
+	return nil
 }
 
 func (s *assetService) UpdateStatus(ctx context.Context, id, status, location string, notes *string) error {

@@ -54,7 +54,7 @@ func main() {
 	}
 
 	// 2. EventBus & Subscriber
-	bus := eventbus.NewMemoryEventBus()
+	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
 	repo := repository.NewRepository(db)
 	notificationSvc := service.NewNotificationService(repo)
 

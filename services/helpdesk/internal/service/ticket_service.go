@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/repository"
 )
@@ -27,17 +28,18 @@ type TicketService interface {
 	GetTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 }
 
-
 type ticketService struct {
 	repo      repository.Repository
 	slaEngine SLAEngine
+	bus       eventbus.EventBus
 }
 
 // NewTicketService constructs a new TicketService
-func NewTicketService(repo repository.Repository, slaEngine SLAEngine) TicketService {
+func NewTicketService(repo repository.Repository, slaEngine SLAEngine, bus eventbus.EventBus) TicketService {
 	return &ticketService{
 		repo:      repo,
 		slaEngine: slaEngine,
+		bus:       bus,
 	}
 }
 
@@ -133,6 +135,26 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 		NewValue:  &ticket.Status,
 	})
 
+	// Publish ticket.created event via EventBus
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "helpdesk",
+			Type:   eventbus.TopicTicketCreated,
+			Data: map[string]any{
+				"ticket_id":       ticket.ID,
+				"ticket_number":   ticket.TicketNumber,
+				"title":           ticket.Title,
+				"category":        ticket.Category,
+				"priority":        ticket.Priority,
+				"status":          ticket.Status,
+				"reporter_id":     ticket.RequesterID,
+				"reporter_name":   ticket.RequesterName,
+				"reporter_email":  ticket.RequesterEmail,
+				"affected_ci_id":  ticket.AffectedCIID,
+			},
+		})
+	}
+
 	return s.repo.FindTicketByID(ctx, ticket.ID)
 }
 
@@ -184,6 +206,23 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		NewValue:  &newStatus,
 		Notes:     &req.Notes,
 	})
+
+	// Publish ticket.status_changed event via EventBus
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "helpdesk",
+			Type:   eventbus.TopicTicketStatusChanged,
+			Data: map[string]any{
+				"ticket_id":     id,
+				"ticket_number": ticket.TicketNumber,
+				"old_status":    oldStatus,
+				"new_status":    newStatus,
+				"actor_id":      actorID,
+				"actor_name":    actorName,
+				"notes":         req.Notes,
+			},
+		})
+	}
 
 	return s.GetTicket(ctx, id)
 }

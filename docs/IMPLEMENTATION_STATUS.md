@@ -40,8 +40,8 @@
 | **SQL Migrations** | **11 Files (23 Tables)** | ✅ Verified | Auto-migration runner enabled on service boot |
 | **Frontend Framework** | **Nuxt 4.5.2 / Vue 3** | ✅ 13 Pages Operational | Full enterprise theme, dark mode, Tailwind CSS v4, Pinia |
 | **Vector Database** | **Qdrant (`:6333`)** | ✅ Fully Operational | Ingestion pipeline + Multi-Provider (Ollama, OpenAI, Gemini) & Fallback |
-| **Message Broker** | **RabbitMQ (`:5672`)** | ⚠️ In-Memory Fallback | Requires native `amqp091-go` driver implementation in Phase 5 |
-| **E2E Golden Flow** | **7/7 Steps Passing** | ✅ 100% Pass Rate | `tests/e2e/e2e_lifecycle_test.go` verified |
+| **Message Broker** | **RabbitMQ (`:5672`)** | ✅ Fully Operational | Native `amqp091-go` driver, Durable Queues, DLX (`eomp.dlx`), Auto-reconnect & Fallback |
+| **E2E Golden Flow** | **6/6 Suites Passing** | ✅ 100% Pass Rate | `tests/e2e/` verified across all business & async lifecycle steps |
 
 ---
 
@@ -52,15 +52,15 @@
 | 1 | **Gateway** | `:8080` | — | 9 | — | 98% | 100% | Reverse proxy, rate limiter, dynamic CORS & anti-spoofing, 5MB body limit (P3 Done). |
 | 2 | **Auth** | `:8081` | `auth_db` | 9 | 2 files (3 tables) | 98% | 100% | Full Auth lifecycle, `/logout` token revocation & `login_audit_logs` (P2 Done). |
 | 3 | **Employee** | `:8082` | `employee_db` | 8 | 1 file (2 tables) | 98% | 100% | Full CRUD employees/depts & asset assignment history integration (P2 Done). |
-| 4 | **Asset** | `:8083` | `asset_db` | 11 | 2 files (4 tables) | 98% | 100% | Asset CRUD, employee history, incident queries, Optimistic Locking `version` (P3 Done). |
-| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 3 files (7 tables) | 98% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine, Optimistic Lock (P3 Done). |
-| 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 3 files (7 tables) | 96% | 100% | Multi-step approval, Change RFC & CAB, Optimistic Lock (P3 Done); needs AMQP trigger (P5). |
-| 7 | **Notification** | `:8086` | `notification_db` | 8 | 1 file (2 tables) | 85% | 100% | In-app alerts, memory bus subscriber; needs real RabbitMQ consumer (P5). |
+| 4 | **Asset** | `:8083` | `asset_db` | 11 | 2 files (4 tables) | 98% | 100% | Asset CRUD, employee history, incident queries, Optimistic Locking, EventBus publisher (P5 Done). |
+| 5 | **Helpdesk** | `:8084` | `helpdesk_db` | 15 | 3 files (7 tables) | 98% | 100% | Ticket CRUD, Asset incident queries, Problem ITIL v4, SLA engine, Optimistic Lock, EventBus publisher (P5 Done). |
+| 6 | **Workflow** | `:8085` | `workflow_db` | 14 | 3 files (7 tables) | 98% | 100% | Multi-step approval, Change RFC & CAB, Optimistic Lock, EventBus Orchestration (P5 Done). |
+| 7 | **Notification** | `:8086` | `notification_db` | 8 | 1 file (2 tables) | 98% | 100% | In-app alerts, AMQP Consumer with durable queues & auto-reconnect (P5 Done). |
 | 8 | **Knowledge** | `:8087` | `knowledge_db` | 9 | 1 file (4 tables) | 98% | 100% | SOP Runbooks, Articles, search; vector embeddings sync & ingestion ready (P4 Done). |
 | 9 | **AI Copilot** | `:8088` | Qdrant | 16 | — | 98% | 100% | Chat & Analyze APIs active with Ollama/OpenAI/Gemini + RAG citations + Ingest pipeline (P4 Done). |
 | 10 | **Reporting** | `:8089` | `reporting_db` | 9 | 1 file (5 tables) | 95% | 100% | BI KPI, Trends, PDF/CSV high-speed export (<3s) operational. |
-| 11 | **Audit** | `:8090` | `audit_db` | 9 | 1 file (2 tables) | 95% | 100% | Immutable SHA-256 tamper-evident logs, Security alert tracking. |
-| — | **Shared Core** | — | — | 16 | — | 90% | — | Auth, Config, Database, EventBus, Logger, Metrics, Middleware. |
+| 11 | **Audit** | `:8090` | `audit_db` | 9 | 1 file (2 tables) | 98% | 100% | Immutable SHA-256 tamper-evident logs, AMQP Consumer for all domain events (P5 Done). |
+| — | **Shared Core** | — | — | 17 | — | 98% | — | Auth, Config, Database, RabbitMQ/AMQP EventBus, Logger, Metrics, Middleware. |
 | — | **Web App** | `:3000` | — | — | 13 Pages | — | 95% | Nuxt 4 SSR, Pinia stores, Vue Query, Lucide icons, Dark/Light modes. |
 
 ---
@@ -394,7 +394,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 
 │ 🟠 MILESTONE 2: ENTERPRISE RESILIENCE                                       │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
-│ Phase 5      │ ⏳ Native RabbitMQ AMQP driver, Async audit & notifications. │
+│ Phase 5      │ ✅ Native RabbitMQ AMQP driver, Async audit & notifications. │
 │ Phase 6      │ ⏳ Redis sliding window rate limit, K6 500 VUs load test.    │
 ├──────────────┼──────────────────────────────────────────────────────────────┤
 │ 🟢 MILESTONE 3: PRODUCTION HARDENING                                         │

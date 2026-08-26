@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/database"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
@@ -52,10 +53,11 @@ func main() {
 		}
 	}
 
-	// 2. Dependencies
+	// 2. Dependencies & EventBus
+	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
 	repo := repository.NewRepository(db)
 	changeRepo := repository.NewChangeRepository(db)
-	workflowSvc := service.NewWorkflowService(repo)
+	workflowSvc := service.NewWorkflowService(repo, bus)
 	changeSvc := service.NewChangeService(changeRepo)
 
 	workflowHandler := handler.NewWorkflowHandler(workflowSvc)

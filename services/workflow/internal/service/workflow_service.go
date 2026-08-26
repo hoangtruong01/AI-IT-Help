@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/services/workflow/internal/model"
 	"eomp/services/workflow/internal/repository"
 )
@@ -27,11 +28,12 @@ type WorkflowService interface {
 
 type workflowService struct {
 	repo repository.Repository
+	bus  eventbus.EventBus
 }
 
 // NewWorkflowService constructs a new WorkflowService
-func NewWorkflowService(repo repository.Repository) WorkflowService {
-	return &workflowService{repo: repo}
+func NewWorkflowService(repo repository.Repository, bus eventbus.EventBus) WorkflowService {
+	return &workflowService{repo: repo, bus: bus}
 }
 
 func (s *workflowService) ListDefinitions(ctx context.Context) ([]model.WorkflowDefinition, error) {
@@ -127,6 +129,23 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 		Message:    fmt.Sprintf("Started workflow instance %s for '%s'. Dispatched approval request to Manager.", inst.InstanceNumber, inst.Title),
 	})
 
+	// Publish approval.requested event via EventBus
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "workflow",
+			Type:   eventbus.TopicApprovalRequested,
+			Data: map[string]any{
+				"instance_id":     inst.ID,
+				"instance_number": inst.InstanceNumber,
+				"title":           inst.Title,
+				"requester_id":    inst.RequesterID,
+				"requester_email": inst.RequesterEmail,
+				"approval_id":     approval.ID,
+				"approver_id":     approval.ApproverID,
+			},
+		})
+	}
+
 	return s.repo.FindInstanceByID(ctx, inst.ID)
 }
 
@@ -178,6 +197,23 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		Action:     req.Decision,
 		Message:    fmt.Sprintf("Approver %s decided '%s' with notes: '%s'", actorName, req.Decision, req.Notes),
 	})
+
+	// Publish approval.decided event via EventBus
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "workflow",
+			Type:   eventbus.TopicApprovalDecided,
+			Data: map[string]any{
+				"approval_id": approvalID,
+				"instance_id": approval.InstanceID,
+				"decision":    req.Decision,
+				"notes":       req.Notes,
+				"actor_id":    actorID,
+				"actor_name":  actorName,
+				"status":      newInstanceStatus,
+			},
+		})
+	}
 
 	return nil
 }

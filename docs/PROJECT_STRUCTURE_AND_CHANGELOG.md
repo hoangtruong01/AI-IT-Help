@@ -509,7 +509,7 @@ graph TD
 | **P2** | Enterprise Identity & Asset Traceability | `/logout` Token Revocation, `login_audit_logs`, Employee ↔ Asset ↔ Incident Traceability | ✅ **Done** |
 | **P3** | ITSM / Helpdesk & Concurrency Control | ITIL v4 State Machine, Optimistic Locking (version + CAS), Gateway 5MB Body Limit | ✅ **Done** |
 | **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ✅ **Done** |
-| **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ⏳ *Next* |
+| **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ✅ **Done** |
 | **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ⏳ *Pending* |
 | **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ⏳ *Pending* |
 | **P8** | Production Readiness Sign-off & Handover | Chaos Engineering, 100% test coverage sign-off, Portfolio packaging | ⏳ *Pending* |
@@ -543,5 +543,22 @@ graph TD
 * **Bộ Kiểm Thử Benchmark & Đánh Giá Chất Lượng**:
   * Xây dựng `services/ai/cmd/server/main_test.go` và `tests/e2e/phase4_ai_rag_test.go` đạt **100% Pass Rate**, đo lường TTFT < 800ms, RAG response < 1.5s, và độ chính xác phân loại sự cố đạt chuẩn doanh nghiệp.
 
-
-
+### 🔹 Kế Hoạch Chi Tiết & Đặc Tả Nâng Cấp Phase 5: Enterprise Integration & Event-Driven Bus (RabbitMQ AMQP)
+* **Native RabbitMQ AMQP 0-9-1 Driver (`packages/shared/pkg/eventbus/rabbitmq.go`)**:
+  * Cài đặt thư viện `github.com/rabbitmq/amqp091-go`, triển khai interface `EventBus` với topic exchange `eomp.events`, durable queues, và dead-letter exchange `eomp.dlx`.
+  * Cơ chế tự động kết nối lại (Auto-reconnection loop) kết hợp Graceful Fallback sang `memoryEventBus` khi chạy offline/local.
+  * Tuân thủ chuẩn CloudEvents v1.0 cho toàn bộ sự kiện miền (ID, Source, Type, Data, Timestamp).
+* **Asynchronous Notification Consumer (`services/notification`)**:
+  * Lắng nghe các topic `ticket.*`, `approval.*`, `asset.*`, `security.*` qua RabbitMQ.
+  * Tự động khởi tạo thông báo In-App trong `notification_db` mà không gây nghẽn luồng xử lý HTTP của các service gửi.
+* **Tamper-Evident SHA-256 Audit Trail Consumer (`services/audit`)**:
+  * Audit Service tiêu thụ toàn bộ sự kiện miền (`#`), tự động tính toán mã băm mật mã chuỗi liên tục: `SHA256(prev_hash + ":" + event_type + ":" + payload)`.
+  * Tự động che dấu dữ liệu nhạy cảm (Data Masking cho passwords, tokens, PII) trước khi lưu vào `audit_db`.
+* **Workflow State Machine Orchestration (`services/workflow`)**:
+  * Lắng nghe `approval.decided` và tự động kích hoạt bước duyệt kế tiếp (Manager Approval ➔ IT Approval ➔ CAB Voting) cho đến khi hoàn tất.
+* **Tích Hợp Event Publisher Cho Các Service Đầu Vào**:
+  * `services/helpdesk`: Phát sự kiện `ticket.created`, `ticket.status_changed`, `ticket.sla_breached`.
+  * `services/asset`: Phát sự kiện `asset.assigned`, `asset.returned`.
+  * `services/workflow`: Phát sự kiện `approval.requested`, `approval.decided`.
+* **Bộ Kiểm Thử E2E Tích Hợp Phase 5 (`tests/e2e/phase5_eventbus_integration_test.go`)**:
+  * Kiểm chứng chu trình khép kín: Tạo Ticket ➔ Bắn AMQP Event ➔ Notification sinh thông báo ➔ Audit Log niêm phong SHA-256 ➔ Workflow tự động chuyển bước.

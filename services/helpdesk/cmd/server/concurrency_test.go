@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/service"
 )
@@ -164,7 +165,8 @@ func TestPhase3_ITILv4StateMachineTransitions(t *testing.T) {
 
 	repo := newConcurrentMockTicketRepo()
 	slaEng := service.NewSLAEngine()
-	svc := service.NewTicketService(repo, slaEng)
+	bus := eventbus.NewMemoryEventBus()
+	svc := service.NewTicketService(repo, slaEng, bus)
 
 	ctx := context.Background()
 	ticket, err := svc.CreateTicket(ctx, &model.CreateTicketRequest{
@@ -259,7 +261,8 @@ func TestPhase3_OptimisticLocking_50Goroutines_Concurrency(t *testing.T) {
 
 	repo := newConcurrentMockTicketRepo()
 	slaEng := service.NewSLAEngine()
-	svc := service.NewTicketService(repo, slaEng)
+	bus := eventbus.NewMemoryEventBus()
+	svc := service.NewTicketService(repo, slaEng, bus)
 
 	ctx := context.Background()
 	ticket, err := svc.CreateTicket(ctx, &model.CreateTicketRequest{
