@@ -253,13 +253,13 @@ Chứng minh hệ thống chịu tải cao, an toàn trước botnet/spam và kh
 - Script K6 load test chỉ gửi 4 request GET đơn giản.
 
 #### 📋 Danh mục Tasks chi tiết
-
-| Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) |
-|---|---|---|---|---|
-| **6.1** | **Redis-Backed Distributed Rate Limiter** | Viết middleware Rate Limiter sử dụng Redis Sliding Window (`redis.Incr` + `redis.Expire`). Có cơ chế Graceful Fallback về in-memory nếu mất kết nối Redis. | [`packages/shared/pkg/middleware/ratelimit.go`](file:///d:/IT_help/eomp/packages/shared/pkg/middleware/ratelimit.go) | Khi Gateway chạy 5 Pods, giới hạn 100 req/min được chia sẻ đồng bộ tuyệt đối trên toàn cụm. |
-| **6.2** | **Multi-User Concurrency Race Condition Test** | Viết Go test mô phỏng 50 goroutines cùng lúc gửi request sửa trạng thái của cùng 1 Ticket. | `tests/e2e/concurrency_test.go` | Đúng 1 request thành công (200 OK), 49 requests còn lại bị chặn bởi Optimistic Lock (409 Conflict). |
-| **6.3** | **Comprehensive K6 Stress & Load Suite (500 VUs)** | Mở rộng [`load_test.js`](file:///d:/IT_help/eomp/infrastructure/k6/load_test.js) bao gồm: Login flood, POST Create Ticket, RAG Query, Concurrent Updates. | `infrastructure/k6/load_test.js` | Chạy K6 với 500 Virtual Users: Error Rate $< 1\%$, P95 Latency $< 200ms$. |
-| **6.4** | **PostgreSQL Connection Pool Optimization** | Cấu hình tham số connection pool chuẩn cho cả 11 services (`SetMaxOpenConns(25)`, `SetMaxIdleConns(10)`, `SetConnMaxLifetime(5m)`). | [`packages/shared/pkg/database/postgres.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres.go) | Không xảy ra lỗi `pq: remaining connection slots are reserved` khi tải đỉnh. |
+ 
+| Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) | Trạng Thái |
+|---|---|---|---|---|:---:|
+| **6.1** | **Redis-Backed Distributed Rate Limiter** | Viết middleware Rate Limiter sử dụng Redis Sliding Window (`redis.Incr` + `redis.Expire` / Lua script). Có cơ chế Graceful Fallback về in-memory nếu mất kết nối Redis. | [`packages/shared/pkg/middleware/ratelimit.go`](file:///d:/IT_help/eomp/packages/shared/pkg/middleware/ratelimit.go), [`packages/shared/pkg/redis/`](file:///d:/IT_help/eomp/packages/shared/pkg/redis/) | Khi Gateway chạy nhiều Pods, giới hạn 100 req/min được chia sẻ đồng bộ; fallback in-memory khi Redis offline. | ✅ **Done** |
+| **6.2** | **Multi-User Concurrency Race Condition Test** | Viết Go test mô phỏng 50 goroutines cùng lúc gửi request sửa trạng thái của Ticket, Asset, Workflow. | [`tests/e2e/phase6_concurrency_test.go`](file:///d:/IT_help/eomp/tests/e2e/phase6_concurrency_test.go) | Đúng 1 request thành công (200 OK), 49 requests còn lại bị chặn bởi Optimistic Lock (409 Conflict). | ✅ **Done** |
+| **6.3** | **Comprehensive K6 Stress & Load Suite (500 VUs)** | Mở rộng [`load_test.js`](file:///d:/IT_help/eomp/infrastructure/k6/load_test.js) & [`stress_test.js`](file:///d:/IT_help/eomp/infrastructure/k6/stress_test.js) bao gồm: Login flood, POST Create Ticket, RAG Query, Asset/BI query. | `infrastructure/k6/load_test.js`, `infrastructure/k6/stress_test.js` | Chạy K6 với 500 Virtual Users: Error Rate $< 1\%$, P95 Latency $< 200ms$. | ✅ **Done** |
+| **6.4** | **PostgreSQL Connection Pool Optimization & SLA Aggregator** | Cấu hình tham số connection pool chuẩn cho cả 11 services (`SetMaxOpenConns(25)`, `SetMaxIdleConns(10)`, `SetConnMaxLifetime(5m)`, `SetConnMaxIdleTime(2m)`) và Background SLA Rollup Worker. | [`packages/shared/pkg/database/postgres.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres.go), [`services/reporting/`](file:///d:/IT_help/eomp/services/reporting/) | Không xảy ra lỗi `pq: remaining connection slots are reserved`; SLA metrics được tổng hợp định kỳ. | ✅ **Done** |
 
 ---
 

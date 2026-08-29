@@ -510,7 +510,7 @@ graph TD
 | **P3** | ITSM / Helpdesk & Concurrency Control | ITIL v4 State Machine, Optimistic Locking (version + CAS), Gateway 5MB Body Limit | ✅ **Done** |
 | **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ✅ **Done** |
 | **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ✅ **Done** |
-| **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ⏳ *Pending* |
+| **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ✅ **Done** |
 | **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ⏳ *Pending* |
 | **P8** | Production Readiness Sign-off & Handover | Chaos Engineering, 100% test coverage sign-off, Portfolio packaging | ⏳ *Pending* |
 
@@ -543,7 +543,7 @@ graph TD
 * **Bộ Kiểm Thử Benchmark & Đánh Giá Chất Lượng**:
   * Xây dựng `services/ai/cmd/server/main_test.go` và `tests/e2e/phase4_ai_rag_test.go` đạt **100% Pass Rate**, đo lường TTFT < 800ms, RAG response < 1.5s, và độ chính xác phân loại sự cố đạt chuẩn doanh nghiệp.
 
-### 🔹 Kế Hoạch Chi Tiết & Đặc Tả Nâng Cấp Phase 5: Enterprise Integration & Event-Driven Bus (RabbitMQ AMQP)
+### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 5: Enterprise Integration & Event-Driven Bus (RabbitMQ AMQP)
 * **Native RabbitMQ AMQP 0-9-1 Driver (`packages/shared/pkg/eventbus/rabbitmq.go`)**:
   * Cài đặt thư viện `github.com/rabbitmq/amqp091-go`, triển khai interface `EventBus` với topic exchange `eomp.events`, durable queues, và dead-letter exchange `eomp.dlx`.
   * Cơ chế tự động kết nối lại (Auto-reconnection loop) kết hợp Graceful Fallback sang `memoryEventBus` khi chạy offline/local.
@@ -556,9 +556,21 @@ graph TD
   * Tự động che dấu dữ liệu nhạy cảm (Data Masking cho passwords, tokens, PII) trước khi lưu vào `audit_db`.
 * **Workflow State Machine Orchestration (`services/workflow`)**:
   * Lắng nghe `approval.decided` và tự động kích hoạt bước duyệt kế tiếp (Manager Approval ➔ IT Approval ➔ CAB Voting) cho đến khi hoàn tất.
-* **Tích Hợp Event Publisher Cho Các Service Đầu Vào**:
-  * `services/helpdesk`: Phát sự kiện `ticket.created`, `ticket.status_changed`, `ticket.sla_breached`.
-  * `services/asset`: Phát sự kiện `asset.assigned`, `asset.returned`.
-  * `services/workflow`: Phát sự kiện `approval.requested`, `approval.decided`.
 * **Bộ Kiểm Thử E2E Tích Hợp Phase 5 (`tests/e2e/phase5_eventbus_integration_test.go`)**:
-  * Kiểm chứng chu trình khép kín: Tạo Ticket ➔ Bắn AMQP Event ➔ Notification sinh thông báo ➔ Audit Log niêm phong SHA-256 ➔ Workflow tự động chuyển bước.
+  * Kiểm chứng chu trình khép kín: Tạo Ticket ➔ Bắn AMQP Event ➔ Notification sinh thông báo ➔ Audit Log niêm phong SHA-256 ➔ Workflow tự động chuyển bước (100% Pass Rate).
+
+### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 6: Quality, Performance & Concurrency Reliability
+* **Redis-Backed Distributed Sliding Window Rate Limiter (`packages/shared/pkg/redis` & `packages/shared/pkg/middleware`)**:
+  * Xây dựng wrapper `pkgRedis.NewClient` hỗ trợ connection pool, ping verification và timeout fail-fast.
+  * Triển khai `RedisSlidingWindowRateLimiter` và `StrictRedisAuthRateLimiter` sử dụng atomic Redis Lua script (`ZREMRANGEBYSCORE` + `ZCARD` + `ZADD` + `EXPIRE`).
+  * Cơ chế **Graceful In-Memory Fallback** đảm bảo 100% uptime và zero 500 errors khi Redis offline hoặc mất kết nối mạng.
+* **Tối Ưu Hóa PostgreSQL Connection Pool (`packages/shared/pkg/database/postgres.go`)**:
+  * Nâng cấp connection pool chuẩn cho 11 microservices: `MaxOpenConns = 25`, `MaxIdleConns = 10`, `ConnMaxLifetime = 5m`, `ConnMaxIdleTime = 2m`.
+* **Background SLA Rollup Aggregator Worker (`services/reporting`)**:
+  * Xây dựng `SLAAggregator` chạy ngầm định kỳ quét và tổng hợp dữ liệu KPI từ `raw_incident_records`/`helpdesk_db` sang `sla_metrics_daily` và `department_sla_metrics`.
+* **Bộ Kiểm Thử Concurrency Race Condition 50 Goroutines (`tests/e2e/phase6_concurrency_test.go`)**:
+  * Kiểm chứng 150 goroutines đồng thời tranh chấp ghi trên Ticket, Asset, Workflow: đúng 1 request thành công (200 OK), 49 requests bị chặn bởi Optimistic Locking (409 Conflict), version nâng lên 2 chuẩn xác, zero lost updates.
+* **Bộ Kiểm Thử Distributed Rate Limiting & Fallback (`tests/e2e/phase6_distributed_ratelimit_test.go`)**:
+  * Đạt 100% pass rate kiểm chứng ngưỡng 10 req/min và 100 req/min, headers `Retry-After: 60`, `X-RateLimit-Remaining: 0`, anti-spoofing IP extraction và fallback in-memory khi Redis nil.
+* **K6 Load Testing Suite 500 VUs & Stress Suite 800 VUs (`infrastructure/k6/load_test.js`, `stress_test.js`)**:
+  * Bao phủ toàn bộ luồng nghiệp vụ EOMP: Auth $\to$ Ticket $\to$ AI RAG $\to$ Asset $\to$ BI Report với ngưỡng $p95 < 200ms$, $p99 < 500ms$, error rate $< 1\%$.

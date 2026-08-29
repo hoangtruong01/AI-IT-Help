@@ -23,6 +23,7 @@ type Config struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 // Connect initializes a connection pool to PostgreSQL
@@ -34,10 +35,13 @@ func Connect(cfg Config) (*sql.DB, error) {
 		cfg.MaxOpenConns = 25
 	}
 	if cfg.MaxIdleConns == 0 {
-		cfg.MaxIdleConns = 5
+		cfg.MaxIdleConns = 10
 	}
 	if cfg.ConnMaxLifetime == 0 {
 		cfg.ConnMaxLifetime = 5 * time.Minute
+	}
+	if cfg.ConnMaxIdleTime == 0 {
+		cfg.ConnMaxIdleTime = 2 * time.Minute
 	}
 
 	dsn := fmt.Sprintf(
@@ -53,6 +57,7 @@ func Connect(cfg Config) (*sql.DB, error) {
 	db.SetMaxOpenConns(cfg.MaxOpenConns)
 	db.SetMaxIdleConns(cfg.MaxIdleConns)
 	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 
 	// Verify connection with timeout
 	if err := db.Ping(); err != nil {

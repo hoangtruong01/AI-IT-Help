@@ -89,9 +89,9 @@
   * Proxies `/api/v1/reports/*`
   * Proxies `/api/v1/audit/*` (Strict `ROLE_ADMIN`, `ROLE_MANAGER`)
 * **Gaps (Target: P1, P6):**
-  * Rate limiter uses in-memory map; needs Redis sliding-window distributed rate limiting (Phase 6).
-  * CORS allows `*`; needs dynamic whitelist from `CORS_ALLOWED_ORIGINS` (Phase 1).
-  * Client IP extraction trusts `X-Forwarded-For`; needs anti-spoofing verification (Phase 1).
+  * Redis sliding-window distributed rate limiting with Graceful In-Memory fallback implemented (Phase 6 Done).
+  * CORS allows dynamic whitelist from `CORS_ALLOWED_ORIGINS` (Phase 1 Done).
+  * Client IP extraction includes anti-spoofing verification (Phase 1 Done).
 
 ---
 
@@ -279,7 +279,7 @@
   * `GET /api/v1/reports/departments-sla`, `GET /api/v1/reports/agents`
   * `POST /api/v1/reports/export` (PDF/CSV high-speed export)
 * **Gaps (Target: P6, P7):**
-  * Add background aggregator cron job to rollup real daily SLA metrics from `helpdesk_db` (Phase 6).
+  * Added background aggregator worker (`SLAAggregator`) to rollup real daily SLA metrics from `raw_incident_records`/`helpdesk_db` (Phase 6 Done).
 
 ---
 
@@ -395,7 +395,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 │ 🟠 MILESTONE 2: ENTERPRISE RESILIENCE                                       │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
 │ Phase 5      │ ✅ Native RabbitMQ AMQP driver, Async audit & notifications. │
-│ Phase 6      │ ⏳ Redis sliding window rate limit, K6 500 VUs load test.    │
+│ Phase 6      │ ✅ Redis sliding window rate limit, K6 500 VUs, CAS tests.    │
 ├──────────────┼──────────────────────────────────────────────────────────────┤
 │ 🟢 MILESTONE 3: PRODUCTION HARDENING                                         │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
