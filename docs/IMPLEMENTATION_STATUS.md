@@ -399,7 +399,7 @@ Built on **Nuxt 4.5.2 SSR**, **Vue 3 Composition API**, **Tailwind CSS v4**, and
 ├──────────────┼──────────────────────────────────────────────────────────────┤
 │ 🟢 MILESTONE 3: PRODUCTION HARDENING                                         │
 ├──────────────┬──────────────────────────────────────────────────────────────┤
-│ Phase 7      │ ⏳ Jenkinsfile (gosec, trivy), K8s CIS NetworkPolicy, PDB.   │
+│ Phase 7      │ ✅ Jenkinsfile (gosec, trivy), K8s CIS NetworkPolicy, PDB.   │
 │ Phase 8      │ ⏳ Final Evidence collection, DR simulation, Portfolio pack. │
 └──────────────┴──────────────────────────────────────────────────────────────┘
 ```

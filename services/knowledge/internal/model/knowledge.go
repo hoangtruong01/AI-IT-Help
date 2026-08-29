@@ -114,16 +114,16 @@ type DocumentEmbedding struct {
 
 // KnowledgeSearchResult represents a ranked search result item.
 type KnowledgeSearchResult struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"` // "article" or "runbook"
-	Title        string   `json:"title"`
-	Snippet      string   `json:"snippet"`
-	Category     string   `json:"category"`
-	Score        float64  `json:"score"`
-	Tags         []string `json:"tags,omitempty"`
-	SlugOrCode   string   `json:"slug_or_code"`
-	ViewCount    int      `json:"view_count,omitempty"`
-	UpdatedTime  string   `json:"updated_time"`
+	ID          string   `json:"id"`
+	Type        string   `json:"type"` // "article" or "runbook"
+	Title       string   `json:"title"`
+	Snippet     string   `json:"snippet"`
+	Category    string   `json:"category"`
+	Score       float64  `json:"score"`
+	Tags        []string `json:"tags,omitempty"`
+	SlugOrCode  string   `json:"slug_or_code"`
+	ViewCount   int      `json:"view_count,omitempty"`
+	UpdatedTime string   `json:"updated_time"`
 }
 
 // ArticleListQuery query parameters for listing articles.

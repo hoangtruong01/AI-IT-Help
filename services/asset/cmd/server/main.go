@@ -83,7 +83,6 @@ func main() {
 	mux.HandleFunc("GET /api/v1/assets/{id}/assignments", assetHandler.ListAssignments)
 	mux.HandleFunc("GET /api/v1/assets/{id}/incidents", assetHandler.GetAssetIncidents)
 
-
 	// CMDB APIs
 	mux.HandleFunc("GET /api/v1/cmdb/topology", cmdbHandler.GetTopology)
 	mux.HandleFunc("GET /api/v1/cmdb/ci", cmdbHandler.ListCIs)

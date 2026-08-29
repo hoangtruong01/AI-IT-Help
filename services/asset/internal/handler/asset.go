@@ -240,4 +240,3 @@ func (h *AssetHandler) GetAssetIncidents(w http.ResponseWriter, r *http.Request)
 
 	response.JSON(w, http.StatusOK, incidents)
 }
-

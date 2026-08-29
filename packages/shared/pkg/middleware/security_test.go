@@ -143,7 +143,7 @@ func TestAntiSpoofingClientIP(t *testing.T) {
 
 	// 1. Direct request from untrusted IP trying to forge X-Forwarded-For
 	reqUntrusted := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
-	reqUntrusted.RemoteAddr = "203.0.113.50:54321" // External untrusted caller
+	reqUntrusted.RemoteAddr = "203.0.113.50:54321"        // External untrusted caller
 	reqUntrusted.Header.Set("X-Forwarded-For", "8.8.8.8") // Forged header
 
 	extractedIP := ExtractClientIP(reqUntrusted, trustedProxies)

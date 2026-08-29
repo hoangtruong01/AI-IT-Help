@@ -1,0 +1,71 @@
+# ==============================================================================
+# EOMP — Prometheus Alert Rules (RED Method: Rate, Errors, Duration & SRE Ops)
+# ==============================================================================
+groups:
+  - name: eomp_service_alerts
+    rules:
+      # 1. Critical Service Outage Alert (SEV-1)
+      - alert: EOMPServiceDown
+        expr: up{job="eomp-services"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "EOMP microservice instance {{ $labels.instance }} is DOWN"
+          description: "Microservice {{ $labels.instance }} has been unreachable for more than 30 seconds."
+
+      # 2. High 5xx Error Rate Alert (SEV-2 - RED Method Errors)
+      - alert: EOMPHighErrorRate5xx
+        expr: (sum(rate(http_requests_total{status=~"5.."}[2m])) by (service) / sum(rate(http_requests_total[2m])) by (service)) * 100 > 1.0
+        for: 1m
+        labels:
+          severity: high
+          team: backend
+        annotations:
+          summary: "High HTTP 5xx error rate on service {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is experiencing a 5xx error rate of {{ $value | printf \"%.2f\" }}% (> 1.0% threshold)."
+
+      # 3. High Latency P95 Alert (SEV-3 - RED Method Duration)
+      - alert: EOMPHighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le, service)) > 0.200
+        for: 2m
+        labels:
+          severity: warning
+          team: performance
+        annotations:
+          summary: "P95 latency exceeded 200ms on service {{ $labels.service }}"
+          description: "P95 response time for {{ $labels.service }} is currently {{ $value | printf \"%.3f\" }}s (> 200ms threshold)."
+
+      # 4. Critical SLA Breach Alert
+      - alert: EOMPSLABreachSpike
+        expr: increase(ticket_sla_breaches_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: high
+          team: helpdesk-ops
+        annotations:
+          summary: "Sudden spike in SLA breaches detected"
+          description: "More than 5 incident tickets have breached their SLA commitments in the last 5 minutes."
+
+      # 5. Database Connection Pool Exhaustion Alert
+      - alert: EOMPDatabasePoolExhaustion
+        expr: (service_database_open_connections / 25.0) * 100 > 80.0
+        for: 2m
+        labels:
+          severity: high
+          team: dba
+        annotations:
+          summary: "Database connection pool usage > 80% on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is using {{ $value | printf \"%.1f\" }}% of its max open database connection pool."
+
+      # 6. Redis Distributed Cache / Rate Limiter Offline Alert
+      - alert: EOMPRedisConnectivityLost
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: high
+          team: infrastructure
+        annotations:
+          summary: "Redis distributed rate limiter instance is unreachable"
+          description: "Redis server has lost connectivity. Gateway is operating in Graceful In-Memory fallback mode."

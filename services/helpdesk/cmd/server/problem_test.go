@@ -202,7 +202,6 @@ func (m *mockTicketRepoForProblem) ListTicketsByAssetID(ctx context.Context, ass
 	return list, nil
 }
 
-
 // Test Case 7.1: Aggregate 3 duplicate Incidents and verify Cascade Resolution when Problem is Resolved.
 func TestProblemManagement_TestCase_7_1(t *testing.T) {
 	ctx := context.Background()

@@ -53,11 +53,11 @@ type LogEntry struct {
 
 // MonitoringHandler handles observability and cluster health endpoints.
 type MonitoringHandler struct {
-	mu           sync.RWMutex
-	services     []ServiceHealthStatus
-	serviceURLs  map[string]string
-	mockLogs     []LogEntry
-	httpClient   *http.Client
+	mu          sync.RWMutex
+	services    []ServiceHealthStatus
+	serviceURLs map[string]string
+	mockLogs    []LogEntry
+	httpClient  *http.Client
 }
 
 // NewMonitoringHandler initializes the monitoring aggregator.

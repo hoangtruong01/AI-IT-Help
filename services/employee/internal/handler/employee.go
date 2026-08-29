@@ -38,7 +38,6 @@ func NewEmployeeHandlerWithAssetURL(svc service.EmployeeService, assetServiceURL
 	}
 }
 
-
 // ListEmployees returns paginated employees
 func (h *EmployeeHandler) ListEmployees(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
@@ -212,4 +211,3 @@ func (h *EmployeeHandler) GetEmployeeAssetHistory(w http.ResponseWriter, r *http
 
 	response.JSON(w, http.StatusOK, result)
 }
-

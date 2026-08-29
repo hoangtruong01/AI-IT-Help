@@ -378,10 +378,10 @@ services:
       - eomp-net
 
   # ============================================================================
-  # Infrastructure Services
+  # Infrastructure Services (Pinned Versions)
   # ============================================================================
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.2-alpine3.21
     container_name: eomp-prod-postgres
     restart: always
     environment:
@@ -400,7 +400,7 @@ services:
       - eomp-net
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.2-alpine
     container_name: eomp-prod-redis
     restart: always
     command: redis-server --appendonly yes
@@ -415,7 +415,7 @@ services:
       - eomp-net
 
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:4.0.5-management-alpine
     container_name: eomp-prod-rabbitmq
     restart: always
     environment:
@@ -432,7 +432,7 @@ services:
       - eomp-net
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
     container_name: eomp-prod-minio
     restart: always
     environment:
@@ -450,7 +450,7 @@ services:
       - eomp-net
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.2
     container_name: eomp-prod-qdrant
     restart: always
     volumes:
@@ -464,7 +464,7 @@ services:
       - eomp-net
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.1.0
     container_name: eomp-prod-prometheus
     restart: always
     volumes:
@@ -483,7 +483,7 @@ services:
       - eomp-net
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.1
     container_name: eomp-prod-grafana
     restart: always
     environment:
@@ -507,7 +507,7 @@ services:
       - eomp-net
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.4.1
     container_name: eomp-prod-loki
     restart: always
     volumes:

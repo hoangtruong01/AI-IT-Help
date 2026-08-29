@@ -146,4 +146,3 @@ func (s *auditService) IngestDomainEvent(ctx context.Context, event eventbus.Eve
 	_, err := s.CreateAuditLog(ctx, req)
 	return err
 }
-

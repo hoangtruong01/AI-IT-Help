@@ -101,4 +101,3 @@ func (u *User) ToResponse() UserResponse {
 		CreatedAt:    u.CreatedAt,
 	}
 }
-

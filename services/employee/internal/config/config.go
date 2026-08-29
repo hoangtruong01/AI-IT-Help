@@ -40,7 +40,6 @@ func Load() *Config {
 	}
 }
 
-
 // Validate performs fail-fast configuration checks.
 func (c *Config) Validate() error {
 	if c.Environment == "production" {

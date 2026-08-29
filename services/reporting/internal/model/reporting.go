@@ -4,16 +4,16 @@ import "time"
 
 // ExecutiveOverview represents the high-level KPI dashboard metrics.
 type ExecutiveOverview struct {
-	AvgMTTRMinutes      float64 `json:"avg_mttr_minutes"`
-	AvgMTTDMinutes      float64 `json:"avg_mttd_minutes"`
-	SLACompliancePct    float64 `json:"sla_compliance_pct"`
-	FCRRatePct          float64 `json:"fcr_rate_pct"` // First Contact Resolution
-	CSATRating          float64 `json:"csat_rating"`   // Customer Satisfaction (1.0 - 5.0)
-	TotalIncidents      int     `json:"total_incidents"`
-	TotalResolved       int     `json:"total_resolved"`
-	TotalBreached       int     `json:"total_breached"`
-	MTTRImprovementPct  float64 `json:"mttr_improvement_pct"`
-	PeriodLabel         string  `json:"period_label"`
+	AvgMTTRMinutes     float64 `json:"avg_mttr_minutes"`
+	AvgMTTDMinutes     float64 `json:"avg_mttd_minutes"`
+	SLACompliancePct   float64 `json:"sla_compliance_pct"`
+	FCRRatePct         float64 `json:"fcr_rate_pct"` // First Contact Resolution
+	CSATRating         float64 `json:"csat_rating"`  // Customer Satisfaction (1.0 - 5.0)
+	TotalIncidents     int     `json:"total_incidents"`
+	TotalResolved      int     `json:"total_resolved"`
+	TotalBreached      int     `json:"total_breached"`
+	MTTRImprovementPct float64 `json:"mttr_improvement_pct"`
+	PeriodLabel        string  `json:"period_label"`
 }
 
 // IncidentTrend represents daily incident generation vs resolution.
