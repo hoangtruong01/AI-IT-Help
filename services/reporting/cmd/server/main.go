@@ -58,6 +58,11 @@ func main() {
 	reportingHandler := handler.NewReportingHandler(svc)
 	healthHandler := handler.NewHealthHandler(cfg)
 
+	// 2.1 Start Background SLA Rollup Aggregator Worker (Phase 6)
+	slaAggregator := service.NewSLAAggregator(db, log, 1*time.Hour)
+	slaAggregator.Start()
+	defer slaAggregator.Stop()
+
 	// 3. Register HTTP Routes
 	mux := http.NewServeMux()
 

@@ -15,6 +15,7 @@ import (
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
+	pkgRedis "eomp/packages/shared/pkg/redis"
 	"eomp/services/gateway/internal/config"
 	"eomp/services/gateway/internal/handler"
 	gwMiddleware "eomp/services/gateway/internal/middleware"
@@ -33,6 +34,19 @@ func main() {
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, 60*time.Minute, 7*24*time.Hour)
 	authFilter := gwMiddleware.GatewayAuth(jwtManager)
+
+	// Initialize Redis Client with Graceful Fallback (Task 6.1)
+	redisClient, err := pkgRedis.NewClient(pkgRedis.Config{
+		Host:     cfg.RedisHost,
+		Port:     cfg.RedisPort,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	}, log)
+	if err != nil {
+		log.Warn("gateway running with in-memory rate limiter fallback (redis offline)", slog.Any("error", err))
+	} else {
+		defer redisClient.Close()
+	}
 
 	// 1. Initialize Reverse Proxies
 	authProxy, err := proxy.NewReverseProxy(cfg.AuthServiceURL, log)
@@ -112,8 +126,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/monitoring/probe/{id}", monitoringHandler.ProbeService)
 	mux.HandleFunc("GET /api/v1/monitoring/logs", monitoringHandler.GetLogs)
 
-	// Auth Service Routing with Strict Brute-Force Rate Limiter (10 req/min/IP - Task 1.5)
-	strictAuthLimiter := middleware.IPRateLimiterWithProxies(10, 1*time.Minute, cfg.TrustedProxies)
+	// Auth Service Routing with Strict Redis Brute-Force Rate Limiter (10 req/min/IP - Task 1.5 & Task 6.1)
+	strictAuthLimiter := middleware.StrictRedisAuthRateLimiter(redisClient, 10, 1*time.Minute, cfg.TrustedProxies, log)
 	mux.Handle("/api/v1/auth/", strictAuthLimiter(authProxy))
 
 	// Employee & Department Routing
@@ -163,10 +177,10 @@ func main() {
 	mux.Handle("/api/v1/audit", authFilter(adminRoleFilter(auditProxy)))
 	mux.Handle("/api/v1/audit/", authFilter(adminRoleFilter(auditProxy)))
 
-	// Apply Global Gateway Middleware Stack with Body Size Limit (5MB), Dynamic CORS, Anti-Spoofing Limiter (100 req/min), and RED Metrics
+	// Apply Global Gateway Middleware Stack with Body Size Limit (5MB), Dynamic CORS, Distributed Redis Sliding Window Limiter (100 req/min), and RED Metrics
 	handlerStack := middleware.Recoverer(log)(
 		middleware.MaxBodySize(5 * 1024 * 1024)(
-			middleware.IPRateLimiterWithProxies(100, 1*time.Minute, cfg.TrustedProxies)(
+			middleware.RedisSlidingWindowRateLimiter(redisClient, 100, 1*time.Minute, cfg.TrustedProxies, "global", log)(
 				metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
 					middleware.RequestLogger(log)(
 						middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),

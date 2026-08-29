@@ -26,6 +26,10 @@ type Config struct {
 	AIServiceURL           string
 	AuditServiceURL        string
 	ReportingServiceURL    string
+	RedisHost              string
+	RedisPort              int
+	RedisPassword          string
+	RedisDB                int
 }
 
 // Load reads gateway configuration from environment
@@ -51,6 +55,10 @@ func Load() *Config {
 		AIServiceURL:           config.GetEnv("AI_SERVICE_URL", "http://localhost:8088"),
 		AuditServiceURL:        config.GetEnv("AUDIT_SERVICE_URL", "http://localhost:8089"),
 		ReportingServiceURL:    config.GetEnv("REPORTING_SERVICE_URL", "http://localhost:8090"),
+		RedisHost:              config.GetEnv("REDIS_HOST", "localhost"),
+		RedisPort:              config.GetEnvInt("REDIS_PORT", 6379),
+		RedisPassword:          config.GetEnv("REDIS_PASSWORD", ""),
+		RedisDB:                config.GetEnvInt("REDIS_DB", 0),
 	}
 }
 
