@@ -511,7 +511,7 @@ graph TD
 | **P4** | AI Operations Copilot & Real RAG | Ollama (Llama 3.2), OpenAI (GPT-4o), Qdrant Vector Search, AI Auto-Triage | ✅ **Done** |
 | **P5** | Production AMQP (RabbitMQ) Broker | Native AMQP RabbitMQ driver, Durable Queues, DLQ Dead-Letter, Async Audit & Alerts | ✅ **Done** |
 | **P6** | Redis Rate Limiting & Concurrency Load | Redis Sliding Window, Memory Bus fallback, K6 500 VUs benchmark (<150ms p95) | ✅ **Done** |
-| **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ⏳ *Pending* |
+| **P7** | Automated Security Gates & K8s Hardening | Jenkinsfile (gosec, govulncheck, trivy), K8s CIS NetworkPolicy, PodDisruptionBudget | ✅ **Done** |
 | **P8** | Production Readiness Sign-off & Handover | Chaos Engineering, 100% test coverage sign-off, Portfolio packaging | ⏳ *Pending* |
 
 ### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 3: ITSM / Helpdesk & Concurrency Control
@@ -574,3 +574,20 @@ graph TD
   * Đạt 100% pass rate kiểm chứng ngưỡng 10 req/min và 100 req/min, headers `Retry-After: 60`, `X-RateLimit-Remaining: 0`, anti-spoofing IP extraction và fallback in-memory khi Redis nil.
 * **K6 Load Testing Suite 500 VUs & Stress Suite 800 VUs (`infrastructure/k6/load_test.js`, `stress_test.js`)**:
   * Bao phủ toàn bộ luồng nghiệp vụ EOMP: Auth $\to$ Ticket $\to$ AI RAG $\to$ Asset $\to$ BI Report với ngưỡng $p95 < 200ms$, $p99 < 500ms$, error rate $< 1\%$.
+
+### 🔹 Chi Tiết Thay Đổi Nâng Cấp Phase 7: Observability, CI/CD Pipeline & Kubernetes Hardening
+* **Enterprise DevSecOps CI/CD Pipeline (`Jenkinsfile`)**:
+  * Bổ sung các chốt chặn an ninh: SAST (`gosec`), Quét lỗ hổng dependencies (`govulncheck`), Quét lỗ hổng Container Images CVEs (`trivy`).
+  * Đóng gói Docker Images với **Git Commit SHA Tag** (`eomp-$svc:${GIT_COMMIT_SHORT}`) đảm bảo khả năng truy xuất nguồn gốc.
+  * Tích hợp tự động thực thi tầng kiểm thử tích hợp liên service và đa luồng tương tranh `tests/e2e/`.
+* **Docker Image Pinning & Non-Root User Hardening**:
+  * Khóa cứng (pin exact versions) 100% base images: `golang:1.24.0-alpine3.21`, `alpine:3.21.3`, `node:22.14.0-alpine3.21`, `postgres:17.2-alpine3.21`, `redis:7.4.2-alpine`, `rabbitmq:4.0.5-management-alpine`, `nginx:1.27.4-alpine`, `prom/prometheus:v3.1.0`, `grafana/grafana:11.5.1`, `grafana/loki:3.4.1`, `qdrant/qdrant:v1.13.2`, `minio/minio:RELEASE.2025-02-07T23-21-09Z`.
+  * Ép buộc cấu hình Non-root user (`USER 10001:10001`) trên toàn bộ Dockerfiles.
+* **Kubernetes CIS Benchmark Security Manifests (`deploy/kubernetes/manifests/`)**:
+  * `09-network-policies.yaml`: Thiết lập chính sách Zero-Trust Default Deny All Ingress/Egress kết hợp fine-grained pod selector whitelists.
+  * `10-pod-disruption-budgets.yaml`: Cấu hình PodDisruptionBudget (PDB) cho Gateway, Auth, Helpdesk, Web (`minAvailable: 1`) đảm bảo Zero-Downtime khi bảo trì node cluster.
+* **SRE Observability & Prometheus Alert Rules (RED Method)**:
+  * Xây dựng `infrastructure/prometheus/alert_rules.yml` gồm 6 quy tắc cảnh báo: `EOMPServiceDown`, `EOMPHighErrorRate5xx` (>1%), `EOMPHighLatencyP95` (>200ms), `EOMPSLABreachSpike`, `EOMPDatabasePoolExhaustion` (>80%), `EOMPRedisConnectivityLost`.
+  * Liên kết nạp rule file trong `prometheus.yml`.
+* **Script Tự Động Hóa Kiểm Định DevSecOps (`scripts/test_devsecops.ps1` & `test_devsecops.sh`)**:
+  * Tự động hóa 5 tầng kiểm tra an ninh (Go fmt, Go tests, Docker pinning, K8s manifests, Prometheus alert rules) đạt **100% PASS Rate**.

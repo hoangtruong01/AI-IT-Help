@@ -1,0 +1,172 @@
+# ==============================================================================
+# EOMP — Kubernetes CIS Benchmark Network Policies (Zero-Trust Default Deny)
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: eomp
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  # Default Deny: All pods in namespace cannot receive or initiate network traffic without explicit policy
+
+---
+# Allow DNS egress for all pods in namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-dns-egress
+  namespace: eomp
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# Policy: Allow Ingress to Web Frontend and API Gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-edge
+  namespace: eomp
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["eomp-gateway", "eomp-web"]
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 3000
+  egress:
+    # Gateway can communicate with all 10 internal microservices and Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+        - protocol: TCP
+          port: 8087
+        - protocol: TCP
+          port: 8088
+        - protocol: TCP
+          port: 8089
+        - protocol: TCP
+          port: 8090
+    - to:
+        - podSelector:
+            matchLabels:
+              app: eomp-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+# Policy: Allow Gateway to Internal Backend Microservices
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-backend-services
+  namespace: eomp
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only Gateway and Prometheus scraping are allowed to call microservices
+    - from:
+        - podSelector:
+            matchLabels:
+              app: eomp-gateway
+        - podSelector:
+            matchLabels:
+              app: eomp-prometheus
+  egress:
+    # Microservices can talk to Database, Cache, Broker, Vector Store, Object Storage
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: database
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: cache
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: messaging
+      ports:
+        - protocol: TCP
+          port: 5672
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: vector
+      ports:
+        - protocol: TCP
+          port: 6333
+
+---
+# Policy: Protect Stateful Infrastructure (Postgres, Redis, RabbitMQ, Qdrant)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-infrastructure
+  namespace: eomp
+spec:
+  podSelector:
+    matchExpressions:
+      - key: tier
+        operator: In
+        values: ["database", "cache", "messaging", "vector", "storage"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: backend
+        - podSelector:
+            matchLabels:
+              app: eomp-gateway

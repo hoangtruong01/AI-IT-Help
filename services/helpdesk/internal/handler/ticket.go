@@ -275,4 +275,3 @@ func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Reques
 
 	response.JSON(w, http.StatusOK, tickets)
 }
-

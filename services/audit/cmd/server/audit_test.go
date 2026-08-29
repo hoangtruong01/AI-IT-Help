@@ -40,9 +40,9 @@ func TestAudit_TestCase_10_3_DataMaskingAndChecksum(t *testing.T) {
 			"credit_card": "4111 2222 3333 4444",
 		},
 		NewValues: map[string]interface{}{
-			"password":    "NewSuperSecurePassword2026!",
-			"api_token":   "sk_live_112984918239",
-			"status":      "ACTIVE",
+			"password":  "NewSuperSecurePassword2026!",
+			"api_token": "sk_live_112984918239",
+			"status":    "ACTIVE",
 		},
 	}
 

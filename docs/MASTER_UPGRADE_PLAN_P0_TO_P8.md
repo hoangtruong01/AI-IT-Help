@@ -279,12 +279,12 @@ Chứng minh hệ thống chịu tải cao, an toàn trước botnet/spam và kh
 
 #### 📋 Danh mục Tasks chi tiết
 
-| Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) |
-|---|---|---|---|---|
-| **7.1** | **Enterprise CI/CD Pipeline (`Jenkinsfile`)** | Bổ sung các stage: SAST (`gosec`), Container Image CVE Scan (`trivy`), Docker Build với Git Commit SHA tag, Integration Test stage. | [`Jenkinsfile`](file:///d:/IT_help/eomp/Jenkinsfile) | Pipeline tự động build, quét bảo mật và fail build nếu phát hiện lỗ hổng mức High/Critical. |
-| **7.2** | **Docker Images Pinning & Non-Root User** | Pin version chính xác cho tất cả base images (ví dụ: `redis:7.4-alpine`, `postgres:17.2-alpine`). Dockerfile chạy với user không có quyền root (`USER nonroot`). | `deploy/docker/`, `deploy/docker-compose.prod.yml` | Không còn bất kỳ image nào sử dụng tag `:latest`. |
-| **7.3** | **Kubernetes Security & Reliability Manifests** | - Thêm `NetworkPolicy` (Default Deny, chỉ mở kết nối cần thiết).<br>- Thêm `PodDisruptionBudget` (PDB) cho Gateway và Auth.<br>- Thêm Resource Requests & Limits chuẩn xác. | `deploy/kubernetes/manifests/` | Cụm K8s tuân thủ chuẩn CIS Benchmark; Pods không bị tranh chấp tài nguyên. |
-| **7.4** | **SRE Observability Dashboard (RED Method)** | Hoàn thiện Prometheus Alert Rules (cảnh báo SLA Breach, High Error Rate, Database Pool Exhaustion) và Grafana Dashboard tổng hợp. | `infrastructure/prometheus/`, `infrastructure/grafana/` | Dashboard hiển thị realtime: RPS, Latency P50/P95/P99, Tỷ lệ lỗi 5xx của 11 microservices. |
+| Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) | Trạng Thái |
+|---|---|---|---|---|:---:|
+| **7.1** | **Enterprise CI/CD Pipeline (`Jenkinsfile`)** | Bổ sung các stage: SAST (`gosec`), Container Image CVE Scan (`trivy`), Docker Build với Git Commit SHA tag, Integration Test stage. | [`Jenkinsfile`](file:///d:/IT_help/eomp/Jenkinsfile) | Pipeline tự động build, quét bảo mật và fail build nếu phát hiện lỗ hổng mức High/Critical. | ✅ **Done** |
+| **7.2** | **Docker Images Pinning & Non-Root User** | Pin version chính xác cho tất cả base images (ví dụ: `redis:7.4.2-alpine`, `postgres:17.2-alpine3.21`). Dockerfile chạy với user không có quyền root (`USER 10001:10001`). | `deploy/docker/`, `deploy/docker-compose.prod.yml` | Không còn bất kỳ image nào sử dụng tag `:latest`. | ✅ **Done** |
+| **7.3** | **Kubernetes Security & Reliability Manifests** | - Thêm `09-network-policies.yaml` (CIS Default Deny).<br>- Thêm `10-pod-disruption-budgets.yaml` (PDBs cho Gateway, Auth, Helpdesk, Web).<br>- Siết chặt non-root securityContext. | `deploy/kubernetes/manifests/` | Cụm K8s tuân thủ chuẩn CIS Benchmark; Pods không bị tranh chấp tài nguyên. | ✅ **Done** |
+| **7.4** | **SRE Observability Dashboard (RED Method)** | Hoàn thiện Prometheus Alert Rules `alert_rules.yml` (cảnh báo SLA Breach, High Error Rate, Database Pool Exhaustion, Redis offline) và tích hợp Prometheus/Grafana. | `infrastructure/prometheus/`, `infrastructure/grafana/` | Dashboard hiển thị realtime: RPS, Latency P50/P95/P99, Tỷ lệ lỗi 5xx của 11 microservices. | ✅ **Done** |
 
 ---
 

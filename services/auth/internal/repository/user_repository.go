@@ -205,4 +205,3 @@ func (r *postgresUserRepository) GetLoginHistory(ctx context.Context, email stri
 	}
 	return logs, nil
 }
-

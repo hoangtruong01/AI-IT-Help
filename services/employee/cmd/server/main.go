@@ -78,7 +78,6 @@ func main() {
 	mux.HandleFunc("GET /api/v1/departments", empHandler.ListDepartments)
 	mux.HandleFunc("POST /api/v1/departments", empHandler.CreateDepartment)
 
-
 	// Apply Middleware with RED Metrics
 	handlerStack := middleware.Recoverer(log)(
 		metrics.HTTPMetricsMiddleware(cfg.ServiceName)(

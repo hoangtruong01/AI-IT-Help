@@ -201,12 +201,12 @@ func TestPhase5_E2E_EventDrivenArchitectureFlow(t *testing.T) {
 		Type:      eventbus.TopicTicketCreated,
 		Timestamp: time.Now(),
 		Data: map[string]any{
-			"ticket_id":       "TK-2026-8001",
-			"ticket_number":   "TK-8001",
-			"title":           "Cannot connect to Production Postgres Cluster",
-			"priority":        "URGENT",
-			"reporter_email":  "kenji.sato@eomp.local",
-			"affected_ci_id":  "ci-db-01",
+			"ticket_id":      "TK-2026-8001",
+			"ticket_number":  "TK-8001",
+			"title":          "Cannot connect to Production Postgres Cluster",
+			"priority":       "URGENT",
+			"reporter_email": "kenji.sato@eomp.local",
+			"affected_ci_id": "ci-db-01",
 		},
 	})
 	if err != nil {
@@ -296,11 +296,11 @@ func TestPhase5_E2E_EventDrivenArchitectureFlow(t *testing.T) {
 		Type:      eventbus.TopicAssetAssigned,
 		Timestamp: time.Now(),
 		Data: map[string]any{
-			"asset_id":   "ast-9001",
-			"asset_tag":  "AST-MBP-16",
-			"user_id":    "u-emp-01",
-			"user_name":  "Kenji Sato",
-			"condition":  "EXCELLENT",
+			"asset_id":  "ast-9001",
+			"asset_tag": "AST-MBP-16",
+			"user_id":   "u-emp-01",
+			"user_name": "Kenji Sato",
+			"condition": "EXCELLENT",
 		},
 	})
 	if err != nil {

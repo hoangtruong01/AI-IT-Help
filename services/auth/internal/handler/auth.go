@@ -129,4 +129,3 @@ func (h *AuthHandler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
 
 	response.JSON(w, http.StatusOK, logs)
 }
-

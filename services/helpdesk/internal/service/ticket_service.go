@@ -141,16 +141,16 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 			Source: "helpdesk",
 			Type:   eventbus.TopicTicketCreated,
 			Data: map[string]any{
-				"ticket_id":       ticket.ID,
-				"ticket_number":   ticket.TicketNumber,
-				"title":           ticket.Title,
-				"category":        ticket.Category,
-				"priority":        ticket.Priority,
-				"status":          ticket.Status,
-				"reporter_id":     ticket.RequesterID,
-				"reporter_name":   ticket.RequesterName,
-				"reporter_email":  ticket.RequesterEmail,
-				"affected_ci_id":  ticket.AffectedCIID,
+				"ticket_id":      ticket.ID,
+				"ticket_number":  ticket.TicketNumber,
+				"title":          ticket.Title,
+				"category":       ticket.Category,
+				"priority":       ticket.Priority,
+				"status":         ticket.Status,
+				"reporter_id":    ticket.RequesterID,
+				"reporter_name":  ticket.RequesterName,
+				"reporter_email": ticket.RequesterEmail,
+				"affected_ci_id": ticket.AffectedCIID,
 			},
 		})
 	}
@@ -322,4 +322,3 @@ func (s *ticketService) GetTicketsByAssetID(ctx context.Context, assetID string)
 	}
 	return s.repo.ListTicketsByAssetID(ctx, assetID)
 }
-

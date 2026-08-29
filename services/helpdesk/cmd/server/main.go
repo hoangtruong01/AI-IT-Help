@@ -83,7 +83,6 @@ func main() {
 	mux.HandleFunc("GET /api/v1/tickets/{id}/comments", ticketHandler.ListComments)
 	mux.HandleFunc("GET /api/v1/tickets/{id}/timeline", ticketHandler.ListTimeline)
 
-
 	// Problem Management API (ITIL v4)
 	mux.HandleFunc("GET /api/v1/problems/stats", problemHandler.GetStats)
 	mux.HandleFunc("GET /api/v1/problems", problemHandler.ListProblems)

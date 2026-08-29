@@ -211,15 +211,15 @@ func PrometheusHandler() http.HandlerFunc {
 
 // Snapshot returns summary metrics for dashboard aggregation.
 type Snapshot struct {
-	ServiceName     string  `json:"service_name"`
-	UptimeSeconds   float64 `json:"uptime_seconds"`
-	MemoryMB        float64 `json:"memory_mb"`
-	Goroutines      int     `json:"goroutines"`
-	TotalRequests   int64   `json:"total_requests"`
-	ErrorCount      int64   `json:"error_count"`
-	ErrorRatePct    float64 `json:"error_rate_pct"`
-	AvgDurationMs   float64 `json:"avg_duration_ms"`
-	ActiveRequests  int64   `json:"active_requests"`
+	ServiceName    string  `json:"service_name"`
+	UptimeSeconds  float64 `json:"uptime_seconds"`
+	MemoryMB       float64 `json:"memory_mb"`
+	Goroutines     int     `json:"goroutines"`
+	TotalRequests  int64   `json:"total_requests"`
+	ErrorCount     int64   `json:"error_count"`
+	ErrorRatePct   float64 `json:"error_rate_pct"`
+	AvgDurationMs  float64 `json:"avg_duration_ms"`
+	ActiveRequests int64   `json:"active_requests"`
 }
 
 // GetSnapshot calculates the aggregated RED metrics snapshot.

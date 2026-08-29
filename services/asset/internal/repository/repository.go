@@ -464,7 +464,6 @@ func (r *postgresRepository) ListAssignmentsByEmployee(ctx context.Context, user
 	return items, nil
 }
 
-
 func (r *postgresRepository) ListCIs(ctx context.Context, env, ciType, status string) ([]model.ConfigurationItem, error) {
 	where := []string{"1=1"}
 	args := []any{}

@@ -1,0 +1,49 @@
+# ==============================================================================
+# EOMP — Kubernetes Pod Disruption Budgets (High Availability & Zero Downtime)
+# ==============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-gateway
+  namespace: eomp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: eomp-gateway
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-auth
+  namespace: eomp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: eomp-auth
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-helpdesk
+  namespace: eomp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: eomp-helpdesk
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-web
+  namespace: eomp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: eomp-web

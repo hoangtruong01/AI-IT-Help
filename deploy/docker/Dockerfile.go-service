@@ -1,5 +1,5 @@
 # ==============================================================================
-# EOMP — Universal Multi-Stage Dockerfile for Go Microservices
+# EOMP — Universal Multi-Stage Dockerfile for Go Microservices (Pinned & Hardened)
 # ==============================================================================
 # Usage:
 #   docker build \
@@ -10,7 +10,7 @@
 # ==============================================================================
 
 # --- Stage 1: Build & Compile Binary ---
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24.0-alpine3.21 AS builder
 
 ARG SERVICE_NAME
 ARG PORT=8080
@@ -29,8 +29,8 @@ WORKDIR /workspace/services/${SERVICE_NAME}
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -ldflags="-s -w -extldflags '-static'" -o /app/server ./cmd/server
 
-# --- Stage 2: Final Minimal Runtime Image (< 25MB) ---
-FROM alpine:3.21 AS runner
+# --- Stage 2: Final Minimal Runtime Image (< 25MB, CIS Hardened Non-Root) ---
+FROM alpine:3.21.3 AS runner
 
 ARG SERVICE_NAME
 ARG PORT=8080

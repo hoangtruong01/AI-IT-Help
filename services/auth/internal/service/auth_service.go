@@ -266,4 +266,3 @@ func (s *authService) GetMe(ctx context.Context, userID string) (*model.UserResp
 func (s *authService) GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error) {
 	return s.repo.GetLoginHistory(ctx, email, limit)
 }
-

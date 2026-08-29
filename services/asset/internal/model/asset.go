@@ -136,16 +136,15 @@ type EmployeeAssetHistoryItem struct {
 
 // AssetIncidentHistoryItem represents an incident/ticket linked to an asset
 type AssetIncidentHistoryItem struct {
-	TicketID     string     `json:"ticket_id"`
-	TicketNumber string     `json:"ticket_number"`
-	Title        string     `json:"title"`
-	Category     string     `json:"category"`
-	Priority     string     `json:"priority"`
-	Status       string     `json:"status"`
-	RequesterID  string     `json:"requester_id"`
-	RequesterName string    `json:"requester_name"`
-	AssigneeName *string    `json:"assignee_name,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	ResolvedAt   *time.Time `json:"resolved_at,omitempty"`
+	TicketID      string     `json:"ticket_id"`
+	TicketNumber  string     `json:"ticket_number"`
+	Title         string     `json:"title"`
+	Category      string     `json:"category"`
+	Priority      string     `json:"priority"`
+	Status        string     `json:"status"`
+	RequesterID   string     `json:"requester_id"`
+	RequesterName string     `json:"requester_name"`
+	AssigneeName  *string    `json:"assignee_name,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ResolvedAt    *time.Time `json:"resolved_at,omitempty"`
 }
-
