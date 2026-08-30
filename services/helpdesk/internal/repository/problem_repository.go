@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	appErrors "eomp/packages/shared/pkg/errors"
 	"eomp/services/helpdesk/internal/model"
 )
 
@@ -16,9 +17,9 @@ type ProblemRepository interface {
 	ListProblems(ctx context.Context, category, status string, page, pageSize int) ([]model.Problem, int, error)
 	GetProblemByID(ctx context.Context, id string) (*model.Problem, error)
 	CreateProblem(ctx context.Context, p *model.Problem) error
-	UpdateProblem(ctx context.Context, p *model.Problem) error
-	UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time) error
-	UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool) error
+	UpdateProblem(ctx context.Context, p *model.Problem, expectedVersion int) error
+	UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time, expectedVersion int) error
+	UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool, expectedVersion int) error
 	LinkIncident(ctx context.Context, link *model.ProblemIncidentLink) error
 	UnlinkIncident(ctx context.Context, problemID, ticketID string) error
 	GetLinkedIncidents(ctx context.Context, problemID string) ([]model.ProblemIncidentLink, error)
@@ -38,7 +39,7 @@ func NewProblemRepository(db *sql.DB) ProblemRepository {
 
 func (r *postgresProblemRepository) NextProblemNumber(ctx context.Context) (string, error) {
 	if r.db == nil {
-		return fmt.Sprintf("PRB-%d", 1000+time.Now().Unix()%1000), nil
+		return "", errors.New("database connection is nil")
 	}
 	var count int
 	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM problems").Scan(&count)
@@ -50,7 +51,7 @@ func (r *postgresProblemRepository) NextProblemNumber(ctx context.Context) (stri
 
 func (r *postgresProblemRepository) ListProblems(ctx context.Context, category, status string, page, pageSize int) ([]model.Problem, int, error) {
 	if r.db == nil {
-		return []model.Problem{}, 0, nil
+		return nil, 0, errors.New("database connection is nil")
 	}
 
 	if page <= 0 {
@@ -93,7 +94,7 @@ func (r *postgresProblemRepository) ListProblems(ctx context.Context, category, 
 			p.status, p.impact, p.urgency, p.assignee_id, p.assignee_name,
 			p.root_cause, p.workaround, p.resolution, p.is_known_error,
 			COALESCE((SELECT COUNT(*) FROM problem_incident_links pil WHERE pil.problem_id = p.id), 0) AS linked_count,
-			p.created_at, p.updated_at, p.resolved_at, p.closed_at
+			p.version, p.created_at, p.updated_at, p.resolved_at, p.closed_at
 		FROM problems p
 		%s
 		ORDER BY p.created_at DESC
@@ -115,7 +116,7 @@ func (r *postgresProblemRepository) ListProblems(ctx context.Context, category, 
 			&p.ID, &p.ProblemNumber, &p.Title, &p.Description, &p.Category, &p.Priority,
 			&p.Status, &p.Impact, &p.Urgency, &p.AssigneeID, &p.AssigneeName,
 			&p.RootCause, &p.Workaround, &p.Resolution, &p.IsKnownError,
-			&p.LinkedCount, &p.CreatedAt, &p.UpdatedAt, &p.ResolvedAt, &p.ClosedAt,
+			&p.LinkedCount, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.ResolvedAt, &p.ClosedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan problem: %w", err)
@@ -137,7 +138,7 @@ func (r *postgresProblemRepository) GetProblemByID(ctx context.Context, id strin
 			p.status, p.impact, p.urgency, p.assignee_id, p.assignee_name,
 			p.root_cause, p.workaround, p.resolution, p.is_known_error,
 			COALESCE((SELECT COUNT(*) FROM problem_incident_links pil WHERE pil.problem_id = p.id), 0) AS linked_count,
-			p.created_at, p.updated_at, p.resolved_at, p.closed_at
+			p.version, p.created_at, p.updated_at, p.resolved_at, p.closed_at
 		FROM problems p
 		WHERE p.id = $1 OR p.problem_number = $1
 	`
@@ -147,7 +148,7 @@ func (r *postgresProblemRepository) GetProblemByID(ctx context.Context, id strin
 		&p.ID, &p.ProblemNumber, &p.Title, &p.Description, &p.Category, &p.Priority,
 		&p.Status, &p.Impact, &p.Urgency, &p.AssigneeID, &p.AssigneeName,
 		&p.RootCause, &p.Workaround, &p.Resolution, &p.IsKnownError,
-		&p.LinkedCount, &p.CreatedAt, &p.UpdatedAt, &p.ResolvedAt, &p.ClosedAt,
+		&p.LinkedCount, &p.Version, &p.CreatedAt, &p.UpdatedAt, &p.ResolvedAt, &p.ClosedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -161,18 +162,18 @@ func (r *postgresProblemRepository) GetProblemByID(ctx context.Context, id strin
 
 func (r *postgresProblemRepository) CreateProblem(ctx context.Context, p *model.Problem) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `
 		INSERT INTO problems (
 			id, problem_number, title, description, category, priority, status,
 			impact, urgency, assignee_id, assignee_name, root_cause, workaround,
-			resolution, is_known_error, created_at, updated_at
+			resolution, is_known_error, version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10, $11, $12, $13,
-			$14, $15, $16, $17
+			$14, $15, 1, $16, $17
 		)
 	`
 	_, err := r.db.ExecContext(
@@ -187,9 +188,9 @@ func (r *postgresProblemRepository) CreateProblem(ctx context.Context, p *model.
 	return nil
 }
 
-func (r *postgresProblemRepository) UpdateProblem(ctx context.Context, p *model.Problem) error {
+func (r *postgresProblemRepository) UpdateProblem(ctx context.Context, p *model.Problem, expectedVersion int) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `
@@ -197,22 +198,22 @@ func (r *postgresProblemRepository) UpdateProblem(ctx context.Context, p *model.
 			title = $1, description = $2, category = $3, priority = $4,
 			impact = $5, urgency = $6, assignee_id = $7, assignee_name = $8,
 			root_cause = $9, workaround = $10, resolution = $11, is_known_error = $12,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $13
+			version = version + 1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $13 AND version = $14
 	`
-	_, err := r.db.ExecContext(
+	result, err := r.db.ExecContext(
 		ctx, query,
 		p.Title, p.Description, p.Category, p.Priority,
 		p.Impact, p.Urgency, p.AssigneeID, p.AssigneeName,
 		p.RootCause, p.Workaround, p.Resolution, p.IsKnownError,
-		p.ID,
+		p.ID, expectedVersion,
 	)
-	return err
+	return ensureProblemUpdated(result, err)
 }
 
-func (r *postgresProblemRepository) UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time) error {
+func (r *postgresProblemRepository) UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time, expectedVersion int) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `
@@ -221,16 +222,16 @@ func (r *postgresProblemRepository) UpdateProblemStatus(ctx context.Context, id,
 			resolution = COALESCE($2, resolution),
 			resolved_at = COALESCE($3, resolved_at),
 			closed_at = COALESCE($4, closed_at),
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $5
+			version = version + 1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $5 AND version = $6
 	`
-	_, err := r.db.ExecContext(ctx, query, status, resolution, resolvedAt, closedAt, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, status, resolution, resolvedAt, closedAt, id, expectedVersion)
+	return ensureProblemUpdated(result, err)
 }
 
-func (r *postgresProblemRepository) UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool) error {
+func (r *postgresProblemRepository) UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool, expectedVersion int) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `
@@ -238,16 +239,30 @@ func (r *postgresProblemRepository) UpdateProblemRCA(ctx context.Context, id str
 			root_cause = $1,
 			workaround = $2,
 			is_known_error = $3,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4
+			version = version + 1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $4 AND version = $5
 	`
-	_, err := r.db.ExecContext(ctx, query, rootCause, workaround, isKnownError, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, rootCause, workaround, isKnownError, id, expectedVersion)
+	return ensureProblemUpdated(result, err)
+}
+
+func ensureProblemUpdated(result sql.Result, err error) error {
+	if err != nil {
+		return fmt.Errorf("update problem: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read problem update result: %w", err)
+	}
+	if rows != 1 {
+		return appErrors.Conflict("problem was updated by another request; reload and retry")
+	}
+	return nil
 }
 
 func (r *postgresProblemRepository) LinkIncident(ctx context.Context, link *model.ProblemIncidentLink) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `
@@ -261,7 +276,7 @@ func (r *postgresProblemRepository) LinkIncident(ctx context.Context, link *mode
 
 func (r *postgresProblemRepository) UnlinkIncident(ctx context.Context, problemID, ticketID string) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection is nil")
 	}
 
 	query := `DELETE FROM problem_incident_links WHERE problem_id = $1 AND (ticket_id = $2 OR ticket_number = $2)`
@@ -271,7 +286,7 @@ func (r *postgresProblemRepository) UnlinkIncident(ctx context.Context, problemI
 
 func (r *postgresProblemRepository) GetLinkedIncidents(ctx context.Context, problemID string) ([]model.ProblemIncidentLink, error) {
 	if r.db == nil {
-		return []model.ProblemIncidentLink{}, nil
+		return nil, errors.New("database connection is nil")
 	}
 
 	query := `
@@ -300,7 +315,7 @@ func (r *postgresProblemRepository) GetLinkedIncidents(ctx context.Context, prob
 // CascadeResolveLinkedTickets updates all linked tickets to RESOLVED when the problem is resolved.
 func (r *postgresProblemRepository) CascadeResolveLinkedTickets(ctx context.Context, problemID, problemNumber, resolution string) ([]string, error) {
 	if r.db == nil {
-		return nil, nil
+		return nil, errors.New("database connection is nil")
 	}
 
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -337,7 +352,7 @@ func (r *postgresProblemRepository) CascadeResolveLinkedTickets(ctx context.Cont
 		// Update ticket status
 		_, err := tx.ExecContext(
 			ctx,
-			"UPDATE tickets SET status = 'RESOLVED', resolved_at = $1, updated_at = $1 WHERE id = $2 AND status != 'RESOLVED' AND status != 'CLOSED'",
+			"UPDATE tickets SET status = 'RESOLVED', resolved_at = $1, version = version + 1, updated_at = $1 WHERE id = $2 AND status != 'RESOLVED' AND status != 'CLOSED'",
 			now, t.id,
 		)
 		if err != nil {
@@ -364,13 +379,7 @@ func (r *postgresProblemRepository) CascadeResolveLinkedTickets(ctx context.Cont
 
 func (r *postgresProblemRepository) GetProblemStats(ctx context.Context) (*model.ProblemStats, error) {
 	if r.db == nil {
-		return &model.ProblemStats{
-			TotalProblems:      3,
-			UnderInvestigation: 1,
-			KnownErrors:        2,
-			ResolvedProblems:   1,
-			TotalLinkedTickets: 4,
-		}, nil
+		return nil, errors.New("database connection is nil")
 	}
 
 	query := `

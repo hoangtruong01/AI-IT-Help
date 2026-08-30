@@ -70,10 +70,11 @@ func main() {
 		embedProvider = mock
 	}
 
-	smartRetriever := rag.NewSmartRetriever(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection)
+	allowMockFallback := cfg.AIProvider == "mock" || cfg.AllowMockAI
+	smartRetriever := rag.NewSmartRetriever(cfg.QdrantHost, cfg.QdrantPort, cfg.QdrantCollection, allowMockFallback)
 
 	// 2. Initialize Service and Handlers
-	aiService := service.NewAIService(llmProvider, embedProvider, smartRetriever)
+	aiService := service.NewAIService(llmProvider, embedProvider, smartRetriever, allowMockFallback)
 	aiHandler := handler.NewAIHandler(aiService)
 	healthHandler := handler.NewHealthHandler(cfg)
 

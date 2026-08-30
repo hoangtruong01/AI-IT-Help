@@ -59,6 +59,7 @@ type UpdateProblemStatusPayload struct {
 	Status     string  `json:"status"` // OPEN, UNDER_INVESTIGATION, WORKAROUND_FOUND, KNOWN_ERROR, RESOLVED, CLOSED
 	Resolution *string `json:"resolution,omitempty"`
 	Notes      *string `json:"notes,omitempty"`
+	Version    int     `json:"version"`
 }
 
 // UpdateProblemRCAPayload is the request DTO for updating Root Cause and Workaround.
@@ -66,6 +67,7 @@ type UpdateProblemRCAPayload struct {
 	RootCause    *string `json:"root_cause,omitempty"`
 	Workaround   *string `json:"workaround,omitempty"`
 	IsKnownError bool    `json:"is_known_error"`
+	Version      int     `json:"version"`
 }
 
 // LinkIncidentPayload is the request DTO for linking an incident to a problem.

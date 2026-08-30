@@ -128,3 +128,17 @@ func (h *AuditHandler) GetSecurityEvents(w http.ResponseWriter, r *http.Request)
 
 	response.JSON(w, http.StatusOK, events)
 }
+
+// VerifyIntegrity handles GET /api/v1/audit/integrity.
+func (h *AuditHandler) VerifyIntegrity(w http.ResponseWriter, r *http.Request) {
+	report, err := h.svc.VerifyIntegrity(r.Context())
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	status := http.StatusOK
+	if !report.Valid {
+		status = http.StatusConflict
+	}
+	response.JSON(w, status, report)
+}

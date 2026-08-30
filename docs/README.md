@@ -17,7 +17,7 @@ The authoritative project status is [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_ST
 - [Database overview](database.md)
 - [Data dictionary](architecture/database_erd_and_data_dictionary.md)
 - [API overview](api.md)
-- [OpenAPI specification](openapi/eomp-openapi-spec.yaml) — currently incomplete; coverage is tracked in the implementation status.
+- [OpenAPI specification](openapi/eomp-openapi-spec.yaml) — complete 101/101 operation inventory; richer domain schemas remain tracked work.
 
 ## Engineering and operations
 

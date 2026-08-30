@@ -76,7 +76,9 @@ func main() {
 	// Tickets API
 	mux.HandleFunc("GET /api/v1/tickets", ticketHandler.ListTickets)
 	mux.HandleFunc("POST /api/v1/tickets", ticketHandler.CreateTicket)
-	mux.HandleFunc("GET /api/v1/tickets/asset/{assetId}", ticketHandler.ListTicketsByAsset)
+	// Keep this route one segment longer than /tickets/{id}/assign so Go's
+	// ServeMux cannot match both patterns for /tickets/asset/assign.
+	mux.HandleFunc("GET /api/v1/tickets/by-asset/{assetId}/list", ticketHandler.ListTicketsByAsset)
 	mux.HandleFunc("GET /api/v1/tickets/{id}", ticketHandler.GetTicket)
 	mux.HandleFunc("PATCH /api/v1/tickets/{id}/status", ticketHandler.UpdateStatus)
 	mux.HandleFunc("PATCH /api/v1/tickets/{id}/assign", ticketHandler.AssignTicket)

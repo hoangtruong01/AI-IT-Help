@@ -5,6 +5,7 @@ definePageMeta({ layout: 'default' })
 
 const api = useApi()
 const authStore = useAuthStore()
+const toast = useToast()
 
 // State
 const tickets = ref<Ticket[]>([])
@@ -56,18 +57,8 @@ async function analyzeTicketWithAI() {
     if (res) {
       aiSuggestion.value = res
     } else {
-      // Local fallback
-      aiSuggestion.value = {
-        ticket_id: selectedTicket.value.ticket_number || 'AI-TK-1001',
-        suggested_category: selectedTicket.value.category || 'Network & Access',
-        priority: selectedTicket.value.priority || 'HIGH',
-        summary: selectedTicket.value.title,
-        confidence: 0.94,
-        root_cause: 'Potential WireGuard handshake timeout or desynchronized access session on Gateway subnet.',
-        suggested_resolution: '1. Verify client network reachability on 10.8.0.1.\n2. Apply SOP Runbook RB-NET-01 or RB-SEC-02.\n3. Verify test connectivity before ticket resolution.',
-        requires_human_review: true,
-        created_at: new Date().toISOString()
-      }
+      aiSuggestion.value = null
+      toast.add({ title: 'AI analysis is unavailable', color: 'error' })
     }
   } finally {
     isAnalyzingAI.value = false
@@ -182,7 +173,8 @@ async function handleUpdateStatus(newStatus: string) {
   try {
     const updated = await api.patch<Ticket>(`/api/v1/tickets/${selectedTicket.value.id}/status`, {
       status: newStatus,
-      notes: `Status changed to ${newStatus}`
+      notes: `Status changed to ${newStatus}`,
+      version: selectedTicket.value.version
     })
     selectedTicket.value = updated
     await fetchTickets()
@@ -201,7 +193,8 @@ async function handleAssignToMe() {
   try {
     const updated = await api.patch<Ticket>(`/api/v1/tickets/${selectedTicket.value.id}/assign`, {
       assignee_id: authStore.user.id,
-      assignee_name: `${authStore.user.full_name} (${authStore.user.role})`
+      assignee_name: `${authStore.user.full_name} (${authStore.user.role})`,
+      version: selectedTicket.value.version
     })
     selectedTicket.value = updated
     await fetchTickets()

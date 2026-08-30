@@ -27,6 +27,7 @@ type ChangeRepository interface {
 }
 
 var ErrVersionConflict = errors.New("change request version conflict")
+var errChangeDatabaseUnavailable = errors.New("change database is unavailable")
 
 type postgresChangeRepository struct {
 	db *sql.DB
@@ -39,7 +40,7 @@ func NewChangeRepository(db *sql.DB) ChangeRepository {
 
 func (r *postgresChangeRepository) NextChangeNumber(ctx context.Context) (string, error) {
 	if r.db == nil {
-		return fmt.Sprintf("CHG-%d", 2000+time.Now().Unix()%1000), nil
+		return "", errChangeDatabaseUnavailable
 	}
 	var count int
 	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM change_requests").Scan(&count)
@@ -51,7 +52,7 @@ func (r *postgresChangeRepository) NextChangeNumber(ctx context.Context) (string
 
 func (r *postgresChangeRepository) ListChanges(ctx context.Context, changeType, status, risk string, page, pageSize int) ([]model.ChangeRequest, int, error) {
 	if r.db == nil {
-		return []model.ChangeRequest{}, 0, nil
+		return nil, 0, errChangeDatabaseUnavailable
 	}
 
 	if page <= 0 {
@@ -177,7 +178,7 @@ func (r *postgresChangeRepository) GetChangeByID(ctx context.Context, id string)
 
 func (r *postgresChangeRepository) CreateChange(ctx context.Context, c *model.ChangeRequest) error {
 	if r.db == nil {
-		return nil
+		return errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -217,7 +218,7 @@ func (r *postgresChangeRepository) CreateChange(ctx context.Context, c *model.Ch
 
 func (r *postgresChangeRepository) UpdateChange(ctx context.Context, c *model.ChangeRequest) error {
 	if r.db == nil {
-		return nil
+		return errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -247,7 +248,7 @@ func (r *postgresChangeRepository) UpdateChange(ctx context.Context, c *model.Ch
 
 func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time, expectedVersion int) error {
 	if r.db == nil {
-		return nil
+		return errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -271,7 +272,7 @@ func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, s
 
 func (r *postgresChangeRepository) AddCABReview(ctx context.Context, rev *model.CABReview) error {
 	if r.db == nil {
-		return nil
+		return errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -288,7 +289,7 @@ func (r *postgresChangeRepository) AddCABReview(ctx context.Context, rev *model.
 
 func (r *postgresChangeRepository) GetCABReviews(ctx context.Context, changeID string) ([]model.CABReview, error) {
 	if r.db == nil {
-		return []model.CABReview{}, nil
+		return nil, errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -316,7 +317,7 @@ func (r *postgresChangeRepository) GetCABReviews(ctx context.Context, changeID s
 
 func (r *postgresChangeRepository) RecalculateCABApprovedCount(ctx context.Context, changeID string) (int, error) {
 	if r.db == nil {
-		return 0, nil
+		return 0, errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -340,7 +341,7 @@ func (r *postgresChangeRepository) RecalculateCABApprovedCount(ctx context.Conte
 
 func (r *postgresChangeRepository) GetChangeCalendar(ctx context.Context, startDate, endDate time.Time) ([]model.ChangeCalendarItem, error) {
 	if r.db == nil {
-		return []model.ChangeCalendarItem{}, nil
+		return nil, errChangeDatabaseUnavailable
 	}
 
 	query := `
@@ -374,13 +375,7 @@ func (r *postgresChangeRepository) GetChangeCalendar(ctx context.Context, startD
 
 func (r *postgresChangeRepository) GetChangeStats(ctx context.Context) (*model.ChangeStats, error) {
 	if r.db == nil {
-		return &model.ChangeStats{
-			ActiveChanges:      4,
-			PendingCABReview:   2,
-			EmergencyChanges:   1,
-			SuccessRatePercent: 96.5,
-			TotalThisMonth:     8,
-		}, nil
+		return nil, errChangeDatabaseUnavailable
 	}
 
 	query := `

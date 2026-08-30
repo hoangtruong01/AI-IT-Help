@@ -116,16 +116,20 @@ Tất cả các cuộc gọi API từ Frontend hoặc bên ngoài đều đi qua
 * `POST /api/v1/ai/analyze-ticket` — Ticket Auto-Triage (Phân loại danh mục, độ ưu tiên, chẩn đoán nguyên nhân gốc rễ).
 
 ### 3.9 Audit Trail & Compliance Service (:8089)
-* `GET /api/v1/audit/logs?page=1&action=LOGIN` — Tra cứu nhật ký kiểm toán bất biến kèm **SHA-256 Checksum** (Chỉ dành cho `ADMIN`/`MANAGER`).
+* `GET /api/v1/audit/logs?page=1&action=LOGIN` — Tra cứu nhật ký kiểm toán kèm bằng chứng chuỗi **HMAC-SHA256** (chỉ dành cho `ADMIN`/`MANAGER`).
 * `GET /api/v1/audit/stats` — Thống kê an ninh và tuân thủ chuẩn SOC2.
+* `GET /api/v1/audit/integrity` — Kiểm tra toàn bộ chuỗi HMAC; trả `409` nếu phát hiện sai lệch.
 
 ### 3.10 Reporting & BI Analytics Service (:8090)
-* `GET /api/v1/reports/sla-summary?range=30d` — Thống kê MTTR, MTTD, SLA Compliance Rate %.
-* `GET /api/v1/reports/agent-performance` — Bảng xếp hạng năng suất kỹ thuật viên (Agent Scorecard).
-* `POST /api/v1/reports/export` — Xuất báo cáo PDF/Excel tốc độ cao (< 3s cho 10,000 bản ghi).
+* `GET /api/v1/reports/overview?range=30d` — Tổng quan MTTR, MTTD và SLA.
+* `GET /api/v1/reports/trends` — Xu hướng ticket theo ngày.
+* `GET /api/v1/reports/categories` — Phân bổ theo danh mục.
+* `GET /api/v1/reports/departments-sla` — SLA theo phòng ban.
+* `GET /api/v1/reports/agents` — Năng suất kỹ thuật viên.
+* `POST /api/v1/reports/export` — Xuất báo cáo từ dữ liệu thực; lỗi backend không tạo file mẫu.
 
 ### 3.11 SRE Monitoring & Health Probes (:8080)
-* `GET /api/v1/monitoring/overview` — Tổng hợp KPIs cụm 11 microservices (Active count, RPS, Latency p95, Error Rate).
-* `GET /api/v1/monitoring/services` — Ma trận trạng thái 11 microservices chi tiết.
-* `POST /api/v1/monitoring/probe/{id}` — Kích hoạt Health Probe kiểm tra service tức thì (< 5s).
-* `GET /api/v1/monitoring/logs` — Live log streamer console lọc theo service và log level.
+* `GET /api/v1/monitoring/overview` — Tổng hợp trạng thái và độ trễ health probe thật của 11 services.
+* `GET /api/v1/monitoring/services` — Kết quả probe từng service; không sinh CPU/RAM/RPS giả.
+* `POST /api/v1/monitoring/probe/{id}` — Kích hoạt health probe tức thì.
+* `GET /api/v1/monitoring/logs` — Trả `501 Not Implemented` cho đến khi cấu hình log backend tương thích Loki.

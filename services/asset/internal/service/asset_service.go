@@ -227,7 +227,7 @@ func (s *assetService) GetAssetIncidents(ctx context.Context, assetID string) ([
 	}
 
 	// Query helpdesk service for tickets associated with this asset ID / CI ID / Asset Tag
-	url := fmt.Sprintf("%s/api/v1/tickets/asset/%s", s.helpdeskServiceURL, assetID)
+	url := fmt.Sprintf("%s/api/v1/tickets/by-asset/%s/list", s.helpdeskServiceURL, assetID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return []model.AssetIncidentHistoryItem{}, nil

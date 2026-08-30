@@ -119,7 +119,10 @@ erDiagram
         string resource_id
         jsonb old_values
         jsonb new_values
+        string previous_checksum
         string checksum_sha256
+        string checksum_algorithm
+        int audit_sequence
         timestamp created_at
     }
 ```
@@ -188,5 +191,8 @@ erDiagram
 | `resource_id` | `VARCHAR(100)` | `NOT NULL` | Mã tài nguyên bị tác động |
 | `old_values` | `JSONB` | `NULL` | Dữ liệu trước khi sửa (đã qua Data Masking) |
 | `new_values` | `JSONB` | `NULL` | Dữ liệu sau khi sửa (đã qua Data Masking) |
-| `checksum_sha256`| `VARCHAR(64)` | `NOT NULL` | Mã băm SHA-256 niêm phong bất biến |
+| `previous_checksum` | `VARCHAR(64)` | `NULL` | Bằng chứng HMAC của bản ghi đứng trước trong chuỗi |
+| `checksum_sha256` | `VARCHAR(64)` | `NOT NULL` | Bằng chứng HMAC-SHA256 của payload chuẩn hóa và predecessor; tên cột được giữ để tương thích migration cũ |
+| `checksum_algorithm` | `VARCHAR(32)` | `NOT NULL` | Thuật toán bằng chứng (`HMAC-SHA256` hoặc nhãn legacy) |
+| `audit_sequence` | `BIGSERIAL` | `UNIQUE` | Thứ tự append ổn định dùng để xác minh chuỗi |
 | `created_at` | `TIMESTAMP` | `DEFAULT NOW()` | Thời gian phát sinh sự kiện |

@@ -4,22 +4,34 @@ import "time"
 
 // AuditLog represents an immutable audit trail entry.
 type AuditLog struct {
-	ID             string                 `json:"id"`
-	EventType      string                 `json:"event_type"` // AUTH_LOGIN_SUCCESS, TICKET_UPDATE, ASSET_DELETE, APPROVAL_DECISION, ROLE_CHANGE, CONFIG_UPDATE
-	ActorID        string                 `json:"actor_id"`
-	ActorName      string                 `json:"actor_name"`
-	ActorEmail     string                 `json:"actor_email"`
-	ActorRole      string                 `json:"actor_role"` // ROLE_ADMIN, ROLE_MANAGER, ROLE_AGENT, ROLE_EMPLOYEE
-	ServiceName    string                 `json:"service_name"`
-	IPAddress      string                 `json:"ip_address"`
-	UserAgent      string                 `json:"user_agent,omitempty"`
-	Status         string                 `json:"status"` // SUCCESS, FORBIDDEN, FAILED
-	ResourceType   string                 `json:"resource_type"`
-	ResourceID     string                 `json:"resource_id"`
-	OldValues      map[string]interface{} `json:"old_values,omitempty"`
-	NewValues      map[string]interface{} `json:"new_values,omitempty"`
-	ChecksumSHA256 string                 `json:"checksum_sha256"`
-	CreatedAt      time.Time              `json:"created_at"`
+	ID                string                 `json:"id"`
+	EventType         string                 `json:"event_type"` // AUTH_LOGIN_SUCCESS, TICKET_UPDATE, ASSET_DELETE, APPROVAL_DECISION, ROLE_CHANGE, CONFIG_UPDATE
+	ActorID           string                 `json:"actor_id"`
+	ActorName         string                 `json:"actor_name"`
+	ActorEmail        string                 `json:"actor_email"`
+	ActorRole         string                 `json:"actor_role"` // ROLE_ADMIN, ROLE_MANAGER, ROLE_AGENT, ROLE_EMPLOYEE
+	ServiceName       string                 `json:"service_name"`
+	IPAddress         string                 `json:"ip_address"`
+	UserAgent         string                 `json:"user_agent,omitempty"`
+	Status            string                 `json:"status"` // SUCCESS, FORBIDDEN, FAILED
+	ResourceType      string                 `json:"resource_type"`
+	ResourceID        string                 `json:"resource_id"`
+	OldValues         map[string]interface{} `json:"old_values,omitempty"`
+	NewValues         map[string]interface{} `json:"new_values,omitempty"`
+	PreviousChecksum  string                 `json:"previous_checksum"`
+	ChecksumSHA256    string                 `json:"checksum_sha256"`
+	ChecksumAlgorithm string                 `json:"checksum_algorithm"`
+	CreatedAt         time.Time              `json:"created_at"`
+}
+
+// IntegrityReport is the result of verifying the ordered audit hash chain.
+type IntegrityReport struct {
+	Valid          bool   `json:"valid"`
+	TotalLogs      int64  `json:"total_logs"`
+	VerifiedLogs   int64  `json:"verified_logs"`
+	LegacyLogs     int64  `json:"legacy_logs"`
+	FirstInvalidID string `json:"first_invalid_id,omitempty"`
+	Message        string `json:"message"`
 }
 
 // SecurityEvent represents a security warning or blocked violation.

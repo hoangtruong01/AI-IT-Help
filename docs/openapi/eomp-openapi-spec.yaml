@@ -1,342 +1,319 @@
 openapi: 3.0.3
 info:
-  title: EOMP Enterprise Operations Management Platform API Hub
-  description: |
-    Comprehensive Unified OpenAPI 3.0 Specification for EOMP Microservices Ecosystem:
-    Authentication, Employee CMDB, Helpdesk, Workflows, Notification Center, AI Operations Copilot,
-    Enterprise Observability, BI Reporting, and SOC2 Immutable Audit Trail.
+  title: EOMP API
   version: 0.1.0
-  x-coverage-status: incomplete
-  x-runtime-operation-count: 96
-  x-documented-operation-count: 17
-  contact:
-    name: EOMP Architecture & SRE Team
-    email: sre-lead@eomp.local
-
+  description: |
+    Runtime operation baseline for the EOMP gateway and its downstream services.
+    All 101 registered `/api/v1` operations are represented. Generic write bodies
+    mark endpoints whose domain schemas still need richer component definitions.
+  x-coverage-status: complete-operation-inventory
+  x-runtime-operation-count: 101
+  x-documented-operation-count: 101
 servers:
   - url: http://localhost:8080
-    description: Local API Gateway Router
-  - url: https://api.eomp.enterprise.internal
-    description: Production Kubernetes Ingress Gateway
+    description: Local gateway
+security:
+  - BearerAuth: []
 
 paths:
-  # =========================================================================
-  # 1. AUTHENTICATION & RBAC
-  # =========================================================================
-  /api/v1/auth/login:
-    post:
-      summary: User authentication & JWT token issuance
-      tags: [Authentication]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  example: user@example.com
-                password:
-                  type: string
-                  example: AdminSecretPass123!
-      responses:
-        '200':
-          description: Login successful
-        '401':
-          description: Invalid credentials
-        '429':
-          description: Too many failed login attempts (Rate Limiter Lockout)
+  /api/v1/ai/analyze-ticket:
+    post: {tags: [AI], operationId: analyzeTicket, summary: Analyze and triage a ticket, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/ai/chat:
+    post: {tags: [AI], operationId: chatWithCopilot, summary: Chat with the operations copilot, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
-  /api/v1/auth/me:
-    get:
-      summary: Get current authenticated user profile and roles
-      tags: [Authentication]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: User profile details
-
-  /api/v1/auth/register:
-    post:
-      summary: Register a standard employee account
-      description: Public registration always assigns ROLE_EMPLOYEE. Privileged roles are not accepted in this request.
-      tags: [Authentication]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password, full_name]
-              properties:
-                email: { type: string, format: email }
-                password: { type: string, minLength: 12, maxLength: 72 }
-                full_name: { type: string }
-                department_id: { type: string, format: uuid, nullable: true }
-      responses:
-        '201': { description: Employee account created }
-        '400': { description: Invalid email or password policy violation }
-        '409': { description: Email already exists }
-
-  /api/v1/auth/refresh:
-    post:
-      summary: Rotate a signed refresh token
-      tags: [Authentication]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token: { type: string }
-      responses:
-        '200': { description: Rotated token pair }
-        '401': { description: Invalid, expired or revoked refresh token }
-
-  /api/v1/auth/logout:
-    post:
-      summary: Revoke a refresh token
-      tags: [Authentication]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token: { type: string }
-      responses:
-        '200': { description: Token revoked }
-
-  # =========================================================================
-  # 2. HELPDESK & TICKETING
-  # =========================================================================
-  /api/v1/tickets:
-    get:
-      summary: List support tickets with multi-filter and pagination
-      tags: [Helpdesk]
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-        - in: query
-          name: priority
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Paginated tickets list
-    post:
-      summary: Create new incident or service request ticket
-      tags: [Helpdesk]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [title, category, priority]
-              properties:
-                title:
-                  type: string
-                  example: Request New MacBook Pro M3 Max
-                category:
-                  type: string
-                  example: hardware
-                priority:
-                  type: string
-                  example: HIGH
-      responses:
-        '201':
-          description: Ticket created successfully
-
-  # =========================================================================
-  # 3. ASSETS & CMDB TOPOLOGY
-  # =========================================================================
-  /api/v1/assets:
-    get:
-      summary: List hardware and software assets from CMDB
-      tags: [Asset Management]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: List of CMDB assets
-
-  /api/v1/cmdb/topology:
-    get:
-      summary: Get infrastructure dependency graph (GraphViz / Neo4j format)
-      tags: [Asset Management]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: CMDB topology nodes and links
-
-  # =========================================================================
-  # 4. WORKFLOW & APPROVALS
-  # =========================================================================
-  /api/v1/workflows:
-    get:
-      summary: List workflow instances
-      tags: [Workflow Engine]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: List of active workflows
-
+  /api/v1/approvals:
+    get: {tags: [Workflow], operationId: listApprovals, summary: List approval requests, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/approvals/{id}/decision:
-    post:
-      summary: Manager approve or reject workflow step
-      tags: [Workflow Engine]
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [decision]
-              properties:
-                decision:
-                  type: string
-                  enum: [APPROVED, REJECTED]
-                notes:
-                  type: string
-      responses:
-        '200':
-          description: Decision recorded
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Workflow], operationId: decideApproval, summary: Atomically decide an approval and advance its workflow, requestBody: {$ref: '#/components/requestBodies/ApprovalDecision'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
 
-  # =========================================================================
-  # 5. OBSERVABILITY & SRE MONITORING (Phase 8)
-  # =========================================================================
-  /api/v1/monitoring/overview:
-    get:
-      summary: SRE Console Cluster Health & RED Overview
-      tags: [Observability & SRE]
-      responses:
-        '200':
-          description: Cluster KPIs (Health %, RPS, Latency p95, Error Rate %)
+  /api/v1/assets:
+    get: {tags: [Assets], operationId: listAssets, summary: List assets, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Assets], operationId: createAsset, summary: Create an asset, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/assets/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Assets], operationId: getAsset, summary: Get an asset, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/assets/{id}/assign:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Assets], operationId: assignAsset, summary: Assign an asset using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/assets/{id}/assignments:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Assets], operationId: listAssetAssignments, summary: List asset assignment history, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/assets/{id}/incidents:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Assets], operationId: listAssetIncidents, summary: List incidents related to an asset, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/assets/{id}/return:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Assets], operationId: returnAsset, summary: Return an assigned asset using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/assets/{id}/status:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Assets], operationId: updateAssetStatus, summary: Update asset status using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/assets/employee/{id}/history:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Assets], operationId: getEmployeeAssetHistory, summary: Get employee asset history, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/assets/stats:
+    get: {tags: [Assets], operationId: getAssetStats, summary: Get asset statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
-  /api/v1/monitoring/probe/{id}:
-    post:
-      summary: Trigger 1-click active health probe against microservice
-      tags: [Observability & SRE]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Probe execution results
-
-  # =========================================================================
-  # 6. REPORTING & BI ANALYTICS (Phase 9)
-  # =========================================================================
-  /api/v1/reports/overview:
-    get:
-      summary: Executive BI KPI Summary (MTTR, MTTD, SLA %, CSAT)
-      tags: [Reporting & BI Analytics]
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: query
-          name: range
-          schema:
-            type: string
-            enum: [today, 7d, 30d, quarter, empty]
-      responses:
-        '200':
-          description: Executive BI metrics
-
-  /api/v1/reports/export:
-    post:
-      summary: High-speed export of operational reports (PDF / Excel in < 3s)
-      tags: [Reporting & BI Analytics]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [format]
-              properties:
-                format:
-                  type: string
-                  enum: [pdf, csv]
-                range:
-                  type: string
-                limit_rows:
-                  type: integer
-                  default: 1000
-      responses:
-        '200':
-          description: Base64-encoded PDF/CSV report payload
-
-  # =========================================================================
-  # 7. SECURITY & IMMUTABLE AUDIT TRAIL (Phase 10)
-  # =========================================================================
+  /api/v1/audit/integrity:
+    get: {tags: [Audit], operationId: verifyAuditIntegrity, summary: Verify the ordered HMAC audit chain, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
   /api/v1/audit/logs:
-    get:
-      summary: Query immutable audit logs with multi-filters (Admin/Manager Only)
-      tags: [Security & Audit]
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: query
-          name: event_type
-          schema:
-            type: string
-        - in: query
-          name: status
-          schema:
-            type: string
-        - in: query
-          name: search
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Paginated audit log records with SHA-256 Checksums
-        '403':
-          description: Access denied (Strict RBAC enforcement)
-
+    get: {tags: [Audit], operationId: listAuditLogs, summary: List audit records, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Audit], operationId: createAuditLog, summary: Append a masked HMAC-sealed audit record, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/audit/logs/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Audit], operationId: getAuditLog, summary: Get an audit record, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/audit/security-events:
+    get: {tags: [Audit], operationId: listSecurityEvents, summary: List security events, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/audit/stats:
-    get:
-      summary: Get SOC2 security compliance metrics & threat signals
-      tags: [Security & Audit]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Audit stats (Total logs, Blocked violations, Alerts)
+    get: {tags: [Audit], operationId: getAuditStats, summary: Get audit statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/auth/login:
+    post: {tags: [Authentication], operationId: login, summary: Authenticate and issue a token pair, security: [], requestBody: {$ref: '#/components/requestBodies/Login'}, responses: {'200': {$ref: '#/components/responses/Success'}, '401': {$ref: '#/components/responses/Unauthorized'}}}
+  /api/v1/auth/login-history:
+    get: {tags: [Authentication], operationId: getLoginHistory, summary: Get the authenticated user's login history, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/auth/logout:
+    post: {tags: [Authentication], operationId: logout, summary: Revoke a refresh token, requestBody: {$ref: '#/components/requestBodies/RefreshToken'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/auth/me:
+    get: {tags: [Authentication], operationId: getCurrentUser, summary: Get the authenticated user, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/auth/refresh:
+    post: {tags: [Authentication], operationId: refreshTokens, summary: Validate and rotate a refresh token, security: [], requestBody: {$ref: '#/components/requestBodies/RefreshToken'}, responses: {'200': {$ref: '#/components/responses/Success'}, '401': {$ref: '#/components/responses/Unauthorized'}}}
+  /api/v1/auth/register:
+    post: {tags: [Authentication], operationId: registerEmployee, summary: Register a standard employee account, security: [], requestBody: {$ref: '#/components/requestBodies/Register'}, responses: {'201': {$ref: '#/components/responses/Created'}, '409': {$ref: '#/components/responses/Conflict'}}}
+
+  /api/v1/changes:
+    get: {tags: [Changes], operationId: listChanges, summary: List change requests, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Changes], operationId: createChange, summary: Create a change request, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/changes/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Changes], operationId: getChange, summary: Get a change request, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/changes/{id}/cab-vote:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Changes], operationId: castCABVote, summary: Cast a CAB vote, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/changes/{id}/status:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Changes], operationId: updateChangeStatus, summary: Update change status using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/changes/calendar:
+    get: {tags: [Changes], operationId: getChangeCalendar, summary: Get scheduled changes, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/changes/stats:
+    get: {tags: [Changes], operationId: getChangeStats, summary: Get change statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/cmdb/ci:
+    get: {tags: [CMDB], operationId: listConfigurationItems, summary: List configuration items, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [CMDB], operationId: createConfigurationItem, summary: Create a configuration item, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/cmdb/ci/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [CMDB], operationId: getConfigurationItem, summary: Get a configuration item, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/cmdb/ci/{id}/status:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [CMDB], operationId: updateConfigurationItemStatus, summary: Update configuration item status, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/cmdb/relationships:
+    get: {tags: [CMDB], operationId: listCMDBRelationships, summary: List CMDB relationships, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [CMDB], operationId: createCMDBRelationship, summary: Create a CMDB relationship, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/cmdb/topology:
+    get: {tags: [CMDB], operationId: getCMDBTopology, summary: Get the CMDB topology, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/departments:
+    get: {tags: [Employees], operationId: listDepartments, summary: List departments, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Employees], operationId: createDepartment, summary: Create a department, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/employees:
+    get: {tags: [Employees], operationId: listEmployees, summary: List employees, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Employees], operationId: createEmployee, summary: Create an employee, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/employees/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Employees], operationId: getEmployee, summary: Get an employee, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    put: {tags: [Employees], operationId: updateEmployee, summary: Update an employee, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    delete: {tags: [Employees], operationId: deleteEmployee, summary: Delete an employee, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/employees/{id}/assets/history:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Employees], operationId: getEmployeeAssets, summary: Get employee asset history, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/knowledge/articles:
+    get: {tags: [Knowledge], operationId: listArticles, summary: List knowledge articles, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Knowledge], operationId: createArticle, summary: Create a knowledge article, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/knowledge/articles/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Knowledge], operationId: getArticle, summary: Get a knowledge article, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    put: {tags: [Knowledge], operationId: updateArticle, summary: Update a knowledge article, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    delete: {tags: [Knowledge], operationId: deleteArticle, summary: Delete a knowledge article, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/knowledge/categories:
+    get: {tags: [Knowledge], operationId: listKnowledgeCategories, summary: List knowledge categories, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Knowledge], operationId: createKnowledgeCategory, summary: Create a knowledge category, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/knowledge/runbooks:
+    get: {tags: [Knowledge], operationId: listRunbooks, summary: List runbooks, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Knowledge], operationId: createRunbook, summary: Create a runbook, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/knowledge/runbooks/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Knowledge], operationId: getRunbook, summary: Get a runbook, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/knowledge/search:
+    get: {tags: [Knowledge], operationId: searchKnowledge, summary: Search the knowledge base, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/knowledge/stats:
+    get: {tags: [Knowledge], operationId: getKnowledgeStats, summary: Get knowledge statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/monitoring/logs:
+    get: {tags: [Monitoring], operationId: queryMonitoringLogs, summary: Query live logs when a log backend is configured, responses: {'501': {description: Log backend is not configured}}}
+  /api/v1/monitoring/overview:
+    get: {tags: [Monitoring], operationId: getMonitoringOverview, summary: Get active health-probe overview, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/monitoring/probe/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Monitoring], operationId: probeService, summary: Actively probe a service health endpoint, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/monitoring/services:
+    get: {tags: [Monitoring], operationId: listServiceHealth, summary: List observed service health, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/notifications:
+    get: {tags: [Notifications], operationId: listNotifications, summary: List notifications, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Notifications], operationId: sendNotification, summary: Send a notification, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/notifications/{id}/read:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Notifications], operationId: markNotificationRead, summary: Mark a notification as read, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/notifications/read-all:
+    post: {tags: [Notifications], operationId: markAllNotificationsRead, summary: Mark all notifications as read, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/notifications/stats:
+    get: {tags: [Notifications], operationId: getNotificationStats, summary: Get notification statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/problems:
+    get: {tags: [Problems], operationId: listProblems, summary: List problems, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Problems], operationId: createProblem, summary: Create a problem, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/problems/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Problems], operationId: getProblem, summary: Get a problem and linked incidents, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/problems/{id}/link-incident:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Problems], operationId: linkProblemIncident, summary: Link an incident to a problem, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/problems/{id}/rca:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Problems], operationId: updateProblemRCA, summary: Update RCA using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/problems/{id}/status:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Problems], operationId: updateProblemStatus, summary: Update problem status using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/problems/{id}/unlink-incident/{ticketId}:
+    parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/TicketId'}]
+    delete: {tags: [Problems], operationId: unlinkProblemIncident, summary: Unlink an incident from a problem, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/problems/stats:
+    get: {tags: [Problems], operationId: getProblemStats, summary: Get problem statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/reports/agents:
+    get: {tags: [Reports], operationId: getAgentReport, summary: Get agent performance, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/reports/categories:
+    get: {tags: [Reports], operationId: getCategoryReport, summary: Get category analytics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/reports/departments-sla:
+    get: {tags: [Reports], operationId: getDepartmentSLAReport, summary: Get department SLA analytics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/reports/export:
+    post: {tags: [Reports], operationId: exportReport, summary: Export a bounded report, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/reports/overview:
+    get: {tags: [Reports], operationId: getReportOverview, summary: Get executive reporting overview, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/reports/trends:
+    get: {tags: [Reports], operationId: getReportTrends, summary: Get reporting trends, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/services/categories:
+    get: {tags: [Helpdesk], operationId: listServiceCategories, summary: List service catalog categories, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/services/items:
+    get: {tags: [Helpdesk], operationId: listServiceItems, summary: List service catalog items, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/tickets:
+    get: {tags: [Helpdesk], operationId: listTickets, summary: List tickets, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Helpdesk], operationId: createTicket, summary: Create a ticket, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/tickets/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Helpdesk], operationId: getTicket, summary: Get a ticket, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/tickets/{id}/assign:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Helpdesk], operationId: assignTicket, summary: Assign a ticket using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/tickets/{id}/comments:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Helpdesk], operationId: listTicketComments, summary: List ticket comments, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Helpdesk], operationId: addTicketComment, summary: Add a ticket comment, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/tickets/{id}/status:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Helpdesk], operationId: updateTicketStatus, summary: Update ticket status using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/tickets/{id}/timeline:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Helpdesk], operationId: getTicketTimeline, summary: Get ticket timeline, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/tickets/by-asset/{assetId}/list:
+    parameters: [{$ref: '#/components/parameters/AssetId'}]
+    get: {tags: [Helpdesk], operationId: listTicketsByAsset, summary: List tickets by asset, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/workflows/definitions:
+    get: {tags: [Workflow], operationId: listWorkflowDefinitions, summary: List workflow definitions, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/workflows/definitions/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Workflow], operationId: getWorkflowDefinition, summary: Get a workflow definition, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/workflows/instances:
+    get: {tags: [Workflow], operationId: listWorkflowInstances, summary: List workflow instances, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Workflow], operationId: startWorkflow, summary: Start a workflow instance, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+  /api/v1/workflows/instances/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Workflow], operationId: getWorkflowInstance, summary: Get a workflow instance, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/workflows/instances/{id}/logs:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get: {tags: [Workflow], operationId: listWorkflowLogs, summary: List workflow execution logs, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/workflows/stats:
+    get: {tags: [Workflow], operationId: getWorkflowStats, summary: Get workflow statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
 components:
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    BearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: string}}
+    TicketId: {name: ticketId, in: path, required: true, schema: {type: string}}
+    AssetId: {name: assetId, in: path, required: true, schema: {type: string}}
+  responses:
+    Success: {description: Successful response}
+    Created: {description: Resource created}
+    Unauthorized: {description: Authentication failed}
+    Conflict: {description: Optimistic-lock or uniqueness conflict}
+  requestBodies:
+    JsonBody:
+      required: true
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
+    VersionedBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [version]
+            properties:
+              version: {type: integer, minimum: 1}
+            additionalProperties: true
+    ApprovalDecision:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [decision]
+            properties:
+              decision: {type: string, enum: [APPROVED, REJECTED]}
+              notes: {type: string}
+    Login:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, password]
+            properties:
+              email: {type: string, format: email}
+              password: {type: string}
+    Register:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, password, full_name]
+            properties:
+              email: {type: string, format: email}
+              password: {type: string, minLength: 12, maxLength: 72}
+              full_name: {type: string}
+              department_id: {type: string, nullable: true}
+    RefreshToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [refresh_token]
+            properties:
+              refresh_token: {type: string}

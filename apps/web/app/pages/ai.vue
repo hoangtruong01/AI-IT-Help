@@ -2,8 +2,7 @@
 import type {
   AIChatMessage,
   AIChatResponse,
-  AITicketAnalysis,
-  AICitation
+  AITicketAnalysis
 } from '~/types'
 
 definePageMeta({ layout: 'default' })
@@ -103,27 +102,7 @@ async function sendMessage(overrideQuery?: string) {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       })
     } else {
-      // Offline fallback generator
-      const queryLower = query.toLowerCase()
-      let reply = `Tôi đã ghi nhận câu hỏi: "${query}". AI Operations Copilot đang hoạt động trong chế độ phát triển nội bộ.`
-      let citations: AICitation[] = []
-
-      if (queryLower.includes('mfa') || queryLower.includes('okta') || queryLower.includes('token')) {
-        reply = `### 🛡️ Quy Trình Reset Token MFA / Okta (SOP RB-SEC-02)\n\n1. **Xác thực danh tính**: Kiểm tra thông tin nhân viên qua kênh video call hoặc email xác nhận của Manager.\n2. **Okta Admin**: Truy cập \`https://id.eomp.local/admin\`, tìm user và chọn *Reset Multi-Factor Authentication*.\n3. **Cấp lại Token**: Tạo mã kích hoạt QR có hiệu lực 15 phút.\n4. **Kiểm tra đăng nhập**: Xác nhận user đăng nhập thành công trước khi đóng ticket.`
-        citations = [
-          { article_id: 'a1', title: 'How to Reset User MFA and Okta Verify Tokens', score: 0.96, category: 'IT Security', type: 'article' },
-          { article_id: 'r1', title: 'RB-SEC-02: User MFA Token Reset SOP', score: 0.95, category: 'IT Security', type: 'runbook' }
-        ]
-      }
-
-      chatMessages.value.push({
-        role: 'assistant',
-        content: reply,
-        citations: citations,
-        confidence: 0.95,
-        fallback_mode: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      })
+      toast.add({ title: 'AI service is unavailable', description: 'No response was generated.', color: 'error' })
     }
   } finally {
     isSending.value = false
@@ -151,6 +130,9 @@ async function runAnalyzeTicket() {
     if (res) {
       triageResult.value = res
       toast.add({ title: 'Triage Complete', description: `AI classified category as ${res.suggested_category} (${(res.confidence * 100).toFixed(0)}% confidence).`, color: 'success' })
+    } else {
+      triageResult.value = null
+      toast.add({ title: 'AI triage is unavailable', color: 'error' })
     }
   } finally {
     isTriaging.value = false
@@ -658,7 +640,7 @@ function loadSampleTicket(type: string) {
 
         <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-400 font-semibold">Resilience Fallback Mode</span>
+            <span class="text-xs text-slate-400 font-semibold">Explicit Mock Fallback</span>
             <UIcon
               name="i-lucide-shield-check"
               class="w-5 h-5 text-emerald-400"
@@ -667,7 +649,7 @@ function loadSampleTicket(type: string) {
           <p class="text-xl font-bold text-emerald-400">
             Enabled (Zero Crash)
           </p>
-          <span class="text-xs text-slate-400">Auto-fallback to In-Memory Catalog</span>
+          <span class="text-xs text-slate-400">Requires ALLOW_MOCK_AI; disabled for production providers by default</span>
         </div>
       </div>
 

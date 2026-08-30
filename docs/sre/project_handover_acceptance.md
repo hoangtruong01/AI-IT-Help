@@ -11,6 +11,7 @@ This document is an acceptance checklist, not a certificate. No default user cre
 - Frontend unit tests, typecheck and lint pass locally.
 - Source-level security remediation is recorded in `docs/IMPLEMENTATION_STATUS.md`.
 - Deployment configuration no longer stores production secret values in Git.
+- Runtime/OpenAPI operation parity gate passes at 101/101 routes.
 
 ## Required before acceptance
 
@@ -21,7 +22,7 @@ This document is an acceptance checklist, not a certificate. No default user cre
 - Execute database migrations and rollback procedures against disposable databases.
 - Run API integration, browser E2E and load tests against the deployed stack.
 - Run `scripts/backup_restore.ps1 backup` and `test-restore`; retain the generated DR evidence and verify the agreed RPO/RTO.
-- Complete OpenAPI parity for all runtime routes.
+- Replace generic OpenAPI request/response schemas with domain contracts and run conformance tests.
 - Obtain approval from Product/BA, Engineering, QA, Security and SRE owners.
 
 ## Acceptance record
