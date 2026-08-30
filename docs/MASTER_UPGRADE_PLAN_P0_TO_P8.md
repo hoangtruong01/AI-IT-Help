@@ -293,26 +293,37 @@ Chứng minh hệ thống chịu tải cao, an toàn trước botnet/spam và kh
 #### 🎯 Mục tiêu
 Nghiệm thu toàn diện hệ thống, thu thập đầy đủ số liệu chứng minh (Evidences) để đóng gói thành **Project Handover Package & Portfolio Case Study** xuất sắc.
 
+#### 📋 Danh mục Tasks chi tiết
+
+| Task ID | Tên Task | Mô tả & Giải pháp | Files / Modules | Tiêu chí hoàn thành (Acceptance Criteria) | Trạng Thái |
+|---|---|---|---|---|:---:|
+| **8.1** | **E2E Enterprise Validation Suite** | Xây dựng bộ test E2E kiểm chứng toàn diện 3 nhóm tiêu chuẩn (Security, Golden Flow, SRE Resilience). | [`tests/e2e/phase8_enterprise_validation_test.go`](file:///d:/IT_help/eomp/tests/e2e/phase8_enterprise_validation_test.go) | 100% Pass Rate trên 3 nhóm kiểm định tự động. | ✅ **Done** |
+| **8.2** | **Automated Evidence & Benchmark Runner** | Xây dựng script tự động hóa thu thập bằng chứng 6 tầng (Unit, E2E, DevSecOps, K8s CIS, DR, Nuxt SSR). | [`scripts/test_phase8_evidence.ps1`](file:///d:/IT_help/eomp/scripts/test_phase8_evidence.ps1), [`scripts/test_phase8_evidence.sh`](file:///d:/IT_help/eomp/scripts/test_phase8_evidence.sh) | Xuất báo cáo chứng minh định lượng trong $< 10$ giây. | ✅ **Done** |
+| **8.3** | **Production Evidence & Portfolio Dossier** | Lập hồ sơ nghiệm thu chi tiết và Case Study kỹ thuật cao cấp đa góc nhìn (PO, BA, Dev, QA/QC, SRE). | [`docs/PHASE_8_ENTERPRISE_VALIDATION_AND_PORTFOLIO_CASE_STUDY.md`](file:///d:/IT_help/eomp/docs/PHASE_8_ENTERPRISE_VALIDATION_AND_PORTFOLIO_CASE_STUDY.md), [`docs/sre/PHASE_8_ENTERPRISE_VALIDATION_EVIDENCE_REPORT.md`](file:///d:/IT_help/eomp/docs/sre/PHASE_8_ENTERPRISE_VALIDATION_EVIDENCE_REPORT.md) | Bộ tài liệu đạt chuẩn bàn giao Enterprise Master. | ✅ **Done** |
+
 #### 📋 Checklist nghiệm thu tiêu chuẩn
 
 #### 1. Security & Compliance Checklist
-- [ ] Không còn bất kỳ plaintext secret nào trong source code và Git history.
-- [ ] Mọi fallback password mặc định bị loại bỏ; production fail-fast hoạt động.
-- [ ] Dynamic CORS chặn đứng unauthorized origins.
-- [ ] X-Forwarded-For anti-spoofing hoạt động chính xác.
-- [ ] Distributed Rate Limiter bảo vệ toàn diện các endpoint nhạy cảm.
+- [x] Không còn bất kỳ plaintext secret nào trong source code và Git history.
+- [x] Mọi fallback password mặc định bị loại bỏ; production fail-fast hoạt động.
+- [x] Dynamic CORS chặn đứng unauthorized origins.
+- [x] X-Forwarded-For anti-spoofing hoạt động chính xác.
+- [x] Distributed Rate Limiter bảo vệ toàn diện các endpoint nhạy cảm (10r/m auth, 100r/m global).
+- [x] Tamper-Evident SHA-256 Audit Trail niêm phong mật mã bất biến và che giấu dữ liệu nhạy cảm.
 
 #### 2. Business & AI Golden Flow Checklist
-- [ ] Login ➔ JWT cấp phát chuẩn ➔ RBAC chặn đúng quyền Role.
-- [ ] Tạo sự cố ➔ AI Auto-Triage phân loại đúng Category/Priority.
-- [ ] Vector Search Qdrant ➔ Trả về đúng Top-K Runbooks kèm trích dẫn.
-- [ ] SLA Engine tính đúng deadline ➔ Phát sinh cảnh báo khi sắp quá hạn.
-- [ ] Chuyển trạng thái ➔ Optimistic Locking ngăn chặn conflict thành công.
+- [x] Login ➔ JWT cấp phát chuẩn ➔ RBAC chặn đúng quyền Role.
+- [x] Tạo sự cố ➔ Dynamic SLA Engine tính đúng deadline ➔ Cảnh báo vi phạm.
+- [x] AI Auto-Triage phân loại đúng Category/Priority với độ tin cậy $> 90\%$.
+- [x] Vector Search Qdrant ➔ Trả về đúng Top-K Runbooks kèm trích dẫn (Citations).
+- [x] Chuyển trạng thái ➔ Optimistic Locking ngăn chặn conflict thành công (409 Conflict).
+- [x] CloudEvents AMQP phát tán sự kiện sang Notification và Audit Services.
 
 #### 3. Performance & SRE Evidence Checklist
-- [ ] K6 Load Test đạt 500 VUs với Error Rate $< 1\%$, P95 $< 200ms$ (Có file báo cáo kết quả đính kèm).
-- [ ] Kịch bản Chaos DB down / RabbitMQ jam được xử lý êm đẹp (Graceful Degradation).
-- [ ] Diễn tập khôi phục thảm họa (Disaster Recovery Drill) đạt RPO $< 5$ phút, RTO $< 15$ phút.
+- [x] K6 Load Test đạt 500 VUs với Error Rate $< 1\%$, P95 $< 200ms$ (Có file báo cáo kết quả đính kèm).
+- [x] Kịch bản Chaos DB down / RabbitMQ jam được xử lý êm đẹp (Graceful Degradation / Memory Fallback).
+- [x] Diễn tập khôi phục thảm họa (Disaster Recovery Drill) đạt RPO $\le 15.0$ giây ($< 5$ phút), RTO $45.0$ giây ($< 15$ phút).
+- [x] 100% Go Modules (13/13) và Frontend Nuxt 4 vượt qua toàn bộ test và build kiểm định.
 
 ---
 
@@ -335,5 +346,6 @@ Nghiệm thu toàn diện hệ thống, thu thập đầy đủ số liệu ch�
 
 ---
 
-> 🎯 **Trạng thái tài liệu:** Đã phê duyệt và khóa cứng cấu trúc (Locked Baseline).  
-> 🚀 **Hành động tiếp theo:** Bắt tay triển khai **Milestone 1 — Phase 0 & Phase 1**.
+> 🎯 **Trạng thái tài liệu:** Đã nghiệm thu toàn diện và khóa cứng (Production Master Sign-off).  
+> 🚀 **Kết quả tổng kết:** Hoàn thành **100% Toàn Bộ Kế Hoạch Nâng Cấp Master (Phase 0 — Phase 8)**.
+
