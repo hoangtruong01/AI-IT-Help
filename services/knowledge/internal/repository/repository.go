@@ -15,6 +15,9 @@ import (
 	"eomp/services/knowledge/internal/model"
 )
 
+// ErrVersionConflict indicates that an article changed after the caller read it.
+var ErrVersionConflict = errors.New("knowledge article version conflict")
+
 // Repository defines data access methods for Knowledge Service.
 type Repository interface {
 	// Categories
@@ -27,7 +30,7 @@ type Repository interface {
 	FindArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error)
 	CreateArticle(ctx context.Context, art *model.KnowledgeArticle) error
 	UpdateArticle(ctx context.Context, art *model.KnowledgeArticle) error
-	DeleteArticle(ctx context.Context, id string) error
+	DeleteArticle(ctx context.Context, id string, expectedVersion int) error
 	IncrementArticleViews(ctx context.Context, id string) error
 
 	// Runbooks (SOP)
@@ -171,7 +174,7 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 	dataQuery := fmt.Sprintf(`
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published,
+			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
@@ -209,6 +212,7 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 			&art.ViewCount,
 			&art.HelpfulCount,
 			&art.IsPublished,
+			&art.Version,
 			&art.CreatedAt,
 			&art.UpdatedAt,
 		); err != nil {
@@ -250,7 +254,7 @@ func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*m
 	query := `
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published,
+			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
@@ -275,6 +279,7 @@ func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*m
 		&art.ViewCount,
 		&art.HelpfulCount,
 		&art.IsPublished,
+		&art.Version,
 		&art.CreatedAt,
 		&art.UpdatedAt,
 	)
@@ -307,7 +312,7 @@ func (r *postgresRepository) FindArticleBySlug(ctx context.Context, slug string)
 	query := `
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published,
+			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
@@ -332,6 +337,7 @@ func (r *postgresRepository) FindArticleBySlug(ctx context.Context, slug string)
 		&art.ViewCount,
 		&art.HelpfulCount,
 		&art.IsPublished,
+		&art.Version,
 		&art.CreatedAt,
 		&art.UpdatedAt,
 	)
@@ -372,7 +378,7 @@ func (r *postgresRepository) CreateArticle(ctx context.Context, art *model.Knowl
 			$7, $8, 0, 0, $9,
 			NOW(), NOW()
 		)
-		RETURNING id, created_at, updated_at
+		RETURNING id, version, created_at, updated_at
 	`
 	return r.db.QueryRowContext(ctx, query,
 		art.CategoryID,
@@ -384,7 +390,7 @@ func (r *postgresRepository) CreateArticle(ctx context.Context, art *model.Knowl
 		art.AuthorID,
 		art.AuthorName,
 		art.IsPublished,
-	).Scan(&art.ID, &art.CreatedAt, &art.UpdatedAt)
+	).Scan(&art.ID, &art.Version, &art.CreatedAt, &art.UpdatedAt)
 }
 
 func (r *postgresRepository) UpdateArticle(ctx context.Context, art *model.KnowledgeArticle) error {
@@ -395,11 +401,11 @@ func (r *postgresRepository) UpdateArticle(ctx context.Context, art *model.Knowl
 	query := `
 		UPDATE knowledge_articles
 		SET category_id = $2, title = $3, summary = $4, content = $5, tags = $6,
-		    is_published = $7, updated_at = NOW()
-		WHERE id = $1
-		RETURNING updated_at
+		    is_published = $7, version = version + 1, updated_at = NOW()
+		WHERE id = $1 AND version = $8
+		RETURNING version, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRowContext(ctx, query,
 		art.ID,
 		art.CategoryID,
 		art.Title,
@@ -407,15 +413,30 @@ func (r *postgresRepository) UpdateArticle(ctx context.Context, art *model.Knowl
 		art.Content,
 		pq.Array(art.Tags),
 		art.IsPublished,
-	).Scan(&art.UpdatedAt)
+		art.Version,
+	).Scan(&art.Version, &art.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrVersionConflict
+	}
+	return err
 }
 
-func (r *postgresRepository) DeleteArticle(ctx context.Context, id string) error {
+func (r *postgresRepository) DeleteArticle(ctx context.Context, id string, expectedVersion int) error {
 	if r.db == nil {
 		return errors.New("database connection not available")
 	}
-	_, err := r.db.ExecContext(ctx, "DELETE FROM knowledge_articles WHERE id = $1", id)
-	return err
+	result, err := r.db.ExecContext(ctx, "DELETE FROM knowledge_articles WHERE id = $1 AND version = $2", id, expectedVersion)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect article delete result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrVersionConflict
+	}
+	return nil
 }
 
 func (r *postgresRepository) IncrementArticleViews(ctx context.Context, id string) error {

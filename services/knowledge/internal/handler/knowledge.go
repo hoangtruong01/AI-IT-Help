@@ -164,7 +164,13 @@ func (h *KnowledgeHandler) DeleteArticle(w http.ResponseWriter, r *http.Request)
 		id = strings.TrimPrefix(r.URL.Path, "/api/v1/knowledge/articles/")
 	}
 
-	if err := h.svc.DeleteArticle(r.Context(), id); err != nil {
+	version, err := strconv.Atoi(r.URL.Query().Get("version"))
+	if err != nil || version <= 0 {
+		errors.WriteHTTP(w, errors.BadRequest("version query parameter is required and must be a positive integer"))
+		return
+	}
+
+	if err := h.svc.DeleteArticle(r.Context(), id, version); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}

@@ -179,8 +179,8 @@ func main() {
 	mux.Handle("/api/v1/workflows/", authFilter(managerWrites(workflowProxy)))
 	mux.Handle("/api/v1/approvals", authFilter(managerWrites(workflowProxy)))
 	mux.Handle("/api/v1/approvals/", authFilter(managerWrites(workflowProxy)))
-	mux.Handle("/api/v1/changes", authFilter(managerWrites(workflowProxy)))
-	mux.Handle("/api/v1/changes/", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/changes", authFilter(adminManager(workflowProxy)))
+	mux.Handle("/api/v1/changes/", authFilter(adminManager(workflowProxy)))
 
 	// Notification Center Routing
 	mux.Handle("PATCH /api/v1/notifications/{id}/read", authFilter(notificationProxy))

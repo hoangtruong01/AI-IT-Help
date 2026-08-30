@@ -46,6 +46,36 @@ func TestHealthCheck(t *testing.T) {
 	}
 }
 
+func TestRuntimeStatusUsesObservedQdrantHealth(t *testing.T) {
+	qdrant := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/collections/knowledge_base" {
+			t.Fatalf("unexpected Qdrant probe path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer qdrant.Close()
+
+	cfg := config.Load()
+	cfg.QdrantURL = qdrant.URL
+	cfg.QdrantCollection = "knowledge_base"
+	cfg.AIProvider = "openai"
+	cfg.AllowMockAI = false
+	h := handler.NewHealthHandler(cfg)
+	rec := httptest.NewRecorder()
+	h.Status(rec, httptest.NewRequest(http.MethodGet, "/api/v1/ai/status", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	var status handler.RuntimeStatus
+	if err := json.NewDecoder(rec.Body).Decode(&status); err != nil {
+		t.Fatalf("decode runtime status: %v", err)
+	}
+	if status.QdrantStatus != "ONLINE" || status.MockFallbackEnabled {
+		t.Fatalf("unexpected runtime status: %+v", status)
+	}
+}
+
 // Test Case 6.1 (Positive): Gửi câu hỏi "How to reset user MFA token?" -> Phản hồi đúng quy trình trong tài liệu nội bộ, trích dẫn đúng bài viết Knowledge Base.
 func TestTestCase6_1_Positive_MFAReset(t *testing.T) {
 	mockProv := provider.NewMockProvider()

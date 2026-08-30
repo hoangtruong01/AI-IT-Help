@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS knowledge_articles (
     view_count INT NOT NULL DEFAULT 0,
     helpful_count INT NOT NULL DEFAULT 0,
     is_published BOOLEAN NOT NULL DEFAULT TRUE,
+    version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -270,7 +271,7 @@ ON CONFLICT (slug) DO NOTHING;
 INSERT INTO runbooks (id, code, title, category, description, prerequisites, steps_json, rollback_steps, author_name, is_active)
 VALUES 
     (
-        'r0000000-0000-0000-0000-000000000001',
+        'b0000000-0000-0000-0000-000000000001',
         'RB-SEC-02',
         'User MFA Token Reset and Identity Verification SOP',
         'IT Security',
@@ -288,7 +289,7 @@ VALUES
         TRUE
     ),
     (
-        'r0000000-0000-0000-0000-000000000002',
+        'b0000000-0000-0000-0000-000000000002',
         'RB-NET-01',
         'Emergency VPN Tunnel Failover SOP',
         'Network',
@@ -304,7 +305,7 @@ VALUES
         TRUE
     ),
     (
-        'r0000000-0000-0000-0000-000000000003',
+        'b0000000-0000-0000-0000-000000000003',
         'RB-DB-03',
         'PostgreSQL Connection Pool Exhaustion Recovery',
         'DevOps',
@@ -320,7 +321,7 @@ VALUES
         TRUE
     ),
     (
-        'r0000000-0000-0000-0000-000000000004',
+        'b0000000-0000-0000-0000-000000000004',
         'RB-HW-04',
         'Corporate Laptop Provisioning and Deployment Procedure',
         'Hardware',

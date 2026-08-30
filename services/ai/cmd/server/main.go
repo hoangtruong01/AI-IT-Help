@@ -83,6 +83,7 @@ func main() {
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
+	mux.HandleFunc("GET /api/v1/ai/status", healthHandler.Status)
 
 	// Standard API v1 routes
 	mux.HandleFunc("POST /api/v1/ai/chat", aiHandler.Chat)

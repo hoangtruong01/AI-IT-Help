@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	stdErrors "errors"
 	"fmt"
 
 	"eomp/packages/shared/pkg/errors"
@@ -15,9 +17,9 @@ type NotificationService interface {
 	ListNotifications(ctx context.Context, query model.NotificationListQuery) (*model.NotificationListResponse, error)
 	GetNotification(ctx context.Context, id string) (*model.Notification, error)
 	SendNotification(ctx context.Context, req *model.CreateNotificationRequest) (*model.Notification, error)
-	MarkAsRead(ctx context.Context, id string) error
-	MarkAllAsRead(ctx context.Context, recipientID string) error
-	GetStats(ctx context.Context, recipientID string) (*model.NotificationStats, error)
+	MarkAsRead(ctx context.Context, id, recipientID, recipientRole string) error
+	MarkAllAsRead(ctx context.Context, recipientID, recipientRole string) error
+	GetStats(ctx context.Context, recipientID, recipientRole string) (*model.NotificationStats, error)
 	HandleDomainEvent(ctx context.Context, event eventbus.Event) error
 }
 
@@ -49,8 +51,8 @@ func (s *notificationService) GetNotification(ctx context.Context, id string) (*
 }
 
 func (s *notificationService) SendNotification(ctx context.Context, req *model.CreateNotificationRequest) (*model.Notification, error) {
-	if req.RecipientEmail == "" || req.Title == "" || req.Message == "" {
-		return nil, errors.BadRequest("recipient_email, title, and message are required")
+	if req.Title == "" || req.Message == "" {
+		return nil, errors.BadRequest("title and message are required")
 	}
 
 	if req.RecipientID == "" {
@@ -64,6 +66,9 @@ func (s *notificationService) SendNotification(ctx context.Context, req *model.C
 	}
 	if req.Channel == "" {
 		req.Channel = model.ChannelInApp
+	}
+	if req.Channel == model.ChannelEmail && req.RecipientEmail == "" {
+		return nil, errors.BadRequest("recipient_email is required for email notifications")
 	}
 
 	n := &model.Notification{
@@ -85,29 +90,40 @@ func (s *notificationService) SendNotification(ctx context.Context, req *model.C
 	return s.repo.FindNotificationByID(ctx, n.ID)
 }
 
-func (s *notificationService) MarkAsRead(ctx context.Context, id string) error {
+func (s *notificationService) MarkAsRead(ctx context.Context, id, recipientID, recipientRole string) error {
 	if id == "" {
 		return errors.BadRequest("notification id is required")
 	}
-	return s.repo.MarkAsRead(ctx, id)
+	if recipientID == "" {
+		return errors.Forbidden("recipient identity is required")
+	}
+	if err := s.repo.MarkAsRead(ctx, id, recipientID, recipientRole); err != nil {
+		if stdErrors.Is(err, sql.ErrNoRows) {
+			return errors.NotFound("notification not found")
+		}
+		return errors.InternalServerError(fmt.Sprintf("failed to mark notification as read: %v", err))
+	}
+	return nil
 }
 
-func (s *notificationService) MarkAllAsRead(ctx context.Context, recipientID string) error {
+func (s *notificationService) MarkAllAsRead(ctx context.Context, recipientID, recipientRole string) error {
 	if recipientID == "" {
-		recipientID = "all"
+		return errors.Forbidden("recipient identity is required")
 	}
-	return s.repo.MarkAllAsRead(ctx, recipientID)
+	return s.repo.MarkAllAsRead(ctx, recipientID, recipientRole)
 }
 
-func (s *notificationService) GetStats(ctx context.Context, recipientID string) (*model.NotificationStats, error) {
+func (s *notificationService) GetStats(ctx context.Context, recipientID, recipientRole string) (*model.NotificationStats, error) {
 	if recipientID == "" {
-		recipientID = "all"
+		return nil, errors.Forbidden("recipient identity is required")
 	}
-	return s.repo.GetStats(ctx, recipientID)
+	return s.repo.GetStats(ctx, recipientID, recipientRole)
 }
 
 func (s *notificationService) HandleDomainEvent(ctx context.Context, event eventbus.Event) error {
 	var title, message, category, priority string
+	recipientID := "all"
+	recipientEmail := ""
 
 	switch event.Type {
 	case eventbus.TopicTicketCreated:
@@ -115,24 +131,33 @@ func (s *notificationService) HandleDomainEvent(ctx context.Context, event event
 		priority = model.PriorityHigh
 		title = "New Incident Ticket Raised"
 		message = fmt.Sprintf("A new support incident was logged via EventBus: %v", event.Data)
+		recipientID = eventString(event.Data, "reporter_id")
+		recipientEmail = eventString(event.Data, "reporter_email")
 
 	case eventbus.TopicTicketSLAWarning:
 		category = model.CategorySLA
 		priority = model.PriorityUrgent
 		title = "SLA Breach Warning"
 		message = fmt.Sprintf("Ticket SLA threshold at 80%%: %v", event.Data)
+		recipientID = firstEventString(event.Data, "reporter_id", "requester_id")
+		if recipientID == "" {
+			recipientID = "ROLE_AGENT"
+		}
+		recipientEmail = firstEventString(event.Data, "reporter_email", "requester_email")
 
 	case eventbus.TopicApprovalRequested:
 		category = model.CategoryApproval
 		priority = model.PriorityHigh
 		title = "Approval Sign-off Requested"
 		message = fmt.Sprintf("Workflow instance requires your decision: %v", event.Data)
+		recipientID = eventString(event.Data, "approver_id")
 
 	case eventbus.TopicAssetAssigned:
 		category = model.CategoryAsset
 		priority = model.PriorityMedium
 		title = "Hardware Handover Registered"
 		message = fmt.Sprintf("Asset assigned: %v", event.Data)
+		recipientID = eventString(event.Data, "user_id")
 
 	default:
 		category = model.CategorySystem
@@ -140,10 +165,13 @@ func (s *notificationService) HandleDomainEvent(ctx context.Context, event event
 		title = fmt.Sprintf("System Event: %s", event.Type)
 		message = fmt.Sprintf("Received event from %s: %v", event.Source, event.Data)
 	}
+	if recipientID == "" {
+		return errors.BadRequest("domain event is missing its notification recipient")
+	}
 
 	_, err := s.SendNotification(ctx, &model.CreateNotificationRequest{
-		RecipientID:    "all",
-		RecipientEmail: "admin@eomp.local",
+		RecipientID:    recipientID,
+		RecipientEmail: recipientEmail,
 		Title:          title,
 		Message:        message,
 		Category:       category,
@@ -151,4 +179,22 @@ func (s *notificationService) HandleDomainEvent(ctx context.Context, event event
 		Channel:        model.ChannelInApp,
 	})
 	return err
+}
+
+func eventString(data any, key string) string {
+	values, ok := data.(map[string]any)
+	if !ok {
+		return ""
+	}
+	value, _ := values[key].(string)
+	return value
+}
+
+func firstEventString(data any, keys ...string) string {
+	for _, key := range keys {
+		if value := eventString(data, key); value != "" {
+			return value
+		}
+	}
+	return ""
 }

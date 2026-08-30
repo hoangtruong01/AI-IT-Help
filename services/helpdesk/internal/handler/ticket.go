@@ -38,6 +38,14 @@ func (h *TicketHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 		RequesterID: r.URL.Query().Get("requester_id"),
 		Search:      r.URL.Query().Get("search"),
 	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		userID := middleware.GetUserID(r.Context())
+		if userID == "" {
+			errors.WriteHTTP(w, errors.Forbidden("employee identity is required"))
+			return
+		}
+		query.RequesterID = userID
+	}
 
 	resp, err := h.svc.ListTickets(r.Context(), query)
 	if err != nil {
@@ -56,12 +64,23 @@ func (h *TicketHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-fill requester details from context if available
-	if req.RequesterID == "" {
-		req.RequesterID = middleware.GetUserID(r.Context())
-	}
-	if req.RequesterEmail == "" {
-		req.RequesterEmail = middleware.GetUserEmail(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	userEmail := middleware.GetUserEmail(r.Context())
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		if userID == "" || userEmail == "" {
+			errors.WriteHTTP(w, errors.Forbidden("employee identity is required"))
+			return
+		}
+		req.RequesterID = userID
+		req.RequesterEmail = userEmail
+		req.RequesterName = userEmail
+	} else {
+		if req.RequesterID == "" {
+			req.RequesterID = userID
+		}
+		if req.RequesterEmail == "" {
+			req.RequesterEmail = userEmail
+		}
 	}
 
 	ticket, err := h.svc.CreateTicket(r.Context(), &req)
@@ -86,6 +105,10 @@ func (h *TicketHandler) GetTicket(w http.ResponseWriter, r *http.Request) {
 	ticket, err := h.svc.GetTicket(r.Context(), id)
 	if err != nil {
 		errors.WriteHTTP(w, err)
+		return
+	}
+	if !employeeCanAccessTicket(r, ticket) {
+		errors.WriteHTTP(w, errors.NotFound("ticket not found"))
 		return
 	}
 
@@ -169,6 +192,13 @@ func (h *TicketHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
 		return
 	}
+	if err := h.authorizeTicketAccess(r, id); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		req.IsInternal = false
+	}
 
 	authorID := middleware.GetUserID(r.Context())
 	if authorID == "" {
@@ -201,11 +231,24 @@ func (h *TicketHandler) ListComments(w http.ResponseWriter, r *http.Request) {
 			id = parts[len(parts)-2]
 		}
 	}
+	if err := h.authorizeTicketAccess(r, id); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 
 	comments, err := h.svc.ListComments(r.Context(), id)
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
+	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		visible := make([]model.TicketComment, 0, len(comments))
+		for _, comment := range comments {
+			if !comment.IsInternal {
+				visible = append(visible, comment)
+			}
+		}
+		comments = visible
 	}
 
 	response.JSON(w, http.StatusOK, comments)
@@ -220,11 +263,20 @@ func (h *TicketHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 			id = parts[len(parts)-2]
 		}
 	}
+	if err := h.authorizeTicketAccess(r, id); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 
 	timeline, err := h.svc.ListTimeline(r.Context(), id)
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
+	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		for i := range timeline {
+			timeline[i].Notes = nil
+		}
 	}
 
 	response.JSON(w, http.StatusOK, timeline)
@@ -254,6 +306,10 @@ func (h *TicketHandler) ListServiceCatalogItems(w http.ResponseWriter, r *http.R
 
 // ListTicketsByAsset returns tickets associated with an asset ID
 func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Request) {
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		errors.WriteHTTP(w, errors.Forbidden("asset-linked ticket lookup requires an operator role"))
+		return
+	}
 	assetID := r.PathValue("assetId")
 	if assetID == "" {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -274,4 +330,23 @@ func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Reques
 	}
 
 	response.JSON(w, http.StatusOK, tickets)
+}
+
+func employeeCanAccessTicket(r *http.Request, ticket *model.Ticket) bool {
+	return middleware.GetUserRole(r.Context()) != "ROLE_EMPLOYEE" ||
+		(middleware.GetUserID(r.Context()) != "" && ticket.RequesterID == middleware.GetUserID(r.Context()))
+}
+
+func (h *TicketHandler) authorizeTicketAccess(r *http.Request, id string) error {
+	if middleware.GetUserRole(r.Context()) != "ROLE_EMPLOYEE" {
+		return nil
+	}
+	ticket, err := h.svc.GetTicket(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	if !employeeCanAccessTicket(r, ticket) {
+		return errors.NotFound("ticket not found")
+	}
+	return nil
 }

@@ -42,12 +42,12 @@ func (r *postgresChangeRepository) NextChangeNumber(ctx context.Context) (string
 	if r.db == nil {
 		return "", errChangeDatabaseUnavailable
 	}
-	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM change_requests").Scan(&count)
+	var number int64
+	err := r.db.QueryRowContext(ctx, "SELECT nextval('change_number_seq')").Scan(&number)
 	if err != nil {
-		return fmt.Sprintf("CHG-%d", 2001+count), nil
+		return "", fmt.Errorf("failed to allocate change number: %w", err)
 	}
-	return fmt.Sprintf("CHG-%04d", 2000+count+1), nil
+	return fmt.Sprintf("CHG-%04d", number), nil
 }
 
 func (r *postgresChangeRepository) ListChanges(ctx context.Context, changeType, status, risk string, page, pageSize int) ([]model.ChangeRequest, int, error) {

@@ -8,10 +8,11 @@ This document is an acceptance checklist, not a certificate. No default user cre
 ## Evidence available
 
 - All Go module tests pass locally.
-- Frontend unit tests, typecheck and lint pass locally.
+- Frontend unit tests, typecheck, lint and production build pass locally.
+- Workflow authorization, requester isolation, per-recipient notification reads and CAS paths pass their local Go test/vet suites.
 - Source-level security remediation is recorded in `docs/IMPLEMENTATION_STATUS.md`.
 - Deployment configuration no longer stores production secret values in Git.
-- Runtime/OpenAPI operation parity gate passes at 101/101 routes.
+- Runtime/OpenAPI operation parity gate passes at 102/102 routes.
 
 ## Required before acceptance
 

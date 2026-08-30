@@ -40,8 +40,10 @@ export default defineNuxtConfig({
   },
 
   icon: {
-    serverBundle: {
-      collections: ['lucide', 'simple-icons']
+    provider: 'none',
+    serverBundle: false,
+    clientBundle: {
+      scan: true
     }
   }
 })

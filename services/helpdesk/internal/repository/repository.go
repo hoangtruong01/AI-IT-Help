@@ -45,12 +45,12 @@ func NewRepository(db *sql.DB) Repository {
 }
 
 func (r *postgresRepository) NextTicketNumber(ctx context.Context) (string, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tickets").Scan(&count)
+	var number int64
+	err := r.db.QueryRowContext(ctx, "SELECT nextval('ticket_number_seq')").Scan(&number)
 	if err != nil {
-		return "", fmt.Errorf("failed to get ticket count: %w", err)
+		return "", fmt.Errorf("failed to allocate ticket number: %w", err)
 	}
-	return fmt.Sprintf("TK-%04d", 1000+count+1), nil
+	return fmt.Sprintf("TK-%04d", number), nil
 }
 
 func (r *postgresRepository) ListTickets(ctx context.Context, query model.TicketListQuery) (*model.TicketListResponse, error) {

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS employees (
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     location VARCHAR(100) DEFAULT 'Headquarters',
     joined_at DATE DEFAULT CURRENT_DATE,
+    version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -49,56 +50,3 @@ VALUES
     ('d0000000-0000-0000-0000-000000000003', 'Human Resources', 'HR'),
     ('d0000000-0000-0000-0000-000000000004', 'Finance & Accounting', 'FIN')
 ON CONFLICT (code) DO NOTHING;
-
--- 4. Seed Initial Employees
-INSERT INTO employees (id, user_id, first_name, last_name, email, phone, job_title, department_id, status, location)
-VALUES
-    (
-        'e0000000-0000-0000-0000-000000000001',
-        'a0000000-0000-0000-0000-000000000001',
-        'System',
-        'Administrator',
-        'admin@eomp.local',
-        '+84 901 000 001',
-        'Principal Infrastructure Architect',
-        'd0000000-0000-0000-0000-000000000001',
-        'ACTIVE',
-        'Headquarters (Building A)'
-    ),
-    (
-        'e0000000-0000-0000-0000-000000000002',
-        'a0000000-0000-0000-0000-000000000002',
-        'David',
-        'Tran',
-        'manager@eomp.local',
-        '+84 901 000 002',
-        'IT Operations Manager',
-        'd0000000-0000-0000-0000-000000000001',
-        'ACTIVE',
-        'Headquarters (Building A)'
-    ),
-    (
-        'e0000000-0000-0000-0000-000000000003',
-        'a0000000-0000-0000-0000-000000000003',
-        'Alex',
-        'Nguyen',
-        'agent@eomp.local',
-        '+84 901 000 003',
-        'Senior IT Support Specialist',
-        'd0000000-0000-0000-0000-000000000001',
-        'ACTIVE',
-        'Headquarters (Building A)'
-    ),
-    (
-        'e0000000-0000-0000-0000-000000000004',
-        NULL,
-        'Emily',
-        'Davis',
-        'emily.davis@eomp.local',
-        '+84 901 000 004',
-        'Senior Frontend Engineer',
-        'd0000000-0000-0000-0000-000000000002',
-        'ACTIVE',
-        'Remote (Da Nang)'
-    )
-ON CONFLICT (email) DO NOTHING;

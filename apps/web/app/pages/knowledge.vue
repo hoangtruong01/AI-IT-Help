@@ -147,30 +147,18 @@ function openArticle(art: KnowledgeArticle) {
   isArticleDrawerOpen.value = true
 }
 
-function openSearchResult(item: KnowledgeSearchResult) {
+async function openSearchResult(item: KnowledgeSearchResult) {
   if (item.type === 'article') {
     const found = articles.value.find(a => a.id === item.id || a.slug === item.slug_or_code)
     if (found) {
       openArticle(found)
     } else {
-      selectedArticle.value = {
-        id: item.id,
-        category_id: '',
-        category_name: item.category,
-        title: item.title,
-        slug: item.slug_or_code,
-        summary: item.snippet,
-        content: `# ${item.title}\n\n${item.snippet}\n\n*(Full content indexed in Qdrant Vector Store)*`,
-        tags: item.tags || [],
-        author_id: 'system',
-        author_name: 'IT Knowledge Author',
-        view_count: item.view_count || 100,
-        helpful_count: 10,
-        is_published: true,
-        created_at: new Date().toISOString(),
-        updated_at: item.updated_time
+      try {
+        const article = await api.get<KnowledgeArticle>(`/api/v1/knowledge/articles/${item.id}`)
+        openArticle(article)
+      } catch {
+        toast.add({ title: 'Article unavailable', description: 'The full article could not be loaded.', color: 'error' })
       }
-      isArticleDrawerOpen.value = true
     }
   } else {
     activeTab.value = 'runbooks'
@@ -210,7 +198,7 @@ async function submitArticle() {
   isSubmitting.value = true
   try {
     await api.post('/api/v1/knowledge/articles', articleForm.value)
-    toast.add({ title: 'Article Published', description: 'Article added to knowledge base and queued for Qdrant vector indexing.', color: 'success' })
+    toast.add({ title: 'Article Published', description: 'Article added to the knowledge base.', color: 'success' })
     isCreateArticleModalOpen.value = false
     const firstCatVal = categories.value[0]
     const defaultCatId = firstCatVal ? firstCatVal.id : ''
@@ -273,7 +261,7 @@ onMounted(() => {
           Knowledge Base & SOP Runbooks
         </h1>
         <p class="text-xs text-slate-400 mt-1">
-          Qdrant Vector-Indexed IT Manuals, Standard Operating Procedures & Self-Service Guides
+          IT manuals, standard operating procedures, and self-service guides
         </p>
       </div>
 
@@ -315,7 +303,7 @@ onMounted(() => {
         <p class="text-2xl font-black text-white mt-2">
           {{ stats.total_articles }}
         </p>
-        <span class="text-[10px] text-cyan-400 mt-1 block">Vector Synced to Qdrant</span>
+        <span class="text-[10px] text-cyan-400 mt-1 block">Stored in the Knowledge Database</span>
       </div>
 
       <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl hover:border-indigo-500/30 transition-all">
@@ -361,7 +349,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Semantic Search Bar -->
+    <!-- Knowledge Search Bar -->
     <div class="relative">
       <div class="relative">
         <UIcon
@@ -371,7 +359,7 @@ onMounted(() => {
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Semantic search IT SOPs, MFA resets, VPN configuration, database failover with Qdrant vector engine..."
+          placeholder="Search article titles, summaries, and content..."
           class="w-full pl-12 pr-12 py-3.5 text-sm rounded-2xl bg-slate-900/90 border border-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-xl backdrop-blur-xl transition-all"
           @input="onSearchInput"
         >
@@ -393,7 +381,7 @@ onMounted(() => {
         class="absolute left-0 right-0 top-full mt-2 p-3 rounded-2xl bg-slate-900/95 border border-cyan-500/30 shadow-2xl backdrop-blur-2xl z-30 space-y-2"
       >
         <div class="flex items-center justify-between px-3 py-1 text-[11px] font-mono text-cyan-400 border-b border-slate-800">
-          <span>Qdrant Vector Ranked Results (Top {{ searchResults.length }})</span>
+          <span>Knowledge Search Results (Top {{ searchResults.length }})</span>
           <span class="text-slate-400">Click to view article / SOP</span>
         </div>
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -19,8 +20,8 @@ type WorkflowService interface {
 	GetInstance(ctx context.Context, id string) (*model.WorkflowInstance, error)
 	StartWorkflow(ctx context.Context, req *model.CreateInstanceRequest) (*model.WorkflowInstance, error)
 
-	ListApprovals(ctx context.Context, approverID, status string, page, pageSize int) (*model.ApprovalListResponse, error)
-	ProcessApprovalDecision(ctx context.Context, approvalID string, req *model.ApprovalDecisionRequest, actorID, actorName string) error
+	ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error)
+	ProcessApprovalDecision(ctx context.Context, approvalID string, req *model.ApprovalDecisionRequest, actorID, actorName, actorRole string) error
 
 	ListLogs(ctx context.Context, instanceID string) ([]model.WorkflowLog, error)
 	GetStats(ctx context.Context) (*model.WorkflowStats, error)
@@ -82,6 +83,11 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 		return nil, errors.NotFound("workflow definition not found")
 	}
 
+	approvalStep, err := firstApprovalStep(def.StepsConfig)
+	if err != nil {
+		return nil, errors.InternalServerError("workflow definition has no valid approval step")
+	}
+
 	instNumber, err := s.repo.NextInstanceNumber(ctx)
 	if err != nil {
 		return nil, errors.InternalServerError("failed to generate instance number")
@@ -97,37 +103,33 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 		RequesterID:     req.RequesterID,
 		RequesterName:   req.RequesterName,
 		RequesterEmail:  req.RequesterEmail,
-		CurrentStepName: "Manager Approval",
+		CurrentStepName: approvalStep.Name,
 		Status:          model.InstanceStatusWaitingApproval,
 		ContextData:     req.ContextData,
 		StartedAt:       time.Now(),
 	}
 
-	if err := s.repo.CreateInstance(ctx, inst); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to start workflow: %v", err))
-	}
-
 	// Create initial Approval Request
 	approval := &model.ApprovalRequest{
-		InstanceID:    inst.ID,
 		Title:         fmt.Sprintf("Approve: %s", inst.Title),
-		ApproverID:    "e0000000-0000-0000-0000-000000000002",
-		ApproverName:  "David Tran (IT Manager)",
-		ApproverRole:  "ROLE_MANAGER",
+		ApproverID:    approvalStep.Role,
+		ApproverName:  approvalStep.Name,
+		ApproverRole:  approvalStep.Role,
 		ApprovalLevel: 1,
 		Status:        model.ApprovalStatusPending,
 		SLADeadline:   time.Now().Add(24 * time.Hour),
 	}
-	_ = s.repo.CreateApproval(ctx, approval)
 
 	// Log start
-	_ = s.repo.AddLog(ctx, &model.WorkflowLog{
-		InstanceID: inst.ID,
-		ActorID:    req.RequesterID,
-		ActorName:  req.RequesterName,
-		Action:     "WORKFLOW_STARTED",
-		Message:    fmt.Sprintf("Started workflow instance %s for '%s'. Dispatched approval request to Manager.", inst.InstanceNumber, inst.Title),
-	})
+	workflowLog := &model.WorkflowLog{
+		ActorID:   req.RequesterID,
+		ActorName: req.RequesterName,
+		Action:    "WORKFLOW_STARTED",
+		Message:   fmt.Sprintf("Started workflow instance %s for '%s'. Dispatched approval request to %s.", inst.InstanceNumber, inst.Title, approvalStep.Name),
+	}
+	if err := s.repo.CreateInstanceWithApprovalAndLog(ctx, inst, approval, workflowLog); err != nil {
+		return nil, errors.InternalServerError(fmt.Sprintf("failed to start workflow: %v", err))
+	}
 
 	// Publish approval.requested event via EventBus
 	if s.bus != nil {
@@ -149,11 +151,11 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 	return s.repo.FindInstanceByID(ctx, inst.ID)
 }
 
-func (s *workflowService) ListApprovals(ctx context.Context, approverID, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
-	return s.repo.ListApprovals(ctx, approverID, status, page, pageSize)
+func (s *workflowService) ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
+	return s.repo.ListApprovals(ctx, approverID, approverRole, status, page, pageSize)
 }
 
-func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalID string, req *model.ApprovalDecisionRequest, actorID, actorName string) error {
+func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalID string, req *model.ApprovalDecisionRequest, actorID, actorName, actorRole string) error {
 	if req.Decision != model.ApprovalStatusApproved && req.Decision != model.ApprovalStatusRejected {
 		return errors.BadRequest("decision must be APPROVED or REJECTED")
 	}
@@ -165,6 +167,10 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 
 	if approval.Status != model.ApprovalStatusPending {
 		return errors.Conflict(fmt.Sprintf("approval request is already %s", approval.Status))
+	}
+
+	if actorRole != "ROLE_ADMIN" && actorID != approval.ApproverID && !(approval.ApproverID == approval.ApproverRole && actorRole == approval.ApproverRole) {
+		return errors.Forbidden("approval request is not assigned to this user")
 	}
 
 	instance, err := s.repo.FindInstanceByID(ctx, approval.InstanceID)
@@ -224,6 +230,25 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 	}
 
 	return nil
+}
+
+type configuredWorkflowStep struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Role string `json:"role"`
+}
+
+func firstApprovalStep(raw string) (configuredWorkflowStep, error) {
+	var steps []configuredWorkflowStep
+	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+		return configuredWorkflowStep{}, err
+	}
+	for _, step := range steps {
+		if step.Type == model.StepTypeApproval && step.Name != "" && step.Role != "" {
+			return step, nil
+		}
+	}
+	return configuredWorkflowStep{}, fmt.Errorf("approval step is missing")
 }
 
 func (s *workflowService) ListLogs(ctx context.Context, instanceID string) ([]model.WorkflowLog, error) {
