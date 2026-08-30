@@ -291,7 +291,8 @@ async function handleUpdateStatus(targetStatus: string) {
   try {
     const payload: UpdateChangeStatusPayload = {
       status: targetStatus,
-      notes: `Status transitioned to ${targetStatus}`
+      notes: `Status transitioned to ${targetStatus}`,
+      version: selectedChange.value.version ?? 1
     }
 
     const updated = await api.patch<ChangeRequest>(`/api/v1/changes/${selectedChange.value.id}/status`, payload)

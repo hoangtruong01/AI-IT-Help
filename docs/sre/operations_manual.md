@@ -1,5 +1,7 @@
 # EOMP — System Operations Manual (Day-2 Ops)
 
+> **Operational draft:** embedded credentials are legacy local examples, not approved secrets. Obtain current values from the authorized secret manager. Production acceptance remains pending in `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Cẩm Nang Vận Hành & Bảo Trì Hệ Thống Định Kỳ (Day-2 Operations Manual)**  
 > **Áp dụng cho:** System Administrators, DevOps Engineers, SRE & Platform Engineers.  
 > **Phiên bản:** Phase 14 Enterprise Master Standard

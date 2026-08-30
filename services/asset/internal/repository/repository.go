@@ -12,6 +12,8 @@ import (
 	"eomp/services/asset/internal/model"
 )
 
+var ErrVersionConflict = errors.New("asset version conflict")
+
 // Repository interface for Assets and CMDB
 type Repository interface {
 	// Asset methods
@@ -19,9 +21,9 @@ type Repository interface {
 	FindAssetByID(ctx context.Context, id string) (*model.Asset, error)
 	FindAssetByTag(ctx context.Context, tag string) (*model.Asset, error)
 	CreateAsset(ctx context.Context, asset *model.Asset) error
-	UpdateAssetStatus(ctx context.Context, id, status, location string, notes *string) error
-	AssignAsset(ctx context.Context, id, userID, userName string, deptID *string, condition string, notes *string) error
-	ReturnAsset(ctx context.Context, id, condition string, notes *string) error
+	UpdateAssetStatus(ctx context.Context, id, status, location string, notes *string, expectedVersion int) error
+	AssignAsset(ctx context.Context, id, userID, userName string, deptID *string, condition string, notes *string, expectedVersion int) error
+	ReturnAsset(ctx context.Context, id, condition string, notes *string, expectedVersion int) error
 	GetAssetStats(ctx context.Context) (*model.AssetStatsResponse, error)
 	ListAssetAssignments(ctx context.Context, assetID string) ([]model.AssetAssignment, error)
 	ListAssignmentsByEmployee(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error)
@@ -268,20 +270,23 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, a *model.Asset) er
 	return nil
 }
 
-func (r *postgresRepository) UpdateAssetStatus(ctx context.Context, id, status, location string, notes *string) error {
+func (r *postgresRepository) UpdateAssetStatus(ctx context.Context, id, status, location string, notes *string, expectedVersion int) error {
 	query := `
 		UPDATE assets
 		SET status = $2, location = COALESCE(NULLIF($3, ''), location), notes = COALESCE($4, notes), version = version + 1, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
+		WHERE id = $1 AND version = $5
 	`
-	_, err := r.db.ExecContext(ctx, query, id, status, location, notes)
+	result, err := r.db.ExecContext(ctx, query, id, status, location, notes, expectedVersion)
 	if err != nil {
 		return fmt.Errorf("failed to update asset status: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrVersionConflict
 	}
 	return nil
 }
 
-func (r *postgresRepository) AssignAsset(ctx context.Context, id, userID, userName string, deptID *string, condition string, notes *string) error {
+func (r *postgresRepository) AssignAsset(ctx context.Context, id, userID, userName string, deptID *string, condition string, notes *string, expectedVersion int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -294,10 +299,14 @@ func (r *postgresRepository) AssignAsset(ctx context.Context, id, userID, userNa
 	updateQuery := `
 		UPDATE assets
 		SET status = 'IN_USE', assigned_to_user_id = $2, assigned_to_user_name = $3, assigned_at = $4, version = version + 1, updated_at = $4
-		WHERE id = $1
+		WHERE id = $1 AND version = $5
 	`
-	if _, err := tx.ExecContext(ctx, updateQuery, id, userID, userName, now); err != nil {
+	result, err := tx.ExecContext(ctx, updateQuery, id, userID, userName, now, expectedVersion)
+	if err != nil {
 		return fmt.Errorf("failed to update assigned asset: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrVersionConflict
 	}
 
 	// 2. Insert Assignment record
@@ -312,7 +321,7 @@ func (r *postgresRepository) AssignAsset(ctx context.Context, id, userID, userNa
 	return tx.Commit()
 }
 
-func (r *postgresRepository) ReturnAsset(ctx context.Context, id, condition string, notes *string) error {
+func (r *postgresRepository) ReturnAsset(ctx context.Context, id, condition string, notes *string, expectedVersion int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -335,10 +344,14 @@ func (r *postgresRepository) ReturnAsset(ctx context.Context, id, condition stri
 	updateQuery := `
 		UPDATE assets
 		SET status = 'IN_STOCK', assigned_to_user_id = NULL, assigned_to_user_name = NULL, assigned_at = NULL, version = version + 1, updated_at = $2
-		WHERE id = $1
+		WHERE id = $1 AND version = $3
 	`
-	if _, err := tx.ExecContext(ctx, updateQuery, id, now); err != nil {
+	result, err := tx.ExecContext(ctx, updateQuery, id, now, expectedVersion)
+	if err != nil {
 		return fmt.Errorf("failed to return asset to stock: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrVersionConflict
 	}
 
 	return tx.Commit()

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	stdErrors "errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/response"
 	"eomp/services/workflow/internal/model"
+	"eomp/services/workflow/internal/repository"
 	"eomp/services/workflow/internal/service"
 )
 
@@ -111,6 +113,10 @@ func (h *ChangeHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	change, err := h.svc.UpdateStatus(r.Context(), id, payload)
 	if err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			errors.WriteHTTP(w, errors.Conflict("change request was modified by another request; reload and retry"))
+			return
+		}
 		// Test Case 7.2: If insufficient CAB approvals, return HTTP 403 Forbidden
 		if strings.Contains(strings.ToLower(err.Error()), "insufficient cab") {
 			errors.WriteHTTP(w, errors.Forbidden(err.Error()))

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,8 +20,8 @@ type AssetService interface {
 	GetAsset(ctx context.Context, id string) (*model.Asset, error)
 	CreateAsset(ctx context.Context, req *model.CreateAssetRequest) (*model.Asset, error)
 	AssignAsset(ctx context.Context, id string, req *model.AssignAssetRequest) error
-	ReturnAsset(ctx context.Context, id string, condition string, notes *string) error
-	UpdateStatus(ctx context.Context, id, status, location string, notes *string) error
+	ReturnAsset(ctx context.Context, id string, condition string, notes *string, expectedVersion int) error
+	UpdateStatus(ctx context.Context, id, status, location string, notes *string, expectedVersion int) error
 	GetStats(ctx context.Context) (*model.AssetStatsResponse, error)
 	ListAssignments(ctx context.Context, assetID string) ([]model.AssetAssignment, error)
 	GetEmployeeAssetHistory(ctx context.Context, userID string) ([]model.EmployeeAssetHistoryItem, error)
@@ -102,6 +103,9 @@ func (s *assetService) CreateAsset(ctx context.Context, req *model.CreateAssetRe
 }
 
 func (s *assetService) AssignAsset(ctx context.Context, id string, req *model.AssignAssetRequest) error {
+	if req.ExpectedVersion <= 0 {
+		return errors.BadRequest("version is required for optimistic concurrency control")
+	}
 	if req.UserID == "" || req.UserName == "" {
 		return errors.BadRequest("user_id and user_name are required for assignment")
 	}
@@ -120,7 +124,10 @@ func (s *assetService) AssignAsset(ctx context.Context, id string, req *model.As
 		cond = "GOOD"
 	}
 
-	if err := s.repo.AssignAsset(ctx, id, req.UserID, req.UserName, req.DepartmentID, cond, req.Notes); err != nil {
+	if err := s.repo.AssignAsset(ctx, id, req.UserID, req.UserName, req.DepartmentID, cond, req.Notes, req.ExpectedVersion); err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return errors.Conflict("asset was modified by another request; reload and retry")
+		}
 		return err
 	}
 
@@ -143,7 +150,10 @@ func (s *assetService) AssignAsset(ctx context.Context, id string, req *model.As
 	return nil
 }
 
-func (s *assetService) ReturnAsset(ctx context.Context, id string, condition string, notes *string) error {
+func (s *assetService) ReturnAsset(ctx context.Context, id string, condition string, notes *string, expectedVersion int) error {
+	if expectedVersion <= 0 {
+		return errors.BadRequest("version is required for optimistic concurrency control")
+	}
 	asset, err := s.repo.FindAssetByID(ctx, id)
 	if err != nil || asset == nil {
 		return errors.NotFound("asset not found")
@@ -153,7 +163,10 @@ func (s *assetService) ReturnAsset(ctx context.Context, id string, condition str
 		condition = "GOOD"
 	}
 
-	if err := s.repo.ReturnAsset(ctx, id, condition, notes); err != nil {
+	if err := s.repo.ReturnAsset(ctx, id, condition, notes, expectedVersion); err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return errors.Conflict("asset was modified by another request; reload and retry")
+		}
 		return err
 	}
 
@@ -173,12 +186,19 @@ func (s *assetService) ReturnAsset(ctx context.Context, id string, condition str
 	return nil
 }
 
-func (s *assetService) UpdateStatus(ctx context.Context, id, status, location string, notes *string) error {
+func (s *assetService) UpdateStatus(ctx context.Context, id, status, location string, notes *string, expectedVersion int) error {
+	if expectedVersion <= 0 {
+		return errors.BadRequest("version is required for optimistic concurrency control")
+	}
 	asset, err := s.repo.FindAssetByID(ctx, id)
 	if err != nil || asset == nil {
 		return errors.NotFound("asset not found")
 	}
-	return s.repo.UpdateAssetStatus(ctx, id, status, location, notes)
+	err = s.repo.UpdateAssetStatus(ctx, id, status, location, notes, expectedVersion)
+	if stdErrors.Is(err, repository.ErrVersionConflict) {
+		return errors.Conflict("asset was modified by another request; reload and retry")
+	}
+	return err
 }
 
 func (s *assetService) GetStats(ctx context.Context) (*model.AssetStatsResponse, error) {

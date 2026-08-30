@@ -68,10 +68,10 @@ Có 2 cách khởi chạy Backend:
 
 | Phân Hệ | Cổng / URL | Tài Khoản Đăng Nhập Mặc Định |
 |---|---|---|
-| **Frontend Web App** | `http://localhost:3000` | `admin@eomp.local` / `password123` |
+| **Frontend Web App** | `http://localhost:3000` | Securely provisioned account |
 | **API Gateway** | `http://localhost:8080` | Header `Authorization: Bearer <JWT>` |
-| **Grafana SRE Dashboard** | `http://localhost:3002` | `admin` / `eomp_grafana` |
+| **Grafana SRE Dashboard** | `http://localhost:3002` | Values from `.env` |
 | **Prometheus Metrics** | `http://localhost:9090` | *(Truy cập trực tiếp)* |
-| **RabbitMQ Management** | `http://localhost:15672` | `eomp` / `eomp_dev_password` |
-| **MinIO Console** | `http://localhost:9001` | `eomp_minio` / `eomp_minio_secret` |
+| **RabbitMQ Management** | `http://localhost:15672` | Values from `.env` |
+| **MinIO Console** | `http://localhost:9001` | Values from `.env` |
 | **Qdrant Vector DB** | `http://localhost:6333` | REST API vector search |

@@ -1,5 +1,7 @@
 # EOMP — Tài Liệu Toàn Diện Dành Cho Developer & Intern
 
+> **Legacy onboarding guide:** commands and fixed local credentials in this document may be outdated. Use `docs/QUICKSTART_URLS.md`, `.env.example` and `docs/IMPLEMENTATION_STATUS.md` as the current baseline; never reuse example credentials in a shared or production environment.
+
 > **Enterprise Operations Management Platform (EOMP)**  
 > Bản hướng dẫn chi tiết từ A đến Z dành cho Software Engineer / Intern Developer để nắm bắt toàn bộ kiến trúc hệ thống, mã nguồn, hạ tầng, luồng nghiệp vụ và quy trình phát triển.
 

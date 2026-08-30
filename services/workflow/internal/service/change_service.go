@@ -160,6 +160,7 @@ func (s *changeService) CreateChange(ctx context.Context, payload model.CreateCh
 		DowntimeMinutes:    payload.DowntimeMinutes,
 		CABRequiredCount:   cabRequired,
 		CABApprovedCount:   0,
+		Version:            1,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -172,6 +173,9 @@ func (s *changeService) CreateChange(ctx context.Context, payload model.CreateCh
 }
 
 func (s *changeService) UpdateStatus(ctx context.Context, id string, payload model.UpdateChangeStatusPayload) (*model.ChangeRequest, error) {
+	if payload.ExpectedVersion <= 0 {
+		return nil, errors.New("version is required for optimistic concurrency control")
+	}
 	change, err := s.repo.GetChangeByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -201,7 +205,7 @@ func (s *changeService) UpdateStatus(ctx context.Context, id string, payload mod
 		actualEnd = &now
 	}
 
-	if err := s.repo.UpdateChangeStatus(ctx, change.ID, targetStatus, actualStart, actualEnd); err != nil {
+	if err := s.repo.UpdateChangeStatus(ctx, change.ID, targetStatus, actualStart, actualEnd, payload.ExpectedVersion); err != nil {
 		return nil, err
 	}
 
@@ -244,7 +248,13 @@ func (s *changeService) SubmitCABVote(ctx context.Context, changeID string, payl
 
 	// If quorum reached and still in CAB_REVIEW, auto-transition to APPROVED
 	if change.Status == "CAB_REVIEW" && change.CABApprovedCount >= change.CABRequiredCount {
-		_ = s.repo.UpdateChangeStatus(ctx, change.ID, "APPROVED", nil, nil)
+		latest, getErr := s.repo.GetChangeByID(ctx, change.ID)
+		if getErr != nil {
+			return nil, nil, getErr
+		}
+		if err := s.repo.UpdateChangeStatus(ctx, change.ID, "APPROVED", nil, nil, latest.Version); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	updatedChange, _ := s.repo.GetChangeByID(ctx, change.ID)

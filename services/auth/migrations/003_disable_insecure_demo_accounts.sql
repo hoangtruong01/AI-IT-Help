@@ -1,0 +1,16 @@
+-- Disable the historical fixed-ID demo accounts on existing installations.
+UPDATE users
+SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id IN (
+    'a0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000003'
+);
+
+UPDATE refresh_tokens
+SET revoked = TRUE
+WHERE user_id IN (
+    'a0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000003'
+);

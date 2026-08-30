@@ -30,7 +30,7 @@ func NewRepository(db *sql.DB) Repository {
 
 func (r *postgresRepository) GetExecutiveOverview(ctx context.Context, filter model.DateFilterQuery) (*model.ExecutiveOverview, error) {
 	if r.db == nil {
-		return r.getMockOverview(filter), nil
+		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
 	query := `
@@ -48,7 +48,7 @@ func (r *postgresRepository) GetExecutiveOverview(ctx context.Context, filter mo
 
 	err := r.db.QueryRowContext(ctx, query).Scan(&avgMTTR, &avgMTTD, &totalIncidents, &withinSLA, &breachedSLA)
 	if err != nil && err != sql.ErrNoRows {
-		return r.getMockOverview(filter), nil
+		return nil, fmt.Errorf("query executive overview: %w", err)
 	}
 
 	slaPct := 100.0
@@ -60,19 +60,19 @@ func (r *postgresRepository) GetExecutiveOverview(ctx context.Context, filter mo
 		AvgMTTRMinutes:     avgMTTR,
 		AvgMTTDMinutes:     avgMTTD,
 		SLACompliancePct:   slaPct,
-		FCRRatePct:         88.6,
-		CSATRating:         4.85,
+		FCRRatePct:         0,
+		CSATRating:         0,
 		TotalIncidents:     totalIncidents,
 		TotalResolved:      withinSLA + breachedSLA,
 		TotalBreached:      breachedSLA,
-		MTTRImprovementPct: 18.5,
+		MTTRImprovementPct: 0,
 		PeriodLabel:        formatPeriodLabel(filter.Range),
 	}, nil
 }
 
 func (r *postgresRepository) GetIncidentTrends(ctx context.Context, filter model.DateFilterQuery) ([]model.IncidentTrend, error) {
 	if r.db == nil {
-		return r.getMockTrends(), nil
+		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
 	query := `
@@ -84,7 +84,7 @@ func (r *postgresRepository) GetIncidentTrends(ctx context.Context, filter model
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return r.getMockTrends(), nil
+		return nil, fmt.Errorf("query incident trends: %w", err)
 	}
 	defer rows.Close()
 
@@ -93,25 +93,17 @@ func (r *postgresRepository) GetIncidentTrends(ctx context.Context, filter model
 		var metricDate time.Time
 		var total, within int
 		var pct float64
-		if err := rows.Scan(&metricDate, &total, &within, &pct); err == nil {
-			list = append(list, model.IncidentTrend{
-				Date:             metricDate.Format("2006-01-02"),
-				OpenedCount:      total,
-				ResolvedCount:    within,
-				SLACompliancePct: pct,
-			})
+		if err := rows.Scan(&metricDate, &total, &within, &pct); err != nil {
+			return nil, fmt.Errorf("scan incident trend: %w", err)
 		}
+		list = append(list, model.IncidentTrend{Date: metricDate.Format("2006-01-02"), OpenedCount: total, ResolvedCount: within, SLACompliancePct: pct})
 	}
-
-	if len(list) == 0 {
-		return r.getMockTrends(), nil
-	}
-	return list, nil
+	return list, rows.Err()
 }
 
 func (r *postgresRepository) GetCategoryBreakdowns(ctx context.Context, filter model.DateFilterQuery) ([]model.CategoryBreakdown, error) {
 	if r.db == nil {
-		return r.getMockCategories(), nil
+		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
 	query := `
@@ -122,27 +114,24 @@ func (r *postgresRepository) GetCategoryBreakdowns(ctx context.Context, filter m
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return r.getMockCategories(), nil
+		return nil, fmt.Errorf("query category breakdowns: %w", err)
 	}
 	defer rows.Close()
 
 	var list []model.CategoryBreakdown
 	for rows.Next() {
 		var item model.CategoryBreakdown
-		if err := rows.Scan(&item.CategoryName, &item.CategoryCode, &item.Icon, &item.TotalCount, &item.ResolvedCount, &item.AvgResolutionMinutes, &item.SharePct); err == nil {
-			list = append(list, item)
+		if err := rows.Scan(&item.CategoryName, &item.CategoryCode, &item.Icon, &item.TotalCount, &item.ResolvedCount, &item.AvgResolutionMinutes, &item.SharePct); err != nil {
+			return nil, fmt.Errorf("scan category breakdown: %w", err)
 		}
+		list = append(list, item)
 	}
-
-	if len(list) == 0 {
-		return r.getMockCategories(), nil
-	}
-	return list, nil
+	return list, rows.Err()
 }
 
 func (r *postgresRepository) GetDepartmentSLAMetrics(ctx context.Context, filter model.DateFilterQuery) ([]model.DepartmentSLAMetric, error) {
 	if r.db == nil {
-		return r.getMockDepartments(), nil
+		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
 	query := `
@@ -153,27 +142,24 @@ func (r *postgresRepository) GetDepartmentSLAMetrics(ctx context.Context, filter
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return r.getMockDepartments(), nil
+		return nil, fmt.Errorf("query department SLA metrics: %w", err)
 	}
 	defer rows.Close()
 
 	var list []model.DepartmentSLAMetric
 	for rows.Next() {
 		var item model.DepartmentSLAMetric
-		if err := rows.Scan(&item.DepartmentName, &item.DepartmentCode, &item.TotalTickets, &item.WithinSLACount, &item.BreachedSLACount, &item.SLACompliancePct, &item.AvgMTTRMinutes); err == nil {
-			list = append(list, item)
+		if err := rows.Scan(&item.DepartmentName, &item.DepartmentCode, &item.TotalTickets, &item.WithinSLACount, &item.BreachedSLACount, &item.SLACompliancePct, &item.AvgMTTRMinutes); err != nil {
+			return nil, fmt.Errorf("scan department SLA metric: %w", err)
 		}
+		list = append(list, item)
 	}
-
-	if len(list) == 0 {
-		return r.getMockDepartments(), nil
-	}
-	return list, nil
+	return list, rows.Err()
 }
 
 func (r *postgresRepository) GetAgentScorecards(ctx context.Context, filter model.DateFilterQuery) ([]model.AgentScorecard, error) {
 	if r.db == nil {
-		return r.getMockAgents(), nil
+		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
 	query := `
@@ -184,28 +170,30 @@ func (r *postgresRepository) GetAgentScorecards(ctx context.Context, filter mode
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return r.getMockAgents(), nil
+		return nil, fmt.Errorf("query agent scorecards: %w", err)
 	}
 	defer rows.Close()
 
 	var list []model.AgentScorecard
 	for rows.Next() {
 		var item model.AgentScorecard
-		if err := rows.Scan(&item.AgentID, &item.AgentName, &item.AgentAvatar, &item.JobTitle, &item.Department, &item.TicketsAssigned, &item.TicketsResolved, &item.AvgMTTRMinutes, &item.CSATRating, &item.SLACompliancePct); err == nil {
-			list = append(list, item)
+		if err := rows.Scan(&item.AgentID, &item.AgentName, &item.AgentAvatar, &item.JobTitle, &item.Department, &item.TicketsAssigned, &item.TicketsResolved, &item.AvgMTTRMinutes, &item.CSATRating, &item.SLACompliancePct); err != nil {
+			return nil, fmt.Errorf("scan agent scorecard: %w", err)
 		}
+		list = append(list, item)
 	}
-
-	if len(list) == 0 {
-		return r.getMockAgents(), nil
-	}
-	return list, nil
+	return list, rows.Err()
 }
 
 func (r *postgresRepository) GetRawRecords(ctx context.Context, limit int) ([]model.RawIncidentRecord, error) {
-	if r.db == nil || limit > 100 {
-		// Generate synthetic records for high-speed export benchmarking up to limit
-		return generateSyntheticRawRecords(limit), nil
+	if r.db == nil {
+		return nil, fmt.Errorf("reporting database is unavailable")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 10000 {
+		limit = 10000
 	}
 
 	query := `
@@ -216,7 +204,7 @@ func (r *postgresRepository) GetRawRecords(ctx context.Context, limit int) ([]mo
 
 	rows, err := r.db.QueryContext(ctx, query, limit)
 	if err != nil {
-		return generateSyntheticRawRecords(limit), nil
+		return nil, fmt.Errorf("query raw incident records: %w", err)
 	}
 	defer rows.Close()
 
@@ -224,18 +212,15 @@ func (r *postgresRepository) GetRawRecords(ctx context.Context, limit int) ([]mo
 	for rows.Next() {
 		var item model.RawIncidentRecord
 		var resAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.TicketNumber, &item.Title, &item.Category, &item.Priority, &item.Status, &item.RequesterName, &item.AssigneeName, &item.Department, &item.MTTDMinutes, &item.MTTRMinutes, &item.SLAStatus, &item.CreatedAt, &resAt); err == nil {
-			if resAt.Valid {
-				item.ResolvedAt = &resAt.Time
-			}
-			list = append(list, item)
+		if err := rows.Scan(&item.ID, &item.TicketNumber, &item.Title, &item.Category, &item.Priority, &item.Status, &item.RequesterName, &item.AssigneeName, &item.Department, &item.MTTDMinutes, &item.MTTRMinutes, &item.SLAStatus, &item.CreatedAt, &resAt); err != nil {
+			return nil, fmt.Errorf("scan raw incident record: %w", err)
 		}
+		if resAt.Valid {
+			item.ResolvedAt = &resAt.Time
+		}
+		list = append(list, item)
 	}
-
-	if len(list) == 0 {
-		return generateSyntheticRawRecords(limit), nil
-	}
-	return list, nil
+	return list, rows.Err()
 }
 
 // Fallback & Synthetic Data Generators

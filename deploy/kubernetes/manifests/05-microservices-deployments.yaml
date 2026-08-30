@@ -27,7 +27,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: gateway
-          image: eomp/gateway:latest
+          image: eomp/gateway:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -89,7 +89,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: auth
-          image: eomp/auth:latest
+          image: eomp/auth:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081
@@ -98,15 +98,15 @@ spec:
               value: "production"
             - name: PORT
               value: "8081"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: AUTH_DB_NAME
               value: "auth_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
@@ -124,7 +124,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8081
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -159,7 +159,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: employee
-          image: eomp/employee:latest
+          image: eomp/employee:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8082
@@ -168,15 +168,15 @@ spec:
               value: "production"
             - name: PORT
               value: "8082"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: EMPLOYEE_DB_NAME
               value: "employee_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
@@ -189,7 +189,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8082
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -224,7 +224,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: asset
-          image: eomp/asset:latest
+          image: eomp/asset:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8083
@@ -233,19 +233,31 @@ spec:
               value: "production"
             - name: PORT
               value: "8083"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: ASSET_DB_NAME
               value: "asset_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
                   key: POSTGRES_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_HOST
+              value: "rabbitmq-service"
           livenessProbe:
             httpGet:
               path: /health
@@ -254,7 +266,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8083
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -289,7 +301,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: helpdesk
-          image: eomp/helpdesk:latest
+          image: eomp/helpdesk:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8084
@@ -298,19 +310,31 @@ spec:
               value: "production"
             - name: PORT
               value: "8084"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: HELPDESK_DB_NAME
               value: "helpdesk_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
                   key: POSTGRES_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_HOST
+              value: "rabbitmq-service"
           livenessProbe:
             httpGet:
               path: /health
@@ -319,7 +343,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8084
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -354,7 +378,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: workflow
-          image: eomp/workflow:latest
+          image: eomp/workflow:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8085
@@ -363,19 +387,31 @@ spec:
               value: "production"
             - name: PORT
               value: "8085"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: WORKFLOW_DB_NAME
               value: "workflow_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
                   key: POSTGRES_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_HOST
+              value: "rabbitmq-service"
           livenessProbe:
             httpGet:
               path: /health
@@ -384,7 +420,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8085
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -419,7 +455,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: notification
-          image: eomp/notification:latest
+          image: eomp/notification:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8086
@@ -428,21 +464,31 @@ spec:
               value: "production"
             - name: PORT
               value: "8086"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: NOTIFICATION_DB_NAME
               value: "notification_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
                   key: POSTGRES_PASSWORD
-            - name: RABBITMQ_URL
-              value: "amqp://eomp:eomp_production_rabbitmq_pass_2026@rabbitmq-service:5672/"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_HOST
+              value: "rabbitmq-service"
           livenessProbe:
             httpGet:
               path: /health
@@ -451,7 +497,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8086
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -486,7 +532,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: knowledge
-          image: eomp/knowledge:latest
+          image: eomp/knowledge:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8087
@@ -495,15 +541,15 @@ spec:
               value: "production"
             - name: PORT
               value: "8087"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: KNOWLEDGE_DB_NAME
               value: "knowledge_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
@@ -518,7 +564,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8087
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -553,7 +599,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: ai
-          image: eomp/ai:latest
+          image: eomp/ai:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8088
@@ -562,6 +608,10 @@ spec:
               value: "production"
             - name: PORT
               value: "8088"
+            - name: AI_PROVIDER
+              value: "mock"
+            - name: ALLOW_MOCK_AI
+              value: "true"
             - name: QDRANT_URL
               value: "http://qdrant-service:6333"
             - name: KNOWLEDGE_SERVICE_URL
@@ -609,7 +659,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: audit
-          image: eomp/audit:latest
+          image: eomp/audit:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8089
@@ -618,19 +668,31 @@ spec:
               value: "production"
             - name: PORT
               value: "8089"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: AUDIT_DB_NAME
               value: "audit_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
                   key: POSTGRES_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_HOST
+              value: "rabbitmq-service"
           livenessProbe:
             httpGet:
               path: /health
@@ -639,7 +701,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8089
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -674,7 +736,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: reporting
-          image: eomp/reporting:latest
+          image: eomp/reporting:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8090
@@ -683,15 +745,15 @@ spec:
               value: "production"
             - name: PORT
               value: "8090"
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "postgres-service"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: REPORTING_DB_NAME
               value: "reporting_db"
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: eomp-secrets
@@ -704,7 +766,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 8090
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -739,7 +801,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: web
-          image: eomp/web:latest
+          image: eomp/web:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

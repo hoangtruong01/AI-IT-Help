@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -16,6 +18,13 @@ type UserClaims struct {
 	Role         string `json:"role"`
 	DepartmentID string `json:"department_id,omitempty"`
 	FullName     string `json:"full_name"`
+	TokenType    string `json:"token_type"`
+	jwt.RegisteredClaims
+}
+
+// RefreshClaims contains the minimum identity needed to rotate a refresh token.
+type RefreshClaims struct {
+	TokenType string `json:"token_type"`
 	jwt.RegisteredClaims
 }
 
@@ -41,9 +50,31 @@ func NewJWTManager(secretKey string, accessTTL, refreshTTL time.Duration) *JWTMa
 	}
 }
 
+func randomTokenID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("failed to generate token id: %w", err)
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+// AccessTTL returns the configured access-token lifetime.
+func (m *JWTManager) AccessTTL() time.Duration { return m.accessTTL }
+
+// RefreshTTL returns the configured refresh-token lifetime.
+func (m *JWTManager) RefreshTTL() time.Duration { return m.refreshTTL }
+
 // GenerateTokenPair issues both an Access Token and a Refresh Token
 func (m *JWTManager) GenerateTokenPair(userID, email, role, departmentID, fullName string) (accessToken string, refreshToken string, err error) {
 	now := time.Now()
+	accessID, err := randomTokenID()
+	if err != nil {
+		return "", "", err
+	}
+	refreshID, err := randomTokenID()
+	if err != nil {
+		return "", "", err
+	}
 
 	// 1. Access Token
 	accessClaims := UserClaims{
@@ -52,7 +83,9 @@ func (m *JWTManager) GenerateTokenPair(userID, email, role, departmentID, fullNa
 		Role:         role,
 		DepartmentID: departmentID,
 		FullName:     fullName,
+		TokenType:    "access",
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        accessID,
 			Subject:   userID,
 			Issuer:    "eomp-auth-service",
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -66,11 +99,15 @@ func (m *JWTManager) GenerateTokenPair(userID, email, role, departmentID, fullNa
 	}
 
 	// 2. Refresh Token
-	refreshClaims := jwt.RegisteredClaims{
-		Subject:   userID,
-		Issuer:    "eomp-auth-service",
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTTL)),
+	refreshClaims := RefreshClaims{
+		TokenType: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        refreshID,
+			Subject:   userID,
+			Issuer:    "eomp-auth-service",
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTTL)),
+		},
 	}
 	refreshObj := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshToken, err = refreshObj.SignedString(m.secretKey)
@@ -95,10 +132,29 @@ func (m *JWTManager) ValidateToken(tokenStr string) (*UserClaims, error) {
 	}
 
 	claims, ok := token.Claims.(*UserClaims)
-	if !ok || !token.Valid {
+	if !ok || !token.Valid || claims.TokenType != "access" || claims.UserID == "" || claims.ID == "" {
 		return nil, errors.New("invalid or expired token claims")
 	}
 
+	return claims, nil
+}
+
+// ValidateRefreshToken verifies the signature, expiry, issuer and token type.
+func (m *JWTManager) ValidateRefreshToken(tokenStr string) (*RefreshClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &RefreshClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return m.secretKey, nil
+	}, jwt.WithIssuer("eomp-auth-service"))
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*RefreshClaims)
+	if !ok || !token.Valid || claims.TokenType != "refresh" || claims.Subject == "" || claims.ID == "" {
+		return nil, errors.New("invalid or expired refresh token claims")
+	}
 	return claims, nil
 }
 

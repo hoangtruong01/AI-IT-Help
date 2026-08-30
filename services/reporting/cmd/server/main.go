@@ -42,15 +42,15 @@ func main() {
 
 	db, err := database.Connect(dbCfg)
 	if err != nil {
-		log.Warn("could not connect to PostgreSQL (reporting_db) - will use mock repository fallback", slog.Any("error", err))
-	} else {
-		log.Info("connected to PostgreSQL successfully", slog.String("db", cfg.DBName))
-		if err := database.RunMigrations(db, cfg.MigrationsPath); err != nil {
-			log.Error("failed to run database migrations", slog.Any("error", err))
-		} else {
-			log.Info("database migrations applied successfully")
-		}
+		log.Error("could not connect to PostgreSQL", slog.Any("error", err))
+		os.Exit(1)
 	}
+	log.Info("connected to PostgreSQL successfully", slog.String("db", cfg.DBName))
+	if err := database.RunMigrations(db, cfg.MigrationsPath); err != nil {
+		log.Error("failed to run database migrations", slog.Any("error", err))
+		os.Exit(1)
+	}
+	log.Info("database migrations applied successfully")
 
 	// 2. Instantiate Dependencies
 	repo := repository.NewRepository(db)
@@ -69,6 +69,7 @@ func main() {
 	// Health & Prometheus Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /ready", database.ReadinessHandler(db))
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Reporting & BI Endpoints

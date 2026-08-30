@@ -75,8 +75,9 @@ type CreateChangePayload struct {
 
 // UpdateChangeStatusPayload is the request DTO for updating Change status.
 type UpdateChangeStatusPayload struct {
-	Status string  `json:"status"`
-	Notes  *string `json:"notes,omitempty"`
+	Status          string  `json:"status"`
+	Notes           *string `json:"notes,omitempty"`
+	ExpectedVersion int     `json:"version"`
 }
 
 // SubmitCABVotePayload is the request DTO for submitting a CAB vote.

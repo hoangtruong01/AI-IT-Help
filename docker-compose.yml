@@ -11,7 +11,7 @@ services:
   # PostgreSQL
   # ==============================
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.2-alpine3.21
     container_name: eomp-postgres
     restart: unless-stopped
     ports:
@@ -35,7 +35,7 @@ services:
   # Redis
   # ==============================
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.2-alpine
     container_name: eomp-redis
     restart: unless-stopped
     ports:
@@ -55,7 +55,7 @@ services:
   # RabbitMQ
   # ==============================
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:4.0.5-management-alpine
     container_name: eomp-rabbitmq
     restart: unless-stopped
     ports:
@@ -78,7 +78,7 @@ services:
   # MinIO (Object Storage)
   # ==============================
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
     container_name: eomp-minio
     restart: unless-stopped
     ports:
@@ -102,7 +102,7 @@ services:
   # MinIO Bucket Initialization
   # ==============================
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-02-08T19-14-21Z
     container_name: eomp-minio-init
     depends_on:
       minio:
@@ -124,7 +124,7 @@ services:
   # Qdrant (Vector Database)
   # ==============================
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.2
     container_name: eomp-qdrant
     restart: unless-stopped
     ports:
@@ -144,7 +144,7 @@ services:
   # Prometheus (Metrics)
   # ==============================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.1.0
     container_name: eomp-prometheus
     restart: unless-stopped
     ports:
@@ -168,7 +168,7 @@ services:
   # Grafana (Dashboards)
   # ==============================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.1
     container_name: eomp-grafana
     restart: unless-stopped
     ports:
@@ -195,7 +195,7 @@ services:
   # Loki (Log Aggregation)
   # ==============================
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.4.1
     container_name: eomp-loki
     restart: unless-stopped
     ports:

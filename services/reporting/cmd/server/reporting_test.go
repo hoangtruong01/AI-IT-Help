@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,12 +11,36 @@ import (
 
 	"eomp/services/reporting/internal/handler"
 	"eomp/services/reporting/internal/model"
-	"eomp/services/reporting/internal/repository"
 	"eomp/services/reporting/internal/service"
 )
 
+type fixtureReportingRepository struct{}
+
+func (fixtureReportingRepository) GetExecutiveOverview(context.Context, model.DateFilterQuery) (*model.ExecutiveOverview, error) {
+	return &model.ExecutiveOverview{}, nil
+}
+func (fixtureReportingRepository) GetIncidentTrends(context.Context, model.DateFilterQuery) ([]model.IncidentTrend, error) {
+	return []model.IncidentTrend{}, nil
+}
+func (fixtureReportingRepository) GetCategoryBreakdowns(context.Context, model.DateFilterQuery) ([]model.CategoryBreakdown, error) {
+	return []model.CategoryBreakdown{}, nil
+}
+func (fixtureReportingRepository) GetDepartmentSLAMetrics(context.Context, model.DateFilterQuery) ([]model.DepartmentSLAMetric, error) {
+	return []model.DepartmentSLAMetric{}, nil
+}
+func (fixtureReportingRepository) GetAgentScorecards(context.Context, model.DateFilterQuery) ([]model.AgentScorecard, error) {
+	return []model.AgentScorecard{}, nil
+}
+func (fixtureReportingRepository) GetRawRecords(_ context.Context, limit int) ([]model.RawIncidentRecord, error) {
+	records := make([]model.RawIncidentRecord, limit)
+	for i := range records {
+		records[i] = model.RawIncidentRecord{TicketNumber: "TST-1", Title: "Test incident", Status: "RESOLVED", CreatedAt: time.Unix(0, 0)}
+	}
+	return records, nil
+}
+
 func setupTestApp() *handler.ReportingHandler {
-	repo := repository.NewRepository(nil) // Uses built-in mock fallback
+	repo := fixtureReportingRepository{}
 	svc := service.NewService(repo)
 	return handler.NewReportingHandler(svc)
 }

@@ -30,16 +30,41 @@ type postgresRepository struct {
 	mockSec  []model.SecurityEvent
 }
 
-// NewRepository initializes PostgreSQL audit repository with fallback storage.
+// NewRepository initializes the PostgreSQL audit repository.
 func NewRepository(db *sql.DB) Repository {
-	r := &postgresRepository{db: db}
-	r.initMockData()
-	return r
+	return &postgresRepository{db: db}
+}
+
+// ComputeChecksum hashes the canonical, masked audit payload persisted by the repository.
+func ComputeChecksum(log *model.AuditLog) error {
+	oldJSON, err := json.Marshal(log.OldValues)
+	if err != nil {
+		return fmt.Errorf("marshal old audit values: %w", err)
+	}
+	newJSON, err := json.Marshal(log.NewValues)
+	if err != nil {
+		return fmt.Errorf("marshal new audit values: %w", err)
+	}
+	payloadRaw, err := json.Marshal(struct {
+		ID, EventType, ActorID, ActorName, ActorEmail, ActorRole string
+		ServiceName, IPAddress, UserAgent, Status                string
+		ResourceType, ResourceID                                 string
+		OldValues, NewValues                                     json.RawMessage
+		CreatedAt                                                time.Time
+	}{log.ID, log.EventType, log.ActorID, log.ActorName, log.ActorEmail, log.ActorRole,
+		log.ServiceName, log.IPAddress, log.UserAgent, log.Status, log.ResourceType, log.ResourceID,
+		oldJSON, newJSON, log.CreatedAt.UTC()})
+	if err != nil {
+		return fmt.Errorf("marshal audit checksum payload: %w", err)
+	}
+	hash := sha256.Sum256(payloadRaw)
+	log.ChecksumSHA256 = hex.EncodeToString(hash[:])
+	return nil
 }
 
 func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.AuditFilterQuery) ([]model.AuditLog, int, error) {
 	if r.db == nil {
-		return r.listMockLogs(filter)
+		return nil, 0, fmt.Errorf("audit database is unavailable")
 	}
 
 	query := `
@@ -88,7 +113,7 @@ func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.Aud
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return r.listMockLogs(filter)
+		return nil, 0, fmt.Errorf("query audit logs: %w", err)
 	}
 	defer rows.Close()
 
@@ -101,31 +126,22 @@ func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.Aud
 			&log.ServiceName, &log.IPAddress, &log.UserAgent, &log.Status, &log.ResourceType, &log.ResourceID,
 			&oldStr, &newStr, &log.ChecksumSHA256, &log.CreatedAt,
 		)
-		if err == nil {
-			_ = json.Unmarshal([]byte(oldStr), &log.OldValues)
-			_ = json.Unmarshal([]byte(newStr), &log.NewValues)
-			logs = append(logs, log)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan audit log: %w", err)
 		}
+		_ = json.Unmarshal([]byte(oldStr), &log.OldValues)
+		_ = json.Unmarshal([]byte(newStr), &log.NewValues)
+		logs = append(logs, log)
 	}
-
-	total := len(logs)
-	if total == 0 {
-		return r.listMockLogs(filter)
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate audit logs: %w", err)
 	}
-
-	return logs, total, nil
+	return logs, len(logs), nil
 }
 
 func (r *postgresRepository) GetAuditLogByID(ctx context.Context, id string) (*model.AuditLog, error) {
 	if r.db == nil {
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		for _, l := range r.mockLogs {
-			if l.ID == id {
-				return &l, nil
-			}
-		}
-		return nil, fmt.Errorf("audit log not found")
+		return nil, fmt.Errorf("audit database is unavailable")
 	}
 
 	query := `
@@ -143,13 +159,6 @@ func (r *postgresRepository) GetAuditLogByID(ctx context.Context, id string) (*m
 		&oldStr, &newStr, &log.ChecksumSHA256, &log.CreatedAt,
 	)
 	if err != nil {
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		for _, l := range r.mockLogs {
-			if l.ID == id {
-				return &l, nil
-			}
-		}
 		return nil, err
 	}
 
@@ -159,67 +168,86 @@ func (r *postgresRepository) GetAuditLogByID(ctx context.Context, id string) (*m
 }
 
 func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *model.AuditLog) error {
-	// Compute immutable SHA-256 Checksum proof (Test Case 10.3)
-	payloadRaw := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s",
-		log.EventType, log.ActorEmail, log.ServiceName, log.IPAddress, log.Status, log.ResourceID, log.CreatedAt.Format(time.RFC3339Nano))
-	hash := sha256.Sum256([]byte(payloadRaw))
-	log.ChecksumSHA256 = hex.EncodeToString(hash[:])
-
 	if r.db == nil {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.mockLogs = append([]model.AuditLog{*log}, r.mockLogs...)
-		return nil
+		return fmt.Errorf("audit database is unavailable")
 	}
 
-	oldJSON, _ := json.Marshal(log.OldValues)
-	newJSON, _ := json.Marshal(log.NewValues)
+	oldJSON, err := json.Marshal(log.OldValues)
+	if err != nil {
+		return fmt.Errorf("marshal old audit values: %w", err)
+	}
+	newJSON, err := json.Marshal(log.NewValues)
+	if err != nil {
+		return fmt.Errorf("marshal new audit values: %w", err)
+	}
+	if err := ComputeChecksum(log); err != nil {
+		return err
+	}
 
 	query := `
 		INSERT INTO audit_logs (id, event_type, actor_id, actor_name, actor_email, actor_role, service_name, ip_address, user_agent, status, resource_type, resource_id, old_values, new_values, checksum_sha256, created_at)
 		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, $16)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = r.db.ExecContext(ctx, query,
 		log.ID, log.EventType, log.ActorID, log.ActorName, log.ActorEmail, log.ActorRole,
 		log.ServiceName, log.IPAddress, log.UserAgent, log.Status, log.ResourceType, log.ResourceID,
 		string(oldJSON), string(newJSON), log.ChecksumSHA256, log.CreatedAt,
 	)
 	if err != nil {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.mockLogs = append([]model.AuditLog{*log}, r.mockLogs...)
+		return fmt.Errorf("insert audit log: %w", err)
 	}
 	return nil
 }
 
 func (r *postgresRepository) GetStats(ctx context.Context) (*model.AuditStats, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var total, forbidden, success int64
-	for _, l := range r.mockLogs {
-		total++
-		if l.Status == "FORBIDDEN" {
-			forbidden++
-		} else {
-			success++
-		}
+	if r.db == nil {
+		return nil, fmt.Errorf("audit database is unavailable")
 	}
-
+	var total, forbidden, success, proofs, alerts int64
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'FORBIDDEN'),
+		       COUNT(*) FILTER (WHERE status = 'SUCCESS'),
+		       COUNT(*) FILTER (WHERE checksum_sha256 <> '')
+		FROM audit_logs`).Scan(&total, &forbidden, &success, &proofs)
+	if err != nil {
+		return nil, fmt.Errorf("query audit stats: %w", err)
+	}
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM security_events WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&alerts); err != nil {
+		return nil, fmt.Errorf("query security alert count: %w", err)
+	}
 	return &model.AuditStats{
 		TotalLogs:            total,
 		BlockedViolations:    forbidden,
-		ActiveSecurityAlerts: 3,
-		ImmutableProofsCount: total,
+		ActiveSecurityAlerts: alerts,
+		ImmutableProofsCount: proofs,
 		SuccessCount:         success,
 		ForbiddenCount:       forbidden,
 	}, nil
 }
 
 func (r *postgresRepository) GetSecurityEvents(ctx context.Context, limit int) ([]model.SecurityEvent, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.mockSec, nil
+	if r.db == nil {
+		return nil, fmt.Errorf("audit database is unavailable")
+	}
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, event_code, severity, source_ip, target_endpoint, description, is_blocked, created_at
+		FROM security_events ORDER BY created_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query security events: %w", err)
+	}
+	defer rows.Close()
+	events := make([]model.SecurityEvent, 0)
+	for rows.Next() {
+		var event model.SecurityEvent
+		if err := rows.Scan(&event.ID, &event.EventCode, &event.Severity, &event.SourceIP, &event.TargetEndpoint, &event.Description, &event.IsBlocked, &event.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan security event: %w", err)
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
 }
 
 func (r *postgresRepository) listMockLogs(filter model.AuditFilterQuery) ([]model.AuditLog, int, error) {

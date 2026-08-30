@@ -43,20 +43,24 @@ func main() {
 
 	db, err := database.Connect(dbCfg)
 	if err != nil {
-		log.Warn("could not connect to PostgreSQL (auth_db) - will retry on requests", slog.Any("error", err))
-	} else {
-		log.Info("connected to PostgreSQL successfully", slog.String("db", cfg.DBName))
-		if err := database.RunMigrations(db, cfg.MigrationsPath); err != nil {
-			log.Error("failed to run database migrations", slog.Any("error", err))
-		} else {
-			log.Info("database migrations applied successfully")
-		}
+		log.Error("could not connect to PostgreSQL", slog.Any("error", err))
+		os.Exit(1)
 	}
+	log.Info("connected to PostgreSQL successfully", slog.String("db", cfg.DBName))
+	if err := database.RunMigrations(db, cfg.MigrationsPath); err != nil {
+		log.Error("failed to run database migrations", slog.Any("error", err))
+		os.Exit(1)
+	}
+	log.Info("database migrations applied successfully")
 
 	// 2. Instantiate Dependencies
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	userRepo := repository.NewUserRepository(db)
 	authSvc := service.NewAuthService(userRepo, jwtManager)
+	if err := authSvc.BootstrapAdmin(context.Background(), cfg.BootstrapAdminEmail, cfg.BootstrapAdminPassword, cfg.BootstrapAdminName); err != nil {
+		log.Error("failed to bootstrap initial administrator", slog.Any("error", err))
+		os.Exit(1)
+	}
 	authHandler := handler.NewAuthHandler(authSvc)
 	healthHandler := handler.NewHealthHandler(cfg)
 
@@ -66,6 +70,7 @@ func main() {
 	// Health & Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
+	mux.HandleFunc("GET /ready", database.ReadinessHandler(db))
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Public auth routes

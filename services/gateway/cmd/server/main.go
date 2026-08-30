@@ -120,62 +120,77 @@ func main() {
 	mux.HandleFunc("GET /api/health", healthHandler.Check)
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
-	// Enterprise Observability & SRE Monitoring APIs (Phase 8)
-	mux.HandleFunc("GET /api/v1/monitoring/overview", monitoringHandler.GetOverview)
-	mux.HandleFunc("GET /api/v1/monitoring/services", monitoringHandler.ListServices)
-	mux.HandleFunc("POST /api/v1/monitoring/probe/{id}", monitoringHandler.ProbeService)
-	mux.HandleFunc("GET /api/v1/monitoring/logs", monitoringHandler.GetLogs)
+	adminManager := middleware.RequireRoles("ROLE_ADMIN", "ROLE_MANAGER")
+	operatorWrites := middleware.RequireRolesForMethods(
+		[]string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete},
+		"ROLE_ADMIN", "ROLE_MANAGER", "ROLE_AGENT",
+	)
+	managerWrites := middleware.RequireRolesForMethods(
+		[]string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete},
+		"ROLE_ADMIN", "ROLE_MANAGER",
+	)
+
+	// Monitoring data can expose infrastructure details and is restricted.
+	mux.Handle("GET /api/v1/monitoring/overview", authFilter(adminManager(http.HandlerFunc(monitoringHandler.GetOverview))))
+	mux.Handle("GET /api/v1/monitoring/services", authFilter(adminManager(http.HandlerFunc(monitoringHandler.ListServices))))
+	mux.Handle("POST /api/v1/monitoring/probe/{id}", authFilter(adminManager(http.HandlerFunc(monitoringHandler.ProbeService))))
+	mux.Handle("GET /api/v1/monitoring/logs", authFilter(adminManager(http.HandlerFunc(monitoringHandler.GetLogs))))
 
 	// Auth Service Routing with Strict Redis Brute-Force Rate Limiter (10 req/min/IP - Task 1.5 & Task 6.1)
 	strictAuthLimiter := middleware.StrictRedisAuthRateLimiter(redisClient, 10, 1*time.Minute, cfg.TrustedProxies, log)
 	mux.Handle("/api/v1/auth/", strictAuthLimiter(authProxy))
 
 	// Employee & Department Routing
-	mux.Handle("/api/v1/employees", authFilter(employeeProxy))
-	mux.Handle("/api/v1/employees/", authFilter(employeeProxy))
-	mux.Handle("/api/v1/departments", authFilter(employeeProxy))
-	mux.Handle("/api/v1/departments/", authFilter(employeeProxy))
+	mux.Handle("/api/v1/employees", authFilter(managerWrites(employeeProxy)))
+	mux.Handle("/api/v1/employees/", authFilter(managerWrites(employeeProxy)))
+	mux.Handle("/api/v1/departments", authFilter(managerWrites(employeeProxy)))
+	mux.Handle("/api/v1/departments/", authFilter(managerWrites(employeeProxy)))
 
 	// Asset & CMDB Routing
-	mux.Handle("/api/v1/assets", authFilter(assetProxy))
-	mux.Handle("/api/v1/assets/", authFilter(assetProxy))
-	mux.Handle("/api/v1/cmdb/", authFilter(assetProxy))
+	mux.Handle("/api/v1/assets", authFilter(operatorWrites(assetProxy)))
+	mux.Handle("/api/v1/assets/", authFilter(operatorWrites(assetProxy)))
+	mux.Handle("/api/v1/cmdb/", authFilter(operatorWrites(assetProxy)))
 
 	// Helpdesk & Service Catalog Routing
-	mux.Handle("/api/v1/tickets", authFilter(helpdeskProxy))
-	mux.Handle("/api/v1/tickets/", authFilter(helpdeskProxy))
+	// Employees may create tickets and comments; operational ticket mutations are restricted.
+	mux.Handle("POST /api/v1/tickets", authFilter(helpdeskProxy))
+	mux.Handle("POST /api/v1/tickets/{id}/comments", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/tickets", authFilter(operatorWrites(helpdeskProxy)))
+	mux.Handle("/api/v1/tickets/", authFilter(operatorWrites(helpdeskProxy)))
 	mux.Handle("/api/v1/services/", authFilter(helpdeskProxy))
-	mux.Handle("/api/v1/problems", authFilter(helpdeskProxy))
-	mux.Handle("/api/v1/problems/", authFilter(helpdeskProxy))
+	mux.Handle("/api/v1/problems", authFilter(operatorWrites(helpdeskProxy)))
+	mux.Handle("/api/v1/problems/", authFilter(operatorWrites(helpdeskProxy)))
 
 	// Workflow Engine & Approvals & Changes Routing
-	mux.Handle("/api/v1/workflows", authFilter(workflowProxy))
-	mux.Handle("/api/v1/workflows/", authFilter(workflowProxy))
-	mux.Handle("/api/v1/approvals", authFilter(workflowProxy))
-	mux.Handle("/api/v1/approvals/", authFilter(workflowProxy))
-	mux.Handle("/api/v1/changes", authFilter(workflowProxy))
-	mux.Handle("/api/v1/changes/", authFilter(workflowProxy))
+	mux.Handle("POST /api/v1/workflows/instances", authFilter(workflowProxy))
+	mux.Handle("/api/v1/workflows", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/workflows/", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/approvals", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/approvals/", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/changes", authFilter(managerWrites(workflowProxy)))
+	mux.Handle("/api/v1/changes/", authFilter(managerWrites(workflowProxy)))
 
 	// Notification Center Routing
-	mux.Handle("/api/v1/notifications", authFilter(notificationProxy))
-	mux.Handle("/api/v1/notifications/", authFilter(notificationProxy))
+	mux.Handle("PATCH /api/v1/notifications/{id}/read", authFilter(notificationProxy))
+	mux.Handle("POST /api/v1/notifications/read-all", authFilter(notificationProxy))
+	mux.Handle("/api/v1/notifications", authFilter(operatorWrites(notificationProxy)))
+	mux.Handle("/api/v1/notifications/", authFilter(operatorWrites(notificationProxy)))
 
 	// Knowledge Base & Vector Documents Routing
-	mux.Handle("/api/v1/knowledge", authFilter(knowledgeProxy))
-	mux.Handle("/api/v1/knowledge/", authFilter(knowledgeProxy))
+	mux.Handle("/api/v1/knowledge", authFilter(operatorWrites(knowledgeProxy)))
+	mux.Handle("/api/v1/knowledge/", authFilter(operatorWrites(knowledgeProxy)))
 
 	// AI Operations Copilot Routing
 	mux.Handle("/api/v1/ai", authFilter(aiProxy))
 	mux.Handle("/api/v1/ai/", authFilter(aiProxy))
 
 	// Reporting & BI Analytics Routing (Phase 9)
-	mux.Handle("/api/v1/reports", authFilter(reportingProxy))
-	mux.Handle("/api/v1/reports/", authFilter(reportingProxy))
+	mux.Handle("/api/v1/reports", authFilter(adminManager(reportingProxy)))
+	mux.Handle("/api/v1/reports/", authFilter(adminManager(reportingProxy)))
 
 	// Audit Trail & Compliance Routing - Strict RBAC (Admin & Manager Only - Test Case 10.1)
-	adminRoleFilter := middleware.RequireRoles("ROLE_ADMIN", "ROLE_MANAGER")
-	mux.Handle("/api/v1/audit", authFilter(adminRoleFilter(auditProxy)))
-	mux.Handle("/api/v1/audit/", authFilter(adminRoleFilter(auditProxy)))
+	mux.Handle("/api/v1/audit", authFilter(adminManager(auditProxy)))
+	mux.Handle("/api/v1/audit/", authFilter(adminManager(auditProxy)))
 
 	// Apply Global Gateway Middleware Stack with Body Size Limit (5MB), Dynamic CORS, Distributed Redis Sliding Window Limiter (100 req/min), and RED Metrics
 	handlerStack := middleware.Recoverer(log)(

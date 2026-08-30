@@ -1,5 +1,7 @@
 # 🗄️ EOMP — DATABASE SCHEMA AUDIT REPORT & CONCURRENCY BASELINE
 
+> **Historical audit:** inventory and completion claims below predate the 2026-08-30 remediation. They are not current release evidence. See `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Audit Date:** 2026-08-23  
 > **Auditors:** Database Architect, Lead QA Engineer, Full Stack Lead  
 > **Scope:** 9 PostgreSQL Databases, 11 SQL Migration Files, 23 Tables, Qdrant Vector Store, Redis Caching  

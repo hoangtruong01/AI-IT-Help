@@ -114,6 +114,10 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
 	userRole := middleware.GetUserRole(r.Context())
 	userEmail := middleware.GetUserEmail(r.Context())
+	if middleware.GetUserID(r.Context()) == "" || userEmail == "" {
+		errors.WriteHTTP(w, errors.Unauthorized("authentication required"))
+		return
+	}
 
 	// If not admin, restrict to caller's email
 	queryEmail := r.URL.Query().Get("email")

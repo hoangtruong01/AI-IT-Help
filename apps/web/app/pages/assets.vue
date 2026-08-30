@@ -73,7 +73,6 @@ const incidentRecords = ref<AssetIncidentItem[]>([])
 const activeHistoryTab = ref<'assignments' | 'incidents'>('assignments')
 const loadingHistory = ref(false)
 
-
 // CMDB State
 const topology = ref<CMDBTopologyGraph | null>(null)
 const cmdbLoading = ref(false)
@@ -177,7 +176,8 @@ async function handleAssignSubmit() {
       user_id: assignUserID.value,
       user_name: assignUserName.value,
       condition_on_assign: assignCondition.value,
-      notes: assignNotes.value
+      notes: assignNotes.value,
+      version: assigningAsset.value.version ?? 1
     })
     isAssignModalOpen.value = false
     await Promise.all([fetchAssets(), fetchStats()])
@@ -193,7 +193,8 @@ async function handleReturnAsset(asset: Asset) {
   try {
     await api.post(`/api/v1/assets/${asset.id}/return`, {
       condition: 'GOOD',
-      notes: 'Returned to warehouse stock'
+      notes: 'Returned to warehouse stock',
+      version: asset.version ?? 1
     })
     await Promise.all([fetchAssets(), fetchStats()])
   } catch (err) {
@@ -221,7 +222,6 @@ async function openHistoryModal(asset: Asset) {
     loadingHistory.value = false
   }
 }
-
 
 async function handleCreateCI() {
   if (!newCI.ci_code || !newCI.name || !newCI.ci_type) return
@@ -1095,10 +1095,16 @@ onMounted(() => {
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <UIcon name="i-lucide-history" class="w-5 h-5 text-emerald-400" />
+              <UIcon
+                name="i-lucide-history"
+                class="w-5 h-5 text-emerald-400"
+              />
               <span>Asset Lifecycle & Incident History</span>
             </h3>
-            <p class="text-xs text-slate-400 mt-0.5" v-if="historyAsset">
+            <p
+              v-if="historyAsset"
+              class="text-xs text-slate-400 mt-0.5"
+            >
               Hardware: <span class="font-mono text-emerald-400 font-bold">{{ historyAsset.asset_tag }}</span> — {{ historyAsset.name }} ({{ historyAsset.status }})
             </p>
           </div>
@@ -1106,7 +1112,10 @@ onMounted(() => {
             class="text-slate-400 hover:text-white"
             @click="isHistoryModalOpen = false"
           >
-            <UIcon name="i-lucide-x" class="w-5 h-5" />
+            <UIcon
+              name="i-lucide-x"
+              class="w-5 h-5"
+            />
           </button>
         </div>
 
@@ -1117,7 +1126,10 @@ onMounted(() => {
             :class="activeHistoryTab === 'assignments' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'"
             @click="activeHistoryTab = 'assignments'"
           >
-            <UIcon name="i-lucide-users" class="w-4 h-4" />
+            <UIcon
+              name="i-lucide-users"
+              class="w-4 h-4"
+            />
             <span>Assignments ({{ historyRecords.length }})</span>
           </button>
           <button
@@ -1125,22 +1137,37 @@ onMounted(() => {
             :class="activeHistoryTab === 'incidents' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'"
             @click="activeHistoryTab = 'incidents'"
           >
-            <UIcon name="i-lucide-alert-triangle" class="w-4 h-4" />
+            <UIcon
+              name="i-lucide-alert-triangle"
+              class="w-4 h-4"
+            />
             <span>Incident Tickets ({{ incidentRecords.length }})</span>
           </button>
         </div>
 
-        <div v-if="loadingHistory" class="py-12 flex flex-col items-center justify-center space-y-3">
-          <UIcon name="i-lucide-loader-2" class="w-7 h-7 text-emerald-400 animate-spin" />
+        <div
+          v-if="loadingHistory"
+          class="py-12 flex flex-col items-center justify-center space-y-3"
+        >
+          <UIcon
+            name="i-lucide-loader-2"
+            class="w-7 h-7 text-emerald-400 animate-spin"
+          />
           <span class="text-xs text-slate-400">Loading asset logs...</span>
         </div>
 
         <!-- Assignments Tab -->
         <div v-else-if="activeHistoryTab === 'assignments'">
-          <div v-if="historyRecords.length === 0" class="py-8 text-center text-slate-500 text-xs">
+          <div
+            v-if="historyRecords.length === 0"
+            class="py-8 text-center text-slate-500 text-xs"
+          >
             No assignment history found for this asset.
           </div>
-          <div v-else class="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+          <div
+            v-else
+            class="max-h-80 overflow-y-auto space-y-2.5 pr-1"
+          >
             <div
               v-for="rec in historyRecords"
               :key="rec.id"
@@ -1159,17 +1186,28 @@ onMounted(() => {
                 <span>Assigned: {{ new Date(rec.assigned_at).toLocaleDateString() }} ({{ rec.condition_on_assign }})</span>
                 <span v-if="rec.returned_at">Returned: {{ new Date(rec.returned_at).toLocaleDateString() }}</span>
               </div>
-              <p v-if="rec.notes" class="text-[11px] text-slate-400 italic">"{{ rec.notes }}"</p>
+              <p
+                v-if="rec.notes"
+                class="text-[11px] text-slate-400 italic"
+              >
+                "{{ rec.notes }}"
+              </p>
             </div>
           </div>
         </div>
 
         <!-- Incidents Tab -->
         <div v-else-if="activeHistoryTab === 'incidents'">
-          <div v-if="incidentRecords.length === 0" class="py-8 text-center text-slate-500 text-xs">
+          <div
+            v-if="incidentRecords.length === 0"
+            class="py-8 text-center text-slate-500 text-xs"
+          >
             No incident tickets reported on this hardware.
           </div>
-          <div v-else class="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+          <div
+            v-else
+            class="max-h-80 overflow-y-auto space-y-2.5 pr-1"
+          >
             <div
               v-for="inc in incidentRecords"
               :key="inc.ticket_id"
@@ -1208,4 +1246,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-

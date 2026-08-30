@@ -5,8 +5,8 @@ definePageMeta({
 
 const authStore = useAuthStore()
 
-const email = ref('admin@eomp.local')
-const password = ref('Admin@123456')
+const email = ref('')
+const password = ref('')
 const showPassword = ref(false)
 
 async function handleLogin() {
@@ -15,12 +15,6 @@ async function handleLogin() {
   if (success) {
     navigateTo('/')
   }
-}
-
-function quickFill(demoEmail: string) {
-  email.value = demoEmail
-  password.value = 'Admin@123456'
-  handleLogin()
 }
 </script>
 
@@ -146,36 +140,6 @@ function quickFill(demoEmail: string) {
             />
           </button>
         </form>
-
-        <!-- Quick Fill Demo Accounts -->
-        <div class="pt-4 border-t border-slate-800/80 space-y-2.5">
-          <p class="text-[11px] font-semibold text-slate-400 text-center uppercase tracking-wider">
-            Quick 1-Click Demo Logins
-          </p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/50 text-[11px] font-medium text-slate-300 transition-all text-center"
-              @click="quickFill('admin@eomp.local')"
-            >
-              👑 Admin
-            </button>
-            <button
-              type="button"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/50 text-[11px] font-medium text-slate-300 transition-all text-center"
-              @click="quickFill('manager@eomp.local')"
-            >
-              👔 Manager
-            </button>
-            <button
-              type="button"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/50 text-[11px] font-medium text-slate-300 transition-all text-center"
-              @click="quickFill('agent@eomp.local')"
-            >
-              🛠️ Support
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Footer Info -->

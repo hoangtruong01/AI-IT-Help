@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +75,21 @@ func TestRequireEnv(t *testing.T) {
 	_, errMissing := RequireEnv("MISSING_REQ_KEY")
 	if errMissing == nil {
 		t.Fatalf("expected error for missing required env, got nil")
+	}
+}
+
+func TestRabbitMQURL_EscapesCredentials(t *testing.T) {
+	t.Setenv("RABBITMQ_URL", "")
+	t.Setenv("RABBITMQ_HOST", "rabbitmq-service")
+	t.Setenv("RABBITMQ_PORT", "5672")
+	t.Setenv("RABBITMQ_USER", "service@example")
+	t.Setenv("RABBITMQ_PASSWORD", "p@ss:word/with spaces")
+
+	value := RabbitMQURL()
+	if strings.Contains(value, "p@ss:word/with spaces") {
+		t.Fatal("RabbitMQ password was not URL-escaped")
+	}
+	if !strings.Contains(value, "rabbitmq-service:5672") {
+		t.Fatalf("unexpected RabbitMQ URL: %s", value)
 	}
 }

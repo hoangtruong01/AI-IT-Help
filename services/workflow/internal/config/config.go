@@ -36,7 +36,7 @@ func Load() *Config {
 		DBName:         config.GetEnv("WORKFLOW_DB_NAME", "workflow_db"),
 		DBSSLMode:      config.GetEnv("POSTGRES_SSLMODE", "disable"),
 		MigrationsPath: config.GetEnv("WORKFLOW_MIGRATIONS_PATH", "migrations"),
-		RabbitMQURL:    config.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		RabbitMQURL:    config.RabbitMQURL(),
 	}
 }
 

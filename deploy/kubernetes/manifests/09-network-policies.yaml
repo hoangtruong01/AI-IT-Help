@@ -1,6 +1,3 @@
-# ==============================================================================
-# EOMP — Kubernetes CIS Benchmark Network Policies (Zero-Trust Default Deny)
-# ==============================================================================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,22 +5,16 @@ metadata:
   namespace: eomp
 spec:
   podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
-  # Default Deny: All pods in namespace cannot receive or initiate network traffic without explicit policy
-
+  policyTypes: [Ingress, Egress]
 ---
-# Allow DNS egress for all pods in namespace
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-kube-dns-egress
+  name: allow-dns-egress
   namespace: eomp
 spec:
   podSelector: {}
-  policyTypes:
-    - Egress
+  policyTypes: [Egress]
   egress:
     - to:
         - namespaceSelector: {}
@@ -31,142 +22,178 @@ spec:
             matchLabels:
               k8s-app: kube-dns
       ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
 ---
-# Policy: Allow Ingress to Web Frontend and API Gateway
+# The ingress controller namespace varies by cluster, so traffic to edge pods is
+# restricted by destination port. Tighten `from` selectors in the cluster overlay.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-to-edge
+  name: allow-edge-ingress
   namespace: eomp
 spec:
   podSelector:
     matchExpressions:
       - key: app
         operator: In
-        values: ["eomp-gateway", "eomp-web"]
-  policyTypes:
-    - Ingress
-    - Egress
+        values: [gateway, web]
+  policyTypes: [Ingress]
   ingress:
     - ports:
-        - protocol: TCP
-          port: 8080
-        - protocol: TCP
-          port: 3000
-  egress:
-    # Gateway can communicate with all 10 internal microservices and Redis
-    - to:
-        - podSelector:
-            matchLabels:
-              tier: backend
-      ports:
-        - protocol: TCP
-          port: 8081
-        - protocol: TCP
-          port: 8082
-        - protocol: TCP
-          port: 8083
-        - protocol: TCP
-          port: 8084
-        - protocol: TCP
-          port: 8085
-        - protocol: TCP
-          port: 8086
-        - protocol: TCP
-          port: 8087
-        - protocol: TCP
-          port: 8088
-        - protocol: TCP
-          port: 8089
-        - protocol: TCP
-          port: 8090
-    - to:
-        - podSelector:
-            matchLabels:
-              app: eomp-redis
-      ports:
-        - protocol: TCP
-          port: 6379
-
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 3000 }
 ---
-# Policy: Allow Gateway to Internal Backend Microservices
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-gateway-to-backend-services
+  name: allow-gateway-egress
   namespace: eomp
 spec:
   podSelector:
     matchLabels:
-      tier: backend
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    # Only Gateway and Prometheus scraping are allowed to call microservices
-    - from:
-        - podSelector:
-            matchLabels:
-              app: eomp-gateway
-        - podSelector:
-            matchLabels:
-              app: eomp-prometheus
+      app: gateway
+  policyTypes: [Egress]
   egress:
-    # Microservices can talk to Database, Cache, Broker, Vector Store, Object Storage
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [auth, employee, asset, helpdesk, workflow, notification, knowledge, ai, audit, reporting]
+      ports:
+        - { protocol: TCP, port: 8081 }
+        - { protocol: TCP, port: 8082 }
+        - { protocol: TCP, port: 8083 }
+        - { protocol: TCP, port: 8084 }
+        - { protocol: TCP, port: 8085 }
+        - { protocol: TCP, port: 8086 }
+        - { protocol: TCP, port: 8087 }
+        - { protocol: TCP, port: 8088 }
+        - { protocol: TCP, port: 8089 }
+        - { protocol: TCP, port: 8090 }
     - to:
         - podSelector:
             matchLabels:
-              tier: database
+              app: redis
       ports:
-        - protocol: TCP
-          port: 5432
-    - to:
-        - podSelector:
-            matchLabels:
-              tier: cache
-      ports:
-        - protocol: TCP
-          port: 6379
-    - to:
-        - podSelector:
-            matchLabels:
-              tier: messaging
-      ports:
-        - protocol: TCP
-          port: 5672
-    - to:
-        - podSelector:
-            matchLabels:
-              tier: vector
-      ports:
-        - protocol: TCP
-          port: 6333
-
+        - { protocol: TCP, port: 6379 }
 ---
-# Policy: Protect Stateful Infrastructure (Postgres, Redis, RabbitMQ, Qdrant)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-backend-to-infrastructure
+  name: allow-backend-traffic
   namespace: eomp
 spec:
   podSelector:
     matchExpressions:
-      - key: tier
+      - key: app
         operator: In
-        values: ["database", "cache", "messaging", "vector", "storage"]
-  policyTypes:
-    - Ingress
+        values: [auth, employee, asset, helpdesk, workflow, notification, knowledge, ai, audit, reporting]
+  policyTypes: [Ingress, Egress]
   ingress:
     - from:
         - podSelector:
-            matchLabels:
-              tier: backend
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, prometheus, employee, asset, helpdesk, workflow, notification, knowledge, ai, audit, reporting]
+  egress:
+    - to:
         - podSelector:
-            matchLabels:
-              app: eomp-gateway
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [employee, asset, helpdesk, workflow, notification, knowledge, ai, audit, reporting]
+      ports:
+        - { protocol: TCP, port: 8082 }
+        - { protocol: TCP, port: 8083 }
+        - { protocol: TCP, port: 8084 }
+        - { protocol: TCP, port: 8085 }
+        - { protocol: TCP, port: 8086 }
+        - { protocol: TCP, port: 8087 }
+        - { protocol: TCP, port: 8088 }
+        - { protocol: TCP, port: 8089 }
+        - { protocol: TCP, port: 8090 }
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [postgres, redis, rabbitmq, qdrant, minio]
+      ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 5672 }
+        - { protocol: TCP, port: 6333 }
+        - { protocol: TCP, port: 9000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-infrastructure-ingress
+  namespace: eomp
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [postgres, redis, rabbitmq, qdrant, minio, prometheus, grafana]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, auth, employee, asset, helpdesk, workflow, notification, knowledge, ai, audit, reporting, prometheus, grafana]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-observability-egress
+  namespace: eomp
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [prometheus, grafana]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8081 }
+        - { protocol: TCP, port: 8082 }
+        - { protocol: TCP, port: 8083 }
+        - { protocol: TCP, port: 8084 }
+        - { protocol: TCP, port: 8085 }
+        - { protocol: TCP, port: 8086 }
+        - { protocol: TCP, port: 8087 }
+        - { protocol: TCP, port: 8088 }
+        - { protocol: TCP, port: 8089 }
+        - { protocol: TCP, port: 8090 }
+        - { protocol: TCP, port: 9090 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ai-provider-https
+  namespace: eomp
+spec:
+  podSelector:
+    matchLabels:
+      app: ai
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - { protocol: TCP, port: 443 }

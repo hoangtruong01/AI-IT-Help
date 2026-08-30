@@ -24,6 +24,7 @@ type Config struct {
 	QdrantPort       int
 	QdrantCollection string
 	AutoIngest       bool
+	AllowMockAI      bool
 }
 
 // Load loads AI service configuration from environment variables.
@@ -50,12 +51,21 @@ func Load() *Config {
 		QdrantPort:       config.GetEnvInt("QDRANT_PORT", 6333),
 		QdrantCollection: config.GetEnv("QDRANT_COLLECTION", "knowledge_base"),
 		AutoIngest:       config.GetEnvBool("AUTO_INGEST", false),
+		AllowMockAI:      config.GetEnvBool("ALLOW_MOCK_AI", false),
 	}
 }
 
 // Validate performs fail-fast configuration checks.
 func (c *Config) Validate() error {
+	switch c.AIProvider {
+	case "mock", "ollama", "openai", "gemini":
+	default:
+		return errors.New("AI_PROVIDER must be one of: mock, ollama, openai, gemini")
+	}
 	if c.Environment == "production" {
+		if c.AIProvider == "mock" && !c.AllowMockAI {
+			return errors.New("AI_PROVIDER=mock is prohibited in production unless ALLOW_MOCK_AI=true is explicitly acknowledged")
+		}
 		if c.AIProvider == "openai" && c.OpenAIAPIKey == "" {
 			return errors.New("security violation: OPENAI_API_KEY must be provided in production when using openai provider")
 		}
