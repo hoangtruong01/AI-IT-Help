@@ -87,6 +87,13 @@ spec:
                   name: {{ include "eomp.secretName" $ }}
                   key: RABBITMQ_PASSWORD
             {{- end }}
+            {{- if eq $svcName "audit" }}
+            - name: AUDIT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.secretName" $ }}
+                  key: AUDIT_HMAC_KEY
+            {{- end }}
             {{- if eq $svcName "knowledge" }}
             - name: QDRANT_URL
               value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
@@ -95,8 +102,24 @@ spec:
               value: {{ $svcConfig.provider | quote }}
             - name: ALLOW_MOCK_AI
               value: {{ $svcConfig.allowMock | quote }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.secretName" $ }}
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.secretName" $ }}
+                  key: GEMINI_API_KEY
+                  optional: true
             - name: QDRANT_URL
               value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
+            - name: QDRANT_HOST
+              value: "{{ include "eomp.fullname" $ }}-qdrant"
+            - name: QDRANT_PORT
+              value: "6333"
             - name: KNOWLEDGE_SERVICE_URL
               value: "http://{{ include "eomp.fullname" $ }}-knowledge:8087"
             {{- end }}

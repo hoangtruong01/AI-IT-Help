@@ -2,41 +2,52 @@ package repository
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"eomp/services/audit/internal/model"
 )
 
-// Repository defines the contract for immutable audit persistence.
+const (
+	checksumAlgorithm = "HMAC-SHA256"
+	chainGenesis      = "0000000000000000000000000000000000000000000000000000000000000000"
+)
+
+// Repository defines the contract for append-only audit persistence.
 type Repository interface {
 	ListAuditLogs(ctx context.Context, filter model.AuditFilterQuery) ([]model.AuditLog, int, error)
 	GetAuditLogByID(ctx context.Context, id string) (*model.AuditLog, error)
 	CreateAuditLog(ctx context.Context, log *model.AuditLog) error
 	GetStats(ctx context.Context) (*model.AuditStats, error)
 	GetSecurityEvents(ctx context.Context, limit int) ([]model.SecurityEvent, error)
+	VerifyIntegrity(ctx context.Context) (*model.IntegrityReport, error)
 }
 
 type postgresRepository struct {
-	db       *sql.DB
-	mu       sync.RWMutex
-	mockLogs []model.AuditLog
-	mockSec  []model.SecurityEvent
+	db      *sql.DB
+	hmacKey []byte
 }
 
 // NewRepository initializes the PostgreSQL audit repository.
-func NewRepository(db *sql.DB) Repository {
-	return &postgresRepository{db: db}
+func NewRepository(db *sql.DB, hmacKey string) Repository {
+	return &postgresRepository{db: db, hmacKey: []byte(hmacKey)}
 }
 
-// ComputeChecksum hashes the canonical, masked audit payload persisted by the repository.
-func ComputeChecksum(log *model.AuditLog) error {
+// ComputeHMAC seals the canonical, masked audit payload and its predecessor.
+func ComputeHMAC(log *model.AuditLog, key []byte) error {
+	if len(key) < 32 {
+		return fmt.Errorf("audit HMAC key must contain at least 32 bytes")
+	}
+	// PostgreSQL timestamptz persists microsecond precision. Normalize before
+	// signing so a record verifies identically after a database round trip.
+	log.CreatedAt = log.CreatedAt.UTC().Truncate(time.Microsecond)
 	oldJSON, err := json.Marshal(log.OldValues)
 	if err != nil {
 		return fmt.Errorf("marshal old audit values: %w", err)
@@ -45,20 +56,24 @@ func ComputeChecksum(log *model.AuditLog) error {
 	if err != nil {
 		return fmt.Errorf("marshal new audit values: %w", err)
 	}
-	payloadRaw, err := json.Marshal(struct {
+	payload, err := json.Marshal(struct {
 		ID, EventType, ActorID, ActorName, ActorEmail, ActorRole string
 		ServiceName, IPAddress, UserAgent, Status                string
-		ResourceType, ResourceID                                 string
+		ResourceType, ResourceID, PreviousChecksum               string
 		OldValues, NewValues                                     json.RawMessage
 		CreatedAt                                                time.Time
-	}{log.ID, log.EventType, log.ActorID, log.ActorName, log.ActorEmail, log.ActorRole,
+	}{
+		log.ID, log.EventType, log.ActorID, log.ActorName, log.ActorEmail, log.ActorRole,
 		log.ServiceName, log.IPAddress, log.UserAgent, log.Status, log.ResourceType, log.ResourceID,
-		oldJSON, newJSON, log.CreatedAt.UTC()})
+		log.PreviousChecksum, oldJSON, newJSON, log.CreatedAt.UTC(),
+	})
 	if err != nil {
-		return fmt.Errorf("marshal audit checksum payload: %w", err)
+		return fmt.Errorf("marshal audit HMAC payload: %w", err)
 	}
-	hash := sha256.Sum256(payloadRaw)
-	log.ChecksumSHA256 = hex.EncodeToString(hash[:])
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(payload)
+	log.ChecksumSHA256 = hex.EncodeToString(mac.Sum(nil))
+	log.ChecksumAlgorithm = checksumAlgorithm
 	return nil
 }
 
@@ -66,17 +81,15 @@ func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.Aud
 	if r.db == nil {
 		return nil, 0, fmt.Errorf("audit database is unavailable")
 	}
-
 	query := `
-		SELECT id, event_type, COALESCE(actor_id::text, ''), actor_name, actor_email, actor_role, 
-		       service_name, ip_address, user_agent, status, resource_type, resource_id, 
-		       COALESCE(old_values::text, '{}'), COALESCE(new_values::text, '{}'), checksum_sha256, created_at
-		FROM audit_logs
-		WHERE 1=1
-	`
-	var args []interface{}
+		SELECT id, event_type, COALESCE(actor_id::text, ''), actor_name, actor_email, actor_role,
+		       service_name, ip_address, user_agent, status, resource_type, resource_id,
+		       COALESCE(old_values::text, '{}'), COALESCE(new_values::text, '{}'),
+		       previous_checksum, checksum_sha256, checksum_algorithm, created_at,
+		       COUNT(*) OVER()
+		FROM audit_logs WHERE 1=1`
+	args := make([]any, 0)
 	idx := 1
-
 	if filter.EventType != "" && filter.EventType != "ALL" {
 		query += fmt.Sprintf(" AND event_type = $%d", idx)
 		args = append(args, filter.EventType)
@@ -92,24 +105,22 @@ func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.Aud
 		args = append(args, filter.Service)
 		idx++
 	}
-	if filter.Search != "" {
-		s := "%" + strings.ToLower(filter.Search) + "%"
-		query += fmt.Sprintf(" AND (LOWER(actor_email) LIKE $%d OR LOWER(event_type) LIKE $%d OR LOWER(ip_address) LIKE $%d OR LOWER(resource_id) LIKE $%d)", idx, idx, idx, idx)
-		args = append(args, s)
+	if filter.Actor != "" {
+		query += fmt.Sprintf(" AND LOWER(actor_email) = LOWER($%d)", idx)
+		args = append(args, filter.Actor)
 		idx++
 	}
-
-	query += " ORDER BY created_at DESC"
-
-	if filter.PageSize <= 0 {
+	if filter.Search != "" {
+		query += fmt.Sprintf(" AND (LOWER(actor_email) LIKE $%d OR LOWER(event_type) LIKE $%d OR LOWER(ip_address) LIKE $%d OR LOWER(resource_id) LIKE $%d)", idx, idx, idx, idx)
+		args = append(args, "%"+strings.ToLower(filter.Search)+"%")
+	}
+	if filter.PageSize <= 0 || filter.PageSize > 200 {
 		filter.PageSize = 20
 	}
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
-
-	offset := (filter.Page - 1) * filter.PageSize
-	query += fmt.Sprintf(" LIMIT %d OFFSET %d", filter.PageSize, offset)
+	query += fmt.Sprintf(" ORDER BY created_at DESC, id DESC LIMIT %d OFFSET %d", filter.PageSize, (filter.Page-1)*filter.PageSize)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -117,61 +128,86 @@ func (r *postgresRepository) ListAuditLogs(ctx context.Context, filter model.Aud
 	}
 	defer rows.Close()
 
-	var logs []model.AuditLog
+	logs := make([]model.AuditLog, 0)
+	total := int64(0)
 	for rows.Next() {
 		var log model.AuditLog
-		var oldStr, newStr string
-		err := rows.Scan(
+		var oldJSON, newJSON string
+		if err := rows.Scan(
 			&log.ID, &log.EventType, &log.ActorID, &log.ActorName, &log.ActorEmail, &log.ActorRole,
 			&log.ServiceName, &log.IPAddress, &log.UserAgent, &log.Status, &log.ResourceType, &log.ResourceID,
-			&oldStr, &newStr, &log.ChecksumSHA256, &log.CreatedAt,
-		)
-		if err != nil {
+			&oldJSON, &newJSON, &log.PreviousChecksum, &log.ChecksumSHA256, &log.ChecksumAlgorithm,
+			&log.CreatedAt, &total,
+		); err != nil {
 			return nil, 0, fmt.Errorf("scan audit log: %w", err)
 		}
-		_ = json.Unmarshal([]byte(oldStr), &log.OldValues)
-		_ = json.Unmarshal([]byte(newStr), &log.NewValues)
+		if err := decodeValues(oldJSON, newJSON, &log); err != nil {
+			return nil, 0, err
+		}
 		logs = append(logs, log)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("iterate audit logs: %w", err)
 	}
-	return logs, len(logs), nil
+	return logs, int(total), nil
 }
 
 func (r *postgresRepository) GetAuditLogByID(ctx context.Context, id string) (*model.AuditLog, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("audit database is unavailable")
 	}
-
-	query := `
-		SELECT id, event_type, COALESCE(actor_id::text, ''), actor_name, actor_email, actor_role, 
-		       service_name, ip_address, user_agent, status, resource_type, resource_id, 
-		       COALESCE(old_values::text, '{}'), COALESCE(new_values::text, '{}'), checksum_sha256, created_at
-		FROM audit_logs
-		WHERE id = $1
-	`
 	var log model.AuditLog
-	var oldStr, newStr string
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	var oldJSON, newJSON string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, event_type, COALESCE(actor_id::text, ''), actor_name, actor_email, actor_role,
+		       service_name, ip_address, user_agent, status, resource_type, resource_id,
+		       COALESCE(old_values::text, '{}'), COALESCE(new_values::text, '{}'),
+		       previous_checksum, checksum_sha256, checksum_algorithm, created_at
+		FROM audit_logs WHERE id = $1`, id).Scan(
 		&log.ID, &log.EventType, &log.ActorID, &log.ActorName, &log.ActorEmail, &log.ActorRole,
 		&log.ServiceName, &log.IPAddress, &log.UserAgent, &log.Status, &log.ResourceType, &log.ResourceID,
-		&oldStr, &newStr, &log.ChecksumSHA256, &log.CreatedAt,
+		&oldJSON, &newJSON, &log.PreviousChecksum, &log.ChecksumSHA256, &log.ChecksumAlgorithm, &log.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-
-	_ = json.Unmarshal([]byte(oldStr), &log.OldValues)
-	_ = json.Unmarshal([]byte(newStr), &log.NewValues)
+	if err := decodeValues(oldJSON, newJSON, &log); err != nil {
+		return nil, err
+	}
 	return &log, nil
+}
+
+func decodeValues(oldJSON, newJSON string, log *model.AuditLog) error {
+	if err := json.Unmarshal([]byte(oldJSON), &log.OldValues); err != nil {
+		return fmt.Errorf("decode old audit values: %w", err)
+	}
+	if err := json.Unmarshal([]byte(newJSON), &log.NewValues); err != nil {
+		return fmt.Errorf("decode new audit values: %w", err)
+	}
+	return nil
 }
 
 func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *model.AuditLog) error {
 	if r.db == nil {
 		return fmt.Errorf("audit database is unavailable")
 	}
-
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("begin audit transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('eomp_audit_hmac_chain'))`); err != nil {
+		return fmt.Errorf("lock audit chain: %w", err)
+	}
+	previous := chainGenesis
+	err = tx.QueryRowContext(ctx, `SELECT checksum_sha256 FROM audit_logs ORDER BY audit_sequence DESC LIMIT 1`).Scan(&previous)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("read audit chain head: %w", err)
+	}
+	log.PreviousChecksum = previous
+	if err := ComputeHMAC(log, r.hmacKey); err != nil {
+		return err
+	}
 	oldJSON, err := json.Marshal(log.OldValues)
 	if err != nil {
 		return fmt.Errorf("marshal old audit values: %w", err)
@@ -180,23 +216,92 @@ func (r *postgresRepository) CreateAuditLog(ctx context.Context, log *model.Audi
 	if err != nil {
 		return fmt.Errorf("marshal new audit values: %w", err)
 	}
-	if err := ComputeChecksum(log); err != nil {
-		return err
-	}
-
-	query := `
-		INSERT INTO audit_logs (id, event_type, actor_id, actor_name, actor_email, actor_role, service_name, ip_address, user_agent, status, resource_type, resource_id, old_values, new_values, checksum_sha256, created_at)
-		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, $16)
-	`
-	_, err = r.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO audit_logs (
+			id, event_type, actor_id, actor_name, actor_email, actor_role, service_name,
+			ip_address, user_agent, status, resource_type, resource_id, old_values, new_values,
+			previous_checksum, checksum_sha256, checksum_algorithm, created_at
+		) VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9, $10, $11, $12,
+		          $13::jsonb, $14::jsonb, $15, $16, $17, $18)`,
 		log.ID, log.EventType, log.ActorID, log.ActorName, log.ActorEmail, log.ActorRole,
 		log.ServiceName, log.IPAddress, log.UserAgent, log.Status, log.ResourceType, log.ResourceID,
-		string(oldJSON), string(newJSON), log.ChecksumSHA256, log.CreatedAt,
+		string(oldJSON), string(newJSON), log.PreviousChecksum, log.ChecksumSHA256,
+		log.ChecksumAlgorithm, log.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert audit log: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit audit log: %w", err)
+	}
 	return nil
+}
+
+func (r *postgresRepository) VerifyIntegrity(ctx context.Context) (*model.IntegrityReport, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("audit database is unavailable")
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, event_type, COALESCE(actor_id::text, ''), actor_name, actor_email, actor_role,
+		       service_name, ip_address, user_agent, status, resource_type, resource_id,
+		       COALESCE(old_values::text, '{}'), COALESCE(new_values::text, '{}'),
+		       previous_checksum, checksum_sha256, checksum_algorithm, created_at
+		FROM audit_logs ORDER BY audit_sequence ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("query audit chain: %w", err)
+	}
+	defer rows.Close()
+
+	report := &model.IntegrityReport{Valid: true, Message: "audit HMAC chain is valid"}
+	previous := chainGenesis
+	for rows.Next() {
+		var log model.AuditLog
+		var oldJSON, newJSON string
+		if err := rows.Scan(
+			&log.ID, &log.EventType, &log.ActorID, &log.ActorName, &log.ActorEmail, &log.ActorRole,
+			&log.ServiceName, &log.IPAddress, &log.UserAgent, &log.Status, &log.ResourceType, &log.ResourceID,
+			&oldJSON, &newJSON, &log.PreviousChecksum, &log.ChecksumSHA256, &log.ChecksumAlgorithm, &log.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan audit chain: %w", err)
+		}
+		report.TotalLogs++
+		if err := decodeValues(oldJSON, newJSON, &log); err != nil {
+			return nil, err
+		}
+		if log.ChecksumAlgorithm != checksumAlgorithm {
+			report.LegacyLogs++
+			previous = log.ChecksumSHA256
+			continue
+		}
+		actual := log.ChecksumSHA256
+		if log.PreviousChecksum != previous {
+			return invalidReport(report, log.ID, "audit chain predecessor does not match"), nil
+		}
+		if err := ComputeHMAC(&log, r.hmacKey); err != nil {
+			return nil, err
+		}
+		expectedBytes, expectedErr := hex.DecodeString(log.ChecksumSHA256)
+		actualBytes, actualErr := hex.DecodeString(actual)
+		if expectedErr != nil || actualErr != nil || !hmac.Equal(expectedBytes, actualBytes) {
+			return invalidReport(report, log.ID, "audit record HMAC does not match its persisted payload"), nil
+		}
+		report.VerifiedLogs++
+		previous = actual
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate audit chain: %w", err)
+	}
+	if report.LegacyLogs > 0 {
+		report.Message = fmt.Sprintf("HMAC chain is valid; %d legacy SHA-256 records cannot be cryptographically reverified", report.LegacyLogs)
+	}
+	return report, nil
+}
+
+func invalidReport(report *model.IntegrityReport, id, message string) *model.IntegrityReport {
+	report.Valid = false
+	report.FirstInvalidID = id
+	report.Message = message
+	return report
 }
 
 func (r *postgresRepository) GetStats(ctx context.Context) (*model.AuditStats, error) {
@@ -204,24 +309,19 @@ func (r *postgresRepository) GetStats(ctx context.Context) (*model.AuditStats, e
 		return nil, fmt.Errorf("audit database is unavailable")
 	}
 	var total, forbidden, success, proofs, alerts int64
-	err := r.db.QueryRowContext(ctx, `
+	if err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'FORBIDDEN'),
 		       COUNT(*) FILTER (WHERE status = 'SUCCESS'),
-		       COUNT(*) FILTER (WHERE checksum_sha256 <> '')
-		FROM audit_logs`).Scan(&total, &forbidden, &success, &proofs)
-	if err != nil {
+		       COUNT(*) FILTER (WHERE checksum_algorithm = 'HMAC-SHA256')
+		FROM audit_logs`).Scan(&total, &forbidden, &success, &proofs); err != nil {
 		return nil, fmt.Errorf("query audit stats: %w", err)
 	}
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM security_events WHERE severity IN ('HIGH', 'CRITICAL')`).Scan(&alerts); err != nil {
 		return nil, fmt.Errorf("query security alert count: %w", err)
 	}
 	return &model.AuditStats{
-		TotalLogs:            total,
-		BlockedViolations:    forbidden,
-		ActiveSecurityAlerts: alerts,
-		ImmutableProofsCount: proofs,
-		SuccessCount:         success,
-		ForbiddenCount:       forbidden,
+		TotalLogs: total, BlockedViolations: forbidden, ActiveSecurityAlerts: alerts,
+		ImmutableProofsCount: proofs, SuccessCount: success, ForbiddenCount: forbidden,
 	}, nil
 }
 
@@ -248,136 +348,4 @@ func (r *postgresRepository) GetSecurityEvents(ctx context.Context, limit int) (
 		events = append(events, event)
 	}
 	return events, rows.Err()
-}
-
-func (r *postgresRepository) listMockLogs(filter model.AuditFilterQuery) ([]model.AuditLog, int, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var filtered []model.AuditLog
-	for _, l := range r.mockLogs {
-		if filter.EventType != "" && filter.EventType != "ALL" && l.EventType != filter.EventType {
-			continue
-		}
-		if filter.Status != "" && filter.Status != "ALL" && l.Status != filter.Status {
-			continue
-		}
-		if filter.Service != "" && filter.Service != "ALL" && l.ServiceName != filter.Service {
-			continue
-		}
-		if filter.Search != "" {
-			s := strings.ToLower(filter.Search)
-			if !strings.Contains(strings.ToLower(l.ActorEmail), s) &&
-				!strings.Contains(strings.ToLower(l.EventType), s) &&
-				!strings.Contains(strings.ToLower(l.IPAddress), s) &&
-				!strings.Contains(strings.ToLower(l.ResourceID), s) {
-				continue
-			}
-		}
-		filtered = append(filtered, l)
-	}
-
-	return filtered, len(filtered), nil
-}
-
-func (r *postgresRepository) initMockData() {
-	now := time.Now()
-	r.mockLogs = []model.AuditLog{
-		{
-			ID:             "a0000000-0000-0000-0000-000000000001",
-			EventType:      "AUTH_LOGIN_SUCCESS",
-			ActorID:        "u1",
-			ActorName:      "Administrator",
-			ActorEmail:     "admin@eomp.local",
-			ActorRole:      "ROLE_ADMIN",
-			ServiceName:    "auth",
-			IPAddress:      "192.168.1.10",
-			UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0",
-			Status:         "SUCCESS",
-			ResourceType:   "user_session",
-			ResourceID:     "sess-88910a",
-			OldValues:      map[string]interface{}{},
-			NewValues:      map[string]interface{}{"mfa_verified": true, "token_scope": "full_admin"},
-			ChecksumSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-			CreatedAt:      now.Add(-15 * time.Minute),
-		},
-		{
-			ID:             "a0000000-0000-0000-0000-000000000002",
-			EventType:      "ROLE_CHANGE",
-			ActorID:        "u1",
-			ActorName:      "Administrator",
-			ActorEmail:     "admin@eomp.local",
-			ActorRole:      "ROLE_ADMIN",
-			ServiceName:    "auth",
-			IPAddress:      "192.168.1.10",
-			UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-			Status:         "SUCCESS",
-			ResourceType:   "user",
-			ResourceID:     "u0000000-0000-0000-0000-000000000004",
-			OldValues:      map[string]interface{}{"role": "ROLE_AGENT", "department": "IT Support"},
-			NewValues:      map[string]interface{}{"role": "ROLE_MANAGER", "department": "IT Security", "elevated_by": "admin@eomp.local"},
-			ChecksumSHA256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-			CreatedAt:      now.Add(-42 * time.Minute),
-		},
-		{
-			ID:             "a0000000-0000-0000-0000-000000000003",
-			EventType:      "ASSET_DELETE",
-			ActorID:        "u3",
-			ActorName:      "Marcus Vance",
-			ActorEmail:     "marcus.vance@eomp.local",
-			ActorRole:      "ROLE_AGENT",
-			ServiceName:    "asset",
-			IPAddress:      "192.168.1.45",
-			UserAgent:      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-			Status:         "SUCCESS",
-			ResourceType:   "asset",
-			ResourceID:     "AST-00921",
-			OldValues:      map[string]interface{}{"asset_tag": "AST-00921", "name": "Dell PowerEdge R740", "status": "RETIRED"},
-			NewValues:      map[string]interface{}{"status": "DISPOSED", "disposed_notes": "Hard drives shredded according to NIST 800-88"},
-			ChecksumSHA256: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-			CreatedAt:      now.Add(-2 * time.Hour),
-		},
-		{
-			ID:             "a0000000-0000-0000-0000-000000000004",
-			EventType:      "APPROVAL_DECISION",
-			ActorID:        "u2",
-			ActorName:      "Sarah Jenkins",
-			ActorEmail:     "sarah.jenkins@eomp.local",
-			ActorRole:      "ROLE_MANAGER",
-			ServiceName:    "workflow",
-			IPAddress:      "192.168.1.18",
-			UserAgent:      "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-			Status:         "SUCCESS",
-			ResourceType:   "change_request",
-			ResourceID:     "CHG-2001",
-			OldValues:      map[string]interface{}{"status": "CAB_REVIEW", "approved_votes": 1},
-			NewValues:      map[string]interface{}{"status": "APPROVED", "approved_votes": 2, "quorum": "2/2"},
-			ChecksumSHA256: "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
-			CreatedAt:      now.Add(-3 * time.Hour),
-		},
-		{
-			ID:             "a0000000-0000-0000-0000-000000000005",
-			EventType:      "RBAC_ACCESS_DENIED",
-			ActorID:        "u8",
-			ActorName:      "Kenji Sato",
-			ActorEmail:     "kenji.sato@eomp.local",
-			ActorRole:      "ROLE_EMPLOYEE",
-			ServiceName:    "gateway",
-			IPAddress:      "192.168.2.110",
-			UserAgent:      "curl/8.4.0",
-			Status:         "FORBIDDEN",
-			ResourceType:   "audit_logs",
-			ResourceID:     "api/v1/audit/logs",
-			OldValues:      map[string]interface{}{},
-			NewValues:      map[string]interface{}{"attempted_endpoint": "/api/v1/audit/logs", "error": "INSUFFICIENT_PERMISSIONS"},
-			ChecksumSHA256: "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
-			CreatedAt:      now.Add(-5 * time.Hour),
-		},
-	}
-
-	r.mockSec = []model.SecurityEvent{
-		{ID: "sec-01", EventCode: "RBAC_VIOLATION_BLOCKED", Severity: "HIGH", SourceIP: "192.168.2.110", TargetEndpoint: "/api/v1/audit/logs", Description: "Unauthorized employee account attempted to view administrative audit records", IsBlocked: true, CreatedAt: now.Add(-5 * time.Hour)},
-		{ID: "sec-02", EventCode: "RATE_LIMIT_EXCEEDED", Severity: "MEDIUM", SourceIP: "10.0.4.55", TargetEndpoint: "/api/v1/auth/login", Description: "Exceeded 5 failed login attempts in 1 minute window -> IP blocked for 15 mins", IsBlocked: true, CreatedAt: now.Add(-6 * time.Hour)},
-		{ID: "sec-03", EventCode: "DATA_MASKING_APPLIED", Severity: "LOW", SourceIP: "192.168.1.10", TargetEndpoint: "/api/v1/auth/login", Description: "Sanitized sensitive passwords and JWT bearer tokens from trace log output", IsBlocked: false, CreatedAt: now.Add(-8 * time.Hour)},
-	}
 }

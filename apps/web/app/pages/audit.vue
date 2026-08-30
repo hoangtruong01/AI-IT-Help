@@ -14,18 +14,18 @@ const toast = useToast()
 // State
 const loading = ref(false)
 const auditLogs = ref<AuditLog[]>([])
-const totalRecords = ref(5)
+const totalRecords = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(15)
 
 // Stats
 const stats = ref<AuditStats>({
-  total_logs: 1420,
-  blocked_violations: 14,
-  active_security_alerts: 3,
-  immutable_proofs_count: 1420,
-  success_count: 1395,
-  forbidden_count: 25
+  total_logs: 0,
+  blocked_violations: 0,
+  active_security_alerts: 0,
+  immutable_proofs_count: 0,
+  success_count: 0,
+  forbidden_count: 0
 })
 
 const securityEvents = ref<SecurityEvent[]>([])
@@ -39,10 +39,6 @@ const selectedService = ref('ALL')
 // Diff Modal State
 const isDiffModalOpen = ref(false)
 const selectedAuditLog = ref<AuditLog | null>(null)
-
-// Rate Limit & RBAC Simulation State
-const isSimulating = ref(false)
-const simulationResult = ref<string | null>(null)
 
 // Fetch Audit Logs & Stats
 async function fetchAuditData() {
@@ -63,108 +59,20 @@ async function fetchAuditData() {
       api.get<SecurityEvent[]>('/api/v1/audit/security-events').catch(() => null)
     ])
 
-    if (listRes) {
-      auditLogs.value = listRes.data || []
-      totalRecords.value = listRes.total || listRes.data?.length || 0
-    } else {
-      // Fallback
-      auditLogs.value = [
-        {
-          id: 'a0000000-0000-0000-0000-000000000001',
-          event_type: 'AUTH_LOGIN_SUCCESS',
-          actor_id: 'u1',
-          actor_name: 'Administrator',
-          actor_email: 'admin@eomp.local',
-          actor_role: 'ROLE_ADMIN',
-          service_name: 'auth',
-          ip_address: '192.168.1.10',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0',
-          status: 'SUCCESS',
-          resource_type: 'user_session',
-          resource_id: 'sess-88910a',
-          old_values: {},
-          new_values: { mfa_verified: true, token_scope: 'full_admin' },
-          checksum_sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-          created_at: new Date(Date.now() - 15 * 60000).toISOString()
-        },
-        {
-          id: 'a0000000-0000-0000-0000-000000000002',
-          event_type: 'ROLE_CHANGE',
-          actor_id: 'u1',
-          actor_name: 'Administrator',
-          actor_email: 'admin@eomp.local',
-          actor_role: 'ROLE_ADMIN',
-          service_name: 'auth',
-          ip_address: '192.168.1.10',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          status: 'SUCCESS',
-          resource_type: 'user',
-          resource_id: 'u0000000-0000-0000-0000-000000000004',
-          old_values: { role: 'ROLE_AGENT', department: 'IT Support' },
-          new_values: { role: 'ROLE_MANAGER', department: 'IT Security', elevated_by: 'admin@eomp.local' },
-          checksum_sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-          created_at: new Date(Date.now() - 42 * 60000).toISOString()
-        },
-        {
-          id: 'a0000000-0000-0000-0000-000000000003',
-          event_type: 'ASSET_DELETE',
-          actor_id: 'u3',
-          actor_name: 'Marcus Vance',
-          actor_email: 'marcus.vance@eomp.local',
-          actor_role: 'ROLE_AGENT',
-          service_name: 'asset',
-          ip_address: '192.168.1.45',
-          user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-          status: 'SUCCESS',
-          resource_type: 'asset',
-          resource_id: 'AST-00921',
-          old_values: { asset_tag: 'AST-00921', name: 'Dell PowerEdge R740', status: 'RETIRED' },
-          new_values: { status: 'DISPOSED', disposed_notes: 'Hard drives shredded according to NIST 800-88' },
-          checksum_sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
-          created_at: new Date(Date.now() - 2 * 3600000).toISOString()
-        },
-        {
-          id: 'a0000000-0000-0000-0000-000000000004',
-          event_type: 'APPROVAL_DECISION',
-          actor_id: 'u2',
-          actor_name: 'Sarah Jenkins',
-          actor_email: 'sarah.jenkins@eomp.local',
-          actor_role: 'ROLE_MANAGER',
-          service_name: 'workflow',
-          ip_address: '192.168.1.18',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          status: 'SUCCESS',
-          resource_type: 'change_request',
-          resource_id: 'CHG-2001',
-          old_values: { status: 'CAB_REVIEW', approved_votes: 1 },
-          new_values: { status: 'APPROVED', approved_votes: 2, quorum: '2/2' },
-          checksum_sha256: '4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
-          created_at: new Date(Date.now() - 3 * 3600000).toISOString()
-        },
-        {
-          id: 'a0000000-0000-0000-0000-000000000005',
-          event_type: 'RBAC_ACCESS_DENIED',
-          actor_id: 'u8',
-          actor_name: 'Kenji Sato',
-          actor_email: 'kenji.sato@eomp.local',
-          actor_role: 'ROLE_EMPLOYEE',
-          service_name: 'gateway',
-          ip_address: '192.168.2.110',
-          user_agent: 'curl/8.4.0',
-          status: 'FORBIDDEN',
-          resource_type: 'audit_logs',
-          resource_id: 'api/v1/audit/logs',
-          old_values: {},
-          new_values: { attempted_endpoint: '/api/v1/audit/logs', error: 'INSUFFICIENT_PERMISSIONS' },
-          checksum_sha256: 'ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d',
-          created_at: new Date(Date.now() - 5 * 3600000).toISOString()
-        }
-      ]
-      totalRecords.value = 5
+    auditLogs.value = listRes?.data ?? []
+    totalRecords.value = listRes?.total ?? 0
+    stats.value = statsRes ?? {
+      total_logs: 0,
+      blocked_violations: 0,
+      active_security_alerts: 0,
+      immutable_proofs_count: 0,
+      success_count: 0,
+      forbidden_count: 0
     }
-
-    if (statsRes) stats.value = statsRes
-    if (secRes) securityEvents.value = secRes
+    securityEvents.value = secRes ?? []
+    if (!listRes || !statsRes || !secRes) {
+      toast.add({ title: 'Some audit data could not be loaded', color: 'warning' })
+    }
   } finally {
     loading.value = false
   }
@@ -176,69 +84,14 @@ function openDiffModal(log: AuditLog) {
   isDiffModalOpen.value = true
 }
 
-// Copy SHA-256 Checksum
+// Copy the persisted HMAC proof.
 function copyChecksum(hash: string) {
   navigator.clipboard.writeText(hash)
   toast.add({
     title: 'Checksum Copied',
-    description: 'SHA-256 cryptographic proof copied to clipboard.',
+    description: 'HMAC-SHA256 chain proof copied to clipboard.',
     color: 'success'
   })
-}
-
-// Simulate RBAC Test (Test Case 10.1)
-async function simulateRBACForbidden() {
-  isSimulating.value = true
-  simulationResult.value = null
-  try {
-    await api.get('/api/v1/audit/logs', {
-      headers: { 'X-User-Role': 'ROLE_EMPLOYEE' }
-    })
-    simulationResult.value = 'ERROR: Access was granted but should have been blocked!'
-  } catch (err: unknown) {
-    const errObj = err as { status?: number, statusCode?: number, message?: string }
-    const status = errObj?.status || errObj?.statusCode || 403
-    if (status === 403) {
-      simulationResult.value = 'PASSED: Gateway correctly blocked access with 403 Forbidden (INSUFFICIENT_PERMISSIONS).'
-      toast.add({
-        title: 'RBAC Enforcement Test Passed',
-        description: 'Returned 403 Forbidden as expected for unauthorized roles.',
-        color: 'success'
-      })
-    } else {
-      simulationResult.value = `Returned status ${status}: ${errObj?.message || 'Unknown error'}`
-    }
-  } finally {
-    isSimulating.value = false
-  }
-}
-
-// Simulate Rate Limiter Test (Test Case 10.2)
-async function simulateRateLimitSpam() {
-  isSimulating.value = true
-  simulationResult.value = null
-
-  try {
-    for (let i = 1; i <= 6; i++) {
-      try {
-        await api.get('/health')
-      } catch (err: unknown) {
-        const errObj = err as { status?: number, statusCode?: number }
-        if (errObj?.status === 429 || errObj?.statusCode === 429) {
-          break
-        }
-      }
-    }
-
-    simulationResult.value = 'Rate Limiter active: Sliding window protects gateway at 100 req/min/IP.'
-    toast.add({
-      title: 'Rate Limit Verified',
-      description: 'Rate limiting defense confirmed active.',
-      color: 'info'
-    })
-  } finally {
-    isSimulating.value = false
-  }
 }
 
 onMounted(() => {
@@ -279,30 +132,6 @@ onMounted(() => {
           />
           <span>Refresh Stream</span>
         </button>
-
-        <button
-          :disabled="isSimulating"
-          class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-semibold shadow-md transition-all disabled:opacity-50"
-          @click="simulateRBACForbidden"
-        >
-          <UIcon
-            name="i-lucide-shield-alert"
-            class="w-4 h-4 text-rose-400"
-          />
-          <span>Test 403 RBAC Chokepoint</span>
-        </button>
-
-        <button
-          :disabled="isSimulating"
-          class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold shadow-md transition-all disabled:opacity-50"
-          @click="simulateRateLimitSpam"
-        >
-          <UIcon
-            name="i-lucide-gauge"
-            class="w-4 h-4 text-amber-400"
-          />
-          <span>Test 429 Rate Limiter</span>
-        </button>
       </div>
     </div>
 
@@ -326,7 +155,7 @@ onMounted(() => {
             name="i-lucide-check-circle"
             class="w-3.5 h-3.5"
           />
-          <span>100% cryptographically sealed</span>
+          <span>{{ stats.immutable_proofs_count }} verified HMAC proofs</span>
         </div>
       </div>
 
@@ -705,7 +534,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- SHA-256 Tamper Evident Proof -->
+        <!-- Chained HMAC tamper-evident proof -->
         <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
           <div class="flex items-center justify-between text-xs font-bold text-slate-300">
             <span class="flex items-center gap-1.5 text-emerald-400">
@@ -713,7 +542,7 @@ onMounted(() => {
                 name="i-lucide-shield-check"
                 class="w-4 h-4"
               />
-              <span>Immutable SHA-256 Cryptographic Checksum</span>
+              <span>{{ selectedAuditLog.checksum_algorithm || 'Integrity proof' }}</span>
             </span>
             <button
               class="text-[10px] text-cyan-400 hover:underline flex items-center gap-1"

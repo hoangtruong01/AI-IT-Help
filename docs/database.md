@@ -26,7 +26,7 @@ EOMP tuân thủ nguyên tắc cốt lõi của Microservices: **Database-per-Se
 | **Workflow Service** | `workflow_db` | `workflow_definitions`, `workflow_instances`, `workflow_steps`, `approval_requests`, `workflow_logs`, `change_requests`, `cab_reviews` | State machine approvals, Risk Matrix 3x3, CAB |
 | **Notification Service** | `notification_db` | `notifications`, `notification_templates` | In-app notification queue, Unread counter |
 | **Knowledge Base** | `knowledge_db` | `knowledge_categories`, `knowledge_articles`, `runbooks`, `document_embeddings` | SOP Runbooks, Full-text Search + Vector storage |
-| **Audit Service** | `audit_db` | `audit_logs`, `security_events` | **SHA-256 Checksum** bất biến, Data masking |
+| **Audit Service** | `audit_db` | `audit_logs`, `security_events` | Chuỗi **HMAC-SHA256**, trigger append-only, data masking |
 | **Reporting & BI** | `reporting_db` | `sla_metrics_daily`, `agent_performance`, `category_metrics`, `department_sla_metrics`, `raw_incident_records` | Aggregated KPI tables, MTTR/MTTD analytics |
 
 ---

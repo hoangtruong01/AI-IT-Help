@@ -420,7 +420,7 @@ func (r *postgresRepository) DeleteArticle(ctx context.Context, id string) error
 
 func (r *postgresRepository) IncrementArticleViews(ctx context.Context, id string) error {
 	if r.db == nil {
-		return nil
+		return errors.New("database connection not available")
 	}
 	_, err := r.db.ExecContext(ctx, "UPDATE knowledge_articles SET view_count = view_count + 1 WHERE id = $1", id)
 	return err
@@ -689,30 +689,35 @@ func (r *postgresRepository) Search(ctx context.Context, keyword, category strin
 		LIMIT $2
 	`
 	rows, err := r.db.QueryContext(ctx, artQuery, pattern, limit)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var res model.KnowledgeSearchResult
-			var tags pq.StringArray
-			var updatedAt time.Time
+	if err != nil {
+		return nil, fmt.Errorf("search knowledge articles: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var res model.KnowledgeSearchResult
+		var tags pq.StringArray
+		var updatedAt time.Time
 
-			if err := rows.Scan(
-				&res.ID,
-				&res.Type,
-				&res.Title,
-				&res.Snippet,
-				&res.Category,
-				&res.SlugOrCode,
-				&res.ViewCount,
-				&tags,
-				&res.Score,
-				&updatedAt,
-			); err == nil {
-				res.Tags = []string(tags)
-				res.UpdatedTime = updatedAt.Format(time.RFC3339)
-				results = append(results, res)
-			}
+		if err := rows.Scan(
+			&res.ID,
+			&res.Type,
+			&res.Title,
+			&res.Snippet,
+			&res.Category,
+			&res.SlugOrCode,
+			&res.ViewCount,
+			&tags,
+			&res.Score,
+			&updatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan knowledge article search result: %w", err)
 		}
+		res.Tags = []string(tags)
+		res.UpdatedTime = updatedAt.Format(time.RFC3339)
+		results = append(results, res)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate knowledge article search results: %w", err)
 	}
 
 	// 2. Search Runbooks
@@ -732,28 +737,33 @@ func (r *postgresRepository) Search(ctx context.Context, keyword, category strin
 		LIMIT $2
 	`
 	rbRows, err := r.db.QueryContext(ctx, rbQuery, pattern, limit)
-	if err == nil {
-		defer rbRows.Close()
-		for rbRows.Next() {
-			var res model.KnowledgeSearchResult
-			var updatedAt time.Time
+	if err != nil {
+		return nil, fmt.Errorf("search runbooks: %w", err)
+	}
+	defer rbRows.Close()
+	for rbRows.Next() {
+		var res model.KnowledgeSearchResult
+		var updatedAt time.Time
 
-			if err := rbRows.Scan(
-				&res.ID,
-				&res.Type,
-				&res.Title,
-				&res.Snippet,
-				&res.Category,
-				&res.SlugOrCode,
-				&res.ViewCount,
-				&res.Score,
-				&updatedAt,
-			); err == nil {
-				res.Tags = []string{"SOP", "Runbook"}
-				res.UpdatedTime = updatedAt.Format(time.RFC3339)
-				results = append(results, res)
-			}
+		if err := rbRows.Scan(
+			&res.ID,
+			&res.Type,
+			&res.Title,
+			&res.Snippet,
+			&res.Category,
+			&res.SlugOrCode,
+			&res.ViewCount,
+			&res.Score,
+			&updatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan runbook search result: %w", err)
 		}
+		res.Tags = []string{"SOP", "Runbook"}
+		res.UpdatedTime = updatedAt.Format(time.RFC3339)
+		results = append(results, res)
+	}
+	if err := rbRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate runbook search results: %w", err)
 	}
 
 	if results == nil {
@@ -764,20 +774,24 @@ func (r *postgresRepository) Search(ctx context.Context, keyword, category strin
 
 func (r *postgresRepository) GetStats(ctx context.Context) (*model.KnowledgeStats, error) {
 	if r.db == nil {
-		return &model.KnowledgeStats{
-			TotalArticles:   6,
-			TotalCategories: 5,
-			TotalRunbooks:   4,
-			TotalViews:      4440,
-		}, nil
+		return nil, errors.New("database connection not available")
 	}
 
 	var stats model.KnowledgeStats
-
-	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM knowledge_articles WHERE is_published = true").Scan(&stats.TotalArticles)
-	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM knowledge_categories").Scan(&stats.TotalCategories)
-	_ = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM runbooks WHERE is_active = true").Scan(&stats.TotalRunbooks)
-	_ = r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(view_count), 0) FROM knowledge_articles").Scan(&stats.TotalViews)
+	queries := []struct {
+		query string
+		dest  *int
+	}{
+		{"SELECT COUNT(*) FROM knowledge_articles WHERE is_published = true", &stats.TotalArticles},
+		{"SELECT COUNT(*) FROM knowledge_categories", &stats.TotalCategories},
+		{"SELECT COUNT(*) FROM runbooks WHERE is_active = true", &stats.TotalRunbooks},
+		{"SELECT COALESCE(SUM(view_count), 0) FROM knowledge_articles", &stats.TotalViews},
+	}
+	for _, item := range queries {
+		if err := r.db.QueryRowContext(ctx, item.query).Scan(item.dest); err != nil {
+			return nil, fmt.Errorf("query knowledge statistics: %w", err)
+		}
+	}
 
 	return &stats, nil
 }

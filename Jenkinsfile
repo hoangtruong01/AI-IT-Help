@@ -5,14 +5,16 @@ pipeline {
         APP_ENV = 'ci'
         DOCKER_BUILDKIT = '1'
         GO111MODULE = 'on'
-        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD || echo 'dev'", returnStdout: true).trim()
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo "=== Stage 1: Checkout Source Code (Commit: ${env.GIT_COMMIT_SHORT}) ==="
                 checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                }
+                echo "=== Stage 1: Checkout Source Code (Commit: ${env.GIT_COMMIT_SHORT}) ==="
             }
         }
 
@@ -49,13 +51,19 @@ pipeline {
                     steps {
                         echo '=== Running Go Vet & Format Verification ==='
                         sh '''
-                            test -z "$(gofmt -l packages/ services/)" || { echo "Unformatted Go files detected"; exit 1; }
+                            test -z "$(gofmt -l packages/ services/ scripts/)" || { echo "Unformatted Go files detected"; exit 1; }
                             for dir in packages/shared services/*; do
                                 if [ -f "$dir/go.mod" ]; then
                                     (cd "$dir" && go vet ./...)
                                 fi
                             done
                         '''
+                    }
+                }
+                stage('Runtime Route & OpenAPI Contract') {
+                    steps {
+                        echo '=== Verifying Route Compatibility and OpenAPI Coverage ==='
+                        sh 'go run scripts/check_openapi_coverage.go'
                     }
                 }
             }
@@ -67,11 +75,12 @@ pipeline {
                     steps {
                         echo '=== Running SAST Vulnerability Scanner (gosec) ==='
                         sh '''
-                            if command -v gosec &> /dev/null; then
-                                gosec -quiet -exclude-dir=tests -severity medium ./packages/... ./services/...
-                            else
-                                echo "gosec not installed in runner, verifying via go vet security rules"
-                            fi
+                            command -v gosec >/dev/null 2>&1 || { echo "gosec is required on the CI runner"; exit 1; }
+                            for dir in packages/shared services/*; do
+                                if [ -f "$dir/go.mod" ]; then
+                                    (cd "$dir" && gosec -quiet -severity medium ./...)
+                                fi
+                            done
                         '''
                     }
                 }
@@ -79,11 +88,12 @@ pipeline {
                     steps {
                         echo '=== Running Go Vulnerability Database Checker (govulncheck) ==='
                         sh '''
-                            if command -v govulncheck &> /dev/null; then
-                                govulncheck ./packages/... ./services/...
-                            else
-                                echo "govulncheck not installed in runner, skipping external CVE lookup"
-                            fi
+                            command -v govulncheck >/dev/null 2>&1 || { echo "govulncheck is required on the CI runner"; exit 1; }
+                            for dir in packages/shared services/*; do
+                                if [ -f "$dir/go.mod" ]; then
+                                    (cd "$dir" && govulncheck ./...)
+                                fi
+                            done
                         '''
                     }
                 }
@@ -92,11 +102,11 @@ pipeline {
 
         stage('Unit & Concurrency Tests') {
             parallel {
-                stage('Frontend Typecheck') {
+                stage('Frontend Unit Tests & Typecheck') {
                     steps {
                         echo '=== Running Frontend TypeScript Verification ==='
                         dir('apps/web') {
-                            sh 'pnpm typecheck'
+                            sh 'pnpm test && pnpm typecheck'
                         }
                     }
                 }
@@ -104,7 +114,11 @@ pipeline {
                     steps {
                         echo '=== Running Unit, Race Condition & E2E Tests ==='
                         sh '''
-                            go test -v -race ./packages/shared/... ./services/... ./tests/e2e/...
+                            for dir in packages/shared services/* tests/e2e; do
+                                if [ -f "$dir/go.mod" ]; then
+                                    (cd "$dir" && go test -race ./...)
+                                fi
+                            done
                         '''
                     }
                 }
@@ -165,12 +179,14 @@ pipeline {
             steps {
                 echo '=== Scanning Docker Images for CVE Vulnerabilities (Trivy) ==='
                 sh '''
-                    if command -v trivy &> /dev/null; then
-                        echo "Scanning gateway image for CRITICAL vulnerabilities..."
-                        trivy image --severity CRITICAL --exit-code 1 "eomp-gateway:${GIT_COMMIT_SHORT}" || exit 1
-                    else
-                        echo "Trivy binary not found in CI runner, skipping container CVE scan step"
-                    fi
+                    command -v trivy >/dev/null 2>&1 || { echo "Trivy is required on the CI runner"; exit 1; }
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 "eomp-web:${GIT_COMMIT_SHORT}"
+                    for dir in services/*; do
+                        if [ -f "$dir/go.mod" ]; then
+                            svc=$(basename "$dir")
+                            trivy image --severity HIGH,CRITICAL --exit-code 1 "eomp-$svc:${GIT_COMMIT_SHORT}"
+                        fi
+                    done
                 '''
             }
         }

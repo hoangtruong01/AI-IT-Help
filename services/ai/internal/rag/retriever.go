@@ -26,6 +26,7 @@ type SmartRetriever struct {
 	collectionName  string
 	httpClient      *http.Client
 	fallbackCatalog []fallbackDoc
+	allowFallback   bool
 }
 
 type fallbackDoc struct {
@@ -38,7 +39,7 @@ type fallbackDoc struct {
 }
 
 // NewSmartRetriever creates a resilient retriever with built-in fallback knowledge base.
-func NewSmartRetriever(qdrantHost string, qdrantPort int, collectionName string) *SmartRetriever {
+func NewSmartRetriever(qdrantHost string, qdrantPort int, collectionName string, allowFallback ...bool) *SmartRetriever {
 	if qdrantHost == "" {
 		qdrantHost = "localhost"
 	}
@@ -49,12 +50,18 @@ func NewSmartRetriever(qdrantHost string, qdrantPort int, collectionName string)
 		collectionName = "knowledge_base"
 	}
 
+	fallbackEnabled := true
+	if len(allowFallback) > 0 {
+		fallbackEnabled = allowFallback[0]
+	}
+
 	return &SmartRetriever{
 		qdrantURL:      fmt.Sprintf("http://%s:%d", qdrantHost, qdrantPort),
 		collectionName: collectionName,
 		httpClient: &http.Client{
 			Timeout: 800 * time.Millisecond, // Strict timeout to preserve TTFT
 		},
+		allowFallback: fallbackEnabled,
 		fallbackCatalog: []fallbackDoc{
 			{
 				ID:       "a0000000-0000-0000-0000-000000000001",
@@ -139,12 +146,22 @@ func (r *SmartRetriever) Search(ctx context.Context, query string, vector []floa
 	}
 
 	// 1. Try Qdrant Vector Search if vector provided
+	var qdrantErr error
 	if len(vector) > 0 {
 		citations, err := r.searchQdrant(ctx, vector, limit)
 		if err == nil && len(citations) > 0 {
 			return citations, false, nil
 		}
-		// On error or empty, smoothly proceed to fallback without crashing
+		if err != nil {
+			qdrantErr = err
+		} else {
+			qdrantErr = fmt.Errorf("qdrant returned no citations")
+		}
+	} else {
+		qdrantErr = fmt.Errorf("embedding vector is unavailable")
+	}
+	if !r.allowFallback {
+		return nil, false, qdrantErr
 	}
 
 	// 2. Fallback: Semantic Keyword Match against internal IT catalog (Test Case 6.2)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,6 +124,47 @@ func TestTestCase6_2_Negative_QdrantFallback(t *testing.T) {
 	}
 	if !hasVPNCitation {
 		t.Errorf("expected fallback VPN citation, got: %+v", res.Citations)
+	}
+}
+
+type failingLLM struct{}
+
+func (failingLLM) Generate(context.Context, []model.Message) (string, error) {
+	return "", errors.New("provider unavailable")
+}
+
+func (failingLLM) AnalyzeTicket(context.Context, string, string) (*model.TicketAnalysis, error) {
+	return nil, errors.New("provider unavailable")
+}
+
+type emptyRetriever struct{}
+
+func (emptyRetriever) Search(context.Context, string, []float32, int) ([]model.Citation, bool, error) {
+	return nil, false, nil
+}
+
+func TestProductionPolicyDoesNotFabricateAIResponses(t *testing.T) {
+	embedder := provider.NewMockProvider()
+	svc := service.NewAIService(failingLLM{}, embedder, emptyRetriever{}, false)
+
+	_, err := svc.Chat(context.Background(), &model.ChatRequest{Messages: []model.Message{{Role: "user", Content: "status"}}})
+	if err == nil || !strings.Contains(err.Error(), "primary AI provider failed") {
+		t.Fatalf("expected primary provider error without mock fallback, got %v", err)
+	}
+
+	if _, err := svc.AnalyzeTicket(context.Background(), "VPN unavailable", "timeout"); err == nil {
+		t.Fatal("expected ticket analysis to fail when the primary provider is unavailable")
+	}
+}
+
+func TestProductionPolicyDoesNotFabricateQdrantCitations(t *testing.T) {
+	retriever := rag.NewSmartRetriever("127.0.0.1", 59999, "knowledge_base", false)
+	citations, fallback, err := retriever.Search(context.Background(), "VPN", []float32{0.1, 0.2}, 3)
+	if err == nil {
+		t.Fatal("expected an error when Qdrant is unavailable and fallback is disabled")
+	}
+	if fallback || len(citations) != 0 {
+		t.Fatalf("expected no fabricated citations, got fallback=%v citations=%+v", fallback, citations)
 	}
 }
 

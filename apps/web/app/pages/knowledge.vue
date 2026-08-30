@@ -31,19 +31,13 @@ const isSubmitting = ref(false)
 
 // Data Collections
 const stats = ref<KnowledgeStats>({
-  total_articles: 6,
-  total_categories: 5,
-  total_runbooks: 4,
-  total_views: 4440
+  total_articles: 0,
+  total_categories: 0,
+  total_runbooks: 0,
+  total_views: 0
 })
 
-const categories = ref<KnowledgeCategory[]>([
-  { id: 'c1', name: 'IT Security & Access', code: 'sec', icon: 'i-lucide-shield-check', description: 'MFA, Okta, Zero Trust' },
-  { id: 'c2', name: 'Network & Connectivity', code: 'net', icon: 'i-lucide-network', description: 'VPN, DNS, Firewall' },
-  { id: 'c3', name: 'Hardware & Equipment', code: 'hw', icon: 'i-lucide-laptop', description: 'Laptops, Monitors, RMA' },
-  { id: 'c4', name: 'DevOps & Infrastructure', code: 'devops', icon: 'i-lucide-server', description: 'PostgreSQL, K8s, MinIO' },
-  { id: 'c5', name: 'Software & Apps', code: 'soft', icon: 'i-lucide-layers', description: 'OS, Tools, Licenses' }
-])
+const categories = ref<KnowledgeCategory[]>([])
 
 const articles = ref<KnowledgeArticle[]>([])
 const runbooks = ref<KnowledgeRunbook[]>([])
@@ -78,13 +72,18 @@ async function loadData() {
   try {
     // 1. Fetch Stats
     const statsRes = await api.get<KnowledgeStats>('/api/v1/knowledge/stats').catch(() => null)
-    if (statsRes) stats.value = statsRes
+    stats.value = statsRes ?? {
+      total_articles: 0,
+      total_categories: 0,
+      total_runbooks: 0,
+      total_views: 0
+    }
 
     // 2. Fetch Categories
     const catRes = await api.get<KnowledgeCategory[]>('/api/v1/knowledge/categories').catch(() => null)
-    if (catRes && catRes.length > 0) {
-      categories.value = catRes
-      const firstCat = catRes[0]
+    categories.value = catRes ?? []
+    if (categories.value.length > 0) {
+      const firstCat = categories.value[0]
       if (firstCat && !articleForm.value.category_id) {
         articleForm.value.category_id = firstCat.id
       }
@@ -97,112 +96,14 @@ async function loadData() {
         page_size: 50
       }
     }).catch(() => null)
-    if (artRes && artRes.data) {
-      articles.value = artRes.data
-    } else {
-      // Fallback dummy articles
-      articles.value = [
-        {
-          id: 'a1',
-          category_id: 'c1',
-          category_name: 'IT Security & Access',
-          category_code: 'sec',
-          title: 'How to Reset User MFA and Okta Verify Tokens',
-          slug: 'how-to-reset-user-mfa-tokens',
-          summary: 'Official standard operating procedure for IT Support Agents to verify employee identity and securely reset multi-factor authentication tokens in Okta / Keycloak.',
-          content: '## Step 1: Verify Identity\nVerify identity via secondary corporate channel.\n\n## Step 2: Okta Admin\nOpen id.eomp.local/admin and clear factor enrollment.\n\n## Step 3: Issue QR Code\nGenerate 15-minute activation link.',
-          tags: ['MFA', 'Okta', 'Security', 'SOP'],
-          author_id: 'u1',
-          author_name: 'Sarah Jenkins (IT Security Lead)',
-          view_count: 1240,
-          helpful_count: 85,
-          is_published: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'a2',
-          category_id: 'c2',
-          category_name: 'Network & Connectivity',
-          category_code: 'net',
-          title: 'Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide',
-          slug: 'vpn-troubleshooting-guide',
-          summary: 'Comprehensive resolution guide for remote engineers experiencing VPN disconnects, handshake timeouts, and MTU routing packet loss.',
-          content: '## Diagnostic Steps\n1. ping 10.8.0.1\n2. Verify MTU=1380\n3. Restart WireGuard daemon.',
-          tags: ['VPN', 'WireGuard', 'Network', 'DNS'],
-          author_id: 'u2',
-          author_name: 'Alex Rivera (Network Architect)',
-          view_count: 980,
-          helpful_count: 62,
-          is_published: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'a3',
-          category_id: 'c3',
-          category_name: 'Hardware & Equipment',
-          category_code: 'hw',
-          title: 'Standard Laptop Setup & Security Baseline (macOS & Windows)',
-          slug: 'standard-laptop-setup-baseline',
-          summary: 'Full checklist for provisioning MacBook Pro and ThinkPad laptops for new hires, including FileVault, BitLocker, EDR agent, and developer tooling.',
-          content: '## Provisioning Checklist\n1. FileVault / BitLocker disk encryption.\n2. CrowdStrike EDR installation.\n3. Corporate Root CA enrollment.',
-          tags: ['Hardware', 'Laptop', 'Setup', 'Security'],
-          author_id: 'u3',
-          author_name: 'David Chen (IT Asset Lead)',
-          view_count: 850,
-          helpful_count: 45,
-          is_published: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]
-    }
+    articles.value = artRes?.data ?? []
 
     // 4. Fetch Runbooks
     const rbRes = await api.get<PaginatedResponse<KnowledgeRunbook>>('/api/v1/knowledge/runbooks').catch(() => null)
-    if (rbRes && rbRes.data) {
-      runbooks.value = rbRes.data
-    } else {
-      runbooks.value = [
-        {
-          id: 'r1',
-          code: 'RB-SEC-02',
-          title: 'User MFA Token Reset and Identity Verification SOP',
-          category: 'IT Security',
-          description: 'Standardized operational procedure for identity authentication and Okta/Keycloak multi-factor token reissue.',
-          prerequisites: '1. Active IT Support Agent credentials.\n2. Manager written approval or video verification log.',
-          steps_json: [
-            { step: 1, action: 'Verify Employee Identity', command: 'Check /employees directory', expected: 'Active status confirmed' },
-            { step: 2, action: 'Open Okta / Auth Admin console', command: 'Navigate to /admin/users/{email}/factors', expected: 'Active factors displayed' },
-            { step: 3, action: 'Revoke existing MFA token registration', command: 'POST /api/v1/auth/mfa/revoke', expected: 'Token status changed to REVOKED' },
-            { step: 4, action: 'Generate temporary QR code', command: 'POST /api/v1/auth/mfa/re-enroll', expected: '15-min activation token issued' }
-          ],
-          rollback_steps: 'If user fails verification, lock account for 30 minutes and alert SOC.',
-          author_name: 'Sarah Jenkins (IT Security Lead)',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'r2',
-          code: 'RB-NET-01',
-          title: 'Emergency VPN Tunnel Failover SOP',
-          category: 'Network',
-          description: 'Failover procedure when primary WireGuard VPN gateway server exhibits packet loss or hardware crash.',
-          prerequisites: '1. Access to Secondary VPN Gateway (10.8.1.1).\n2. Cloudflare DNS admin permissions.',
-          steps_json: [
-            { step: 1, action: 'Check primary VPN tunnel status', command: 'wg show', expected: 'Identify disconnected peers' },
-            { step: 2, action: 'Switch DNS endpoint record', command: 'cf-cli dns update vpn.eomp.local --ip 198.51.100.2', expected: 'DNS propagated within 60s' },
-            { step: 3, action: 'Restart WireGuard client daemon', command: 'systemctl restart wg-quick@wg0', expected: 'Handshake re-established' }
-          ],
-          rollback_steps: 'Revert DNS A record back to primary gateway IP once upstream network recovers.',
-          author_name: 'Alex Rivera (Network Architect)',
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]
+    runbooks.value = rbRes?.data ?? []
+
+    if (!statsRes || !catRes || !artRes || !rbRes) {
+      toast.add({ title: 'Some knowledge-base data could not be loaded', color: 'warning' })
     }
   } finally {
     isLoading.value = false
@@ -232,22 +133,8 @@ function onSearchInput() {
       )
       searchResults.value = res.results || []
     } catch {
-      // Local filter fallback
-      const q = searchQuery.value.toLowerCase()
-      searchResults.value = articles.value
-        .filter(a => a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q))
-        .map(a => ({
-          id: a.id,
-          type: 'article',
-          title: a.title,
-          snippet: a.summary,
-          category: a.category_name || 'General',
-          score: 0.92,
-          tags: a.tags,
-          slug_or_code: a.slug,
-          view_count: a.view_count,
-          updated_time: a.updated_at
-        }))
+      searchResults.value = []
+      toast.add({ title: 'Knowledge search is unavailable', color: 'error' })
     } finally {
       isSearching.value = false
     }

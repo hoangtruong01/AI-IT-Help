@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"time"
 
@@ -18,6 +19,7 @@ type Service interface {
 	CreateAuditLog(ctx context.Context, req model.CreateAuditLogRequest) (*model.AuditLog, error)
 	GetStats(ctx context.Context) (*model.AuditStats, error)
 	GetSecurityEvents(ctx context.Context, limit int) ([]model.SecurityEvent, error)
+	VerifyIntegrity(ctx context.Context) (*model.IntegrityReport, error)
 	IngestDomainEvent(ctx context.Context, event eventbus.Event) error
 }
 
@@ -56,8 +58,12 @@ func (s *auditService) CreateAuditLog(ctx context.Context, req model.CreateAudit
 		status = "SUCCESS"
 	}
 
+	id, err := newUUID()
+	if err != nil {
+		return nil, fmt.Errorf("generate audit id: %w", err)
+	}
 	log := &model.AuditLog{
-		ID:           fmt.Sprintf("aud-%d", time.Now().UnixNano()),
+		ID:           id,
 		EventType:    req.EventType,
 		ActorID:      req.ActorID,
 		ActorName:    req.ActorName,
@@ -81,6 +87,17 @@ func (s *auditService) CreateAuditLog(ctx context.Context, req model.CreateAudit
 	return log, nil
 }
 
+func newUUID() (string, error) {
+	value := make([]byte, 16)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	value[6] = (value[6] & 0x0f) | 0x40
+	value[8] = (value[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		value[0:4], value[4:6], value[6:8], value[8:10], value[10:16]), nil
+}
+
 func (s *auditService) GetStats(ctx context.Context) (*model.AuditStats, error) {
 	return s.repo.GetStats(ctx)
 }
@@ -90,6 +107,10 @@ func (s *auditService) GetSecurityEvents(ctx context.Context, limit int) ([]mode
 		limit = 10
 	}
 	return s.repo.GetSecurityEvents(ctx, limit)
+}
+
+func (s *auditService) VerifyIntegrity(ctx context.Context) (*model.IntegrityReport, error) {
+	return s.repo.VerifyIntegrity(ctx)
 }
 
 // IngestDomainEvent consumes CloudEvents from AMQP EventBus, computes tamper-evident hash and persists to audit_db.

@@ -556,6 +556,10 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: QDRANT_URL
               value: "http://qdrant-service:6333"
+            - name: QDRANT_HOST
+              value: "qdrant-service"
+            - name: QDRANT_PORT
+              value: "6333"
           livenessProbe:
             httpGet:
               path: /health
@@ -609,11 +613,20 @@ spec:
             - name: PORT
               value: "8088"
             - name: AI_PROVIDER
-              value: "mock"
+              value: "openai"
             - name: ALLOW_MOCK_AI
-              value: "true"
+              value: "false"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: OPENAI_API_KEY
             - name: QDRANT_URL
               value: "http://qdrant-service:6333"
+            - name: QDRANT_HOST
+              value: "qdrant-service"
+            - name: QDRANT_PORT
+              value: "6333"
             - name: KNOWLEDGE_SERVICE_URL
               value: "http://knowledge-service:8087"
           livenessProbe:
@@ -693,6 +706,11 @@ spec:
                   key: RABBITMQ_PASSWORD
             - name: RABBITMQ_HOST
               value: "rabbitmq-service"
+            - name: AUDIT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: eomp-secrets
+                  key: AUDIT_HMAC_KEY
           livenessProbe:
             httpGet:
               path: /health

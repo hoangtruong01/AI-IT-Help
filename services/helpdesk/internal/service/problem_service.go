@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	appErrors "eomp/packages/shared/pkg/errors"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/repository"
 )
@@ -105,6 +106,7 @@ func (s *problemService) CreateProblem(ctx context.Context, payload model.Create
 		RootCause:     payload.RootCause,
 		Workaround:    payload.Workaround,
 		IsKnownError:  payload.IsKnownError,
+		Version:       1,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -138,6 +140,9 @@ func (s *problemService) CreateProblem(ctx context.Context, payload model.Create
 }
 
 func (s *problemService) UpdateStatus(ctx context.Context, id string, payload model.UpdateProblemStatusPayload) (*model.Problem, []string, error) {
+	if payload.Version <= 0 {
+		return nil, nil, appErrors.BadRequest("version is required for problem status updates")
+	}
 	problem, err := s.problemRepo.GetProblemByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -151,7 +156,7 @@ func (s *problemService) UpdateStatus(ctx context.Context, id string, payload mo
 		closedAt = &now
 	}
 
-	if err := s.problemRepo.UpdateProblemStatus(ctx, problem.ID, payload.Status, payload.Resolution, resolvedAt, closedAt); err != nil {
+	if err := s.problemRepo.UpdateProblemStatus(ctx, problem.ID, payload.Status, payload.Resolution, resolvedAt, closedAt, payload.Version); err != nil {
 		return nil, nil, err
 	}
 
@@ -173,12 +178,15 @@ func (s *problemService) UpdateStatus(ctx context.Context, id string, payload mo
 }
 
 func (s *problemService) UpdateRCA(ctx context.Context, id string, payload model.UpdateProblemRCAPayload) (*model.Problem, error) {
+	if payload.Version <= 0 {
+		return nil, appErrors.BadRequest("version is required for problem RCA updates")
+	}
 	problem, err := s.problemRepo.GetProblemByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.problemRepo.UpdateProblemRCA(ctx, problem.ID, payload.RootCause, payload.Workaround, payload.IsKnownError); err != nil {
+	if err := s.problemRepo.UpdateProblemRCA(ctx, problem.ID, payload.RootCause, payload.Workaround, payload.IsKnownError, payload.Version); err != nil {
 		return nil, err
 	}
 

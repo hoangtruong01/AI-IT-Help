@@ -305,6 +305,8 @@ services:
       KNOWLEDGE_DB_NAME: knowledge_db
       POSTGRES_SSLMODE: disable
       QDRANT_URL: http://qdrant:6333
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
     depends_on:
       postgres:
         condition: service_healthy
@@ -334,6 +336,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       QDRANT_URL: http://qdrant:6333
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
       KNOWLEDGE_SERVICE_URL: http://knowledge:8087
     depends_on:
       knowledge:
@@ -369,6 +373,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+      AUDIT_HMAC_KEY: ${AUDIT_HMAC_KEY:?AUDIT_HMAC_KEY is required}
     depends_on:
       postgres:
         condition: service_healthy

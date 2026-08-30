@@ -110,7 +110,19 @@ func main() {
 	}
 
 	healthHandler := handler.NewHealthHandler(cfg)
-	monitoringHandler := handler.NewMonitoringHandler()
+	monitoringHandler := handler.NewMonitoringHandlerWithURLs(map[string]string{
+		"gateway":      fmt.Sprintf("http://127.0.0.1:%d", cfg.Port),
+		"auth":         cfg.AuthServiceURL,
+		"employee":     cfg.EmployeeServiceURL,
+		"asset":        cfg.AssetServiceURL,
+		"helpdesk":     cfg.HelpdeskServiceURL,
+		"workflow":     cfg.WorkflowServiceURL,
+		"notification": cfg.NotificationServiceURL,
+		"knowledge":    cfg.KnowledgeServiceURL,
+		"ai":           cfg.AIServiceURL,
+		"audit":        cfg.AuditServiceURL,
+		"reporting":    cfg.ReportingServiceURL,
+	})
 
 	// 2. Setup Routing Multiplexer
 	mux := http.NewServeMux()

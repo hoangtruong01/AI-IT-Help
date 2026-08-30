@@ -167,12 +167,12 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		return errors.Conflict(fmt.Sprintf("approval request is already %s", approval.Status))
 	}
 
-	now := time.Now()
-	if err := s.repo.UpdateApprovalDecision(ctx, approvalID, req.Decision, req.Notes, &now); err != nil {
-		return errors.InternalServerError("failed to update approval decision")
+	instance, err := s.repo.FindInstanceByID(ctx, approval.InstanceID)
+	if err != nil || instance == nil {
+		return errors.InternalServerError("workflow instance for approval was not found")
 	}
 
-	// Update Workflow Instance state
+	now := time.Now()
 	var newInstanceStatus string
 	var nextStep string
 	var completedAt *time.Time
@@ -187,7 +187,15 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		completedAt = &now
 	}
 
-	_ = s.repo.UpdateInstanceStatus(ctx, approval.InstanceID, newInstanceStatus, nextStep, completedAt)
+	if err := s.repo.ApplyApprovalDecision(
+		ctx, approvalID, req.Decision, req.Notes, &now,
+		approval.InstanceID, instance.Version, newInstanceStatus, nextStep, completedAt,
+	); err != nil {
+		if err == repository.ErrApprovalConflict {
+			return errors.Conflict("approval was already decided or workflow changed; reload and retry")
+		}
+		return errors.InternalServerError("failed to atomically apply approval decision")
+	}
 
 	// Log decision
 	_ = s.repo.AddLog(ctx, &model.WorkflowLog{

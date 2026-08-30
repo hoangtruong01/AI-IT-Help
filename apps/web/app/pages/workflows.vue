@@ -143,11 +143,15 @@ async function handleLaunchWorkflow() {
   launching.value = true
   launchError.value = null
   try {
+    if (!authStore.user?.id || !authStore.user.email) {
+      launchError.value = 'Your authenticated user profile is required to start a workflow.'
+      return
+    }
     const payload: CreateWorkflowInstancePayload = {
       ...newInstance,
-      requester_id: authStore.user?.id || 'e0000000-0000-0000-0000-000000000001',
-      requester_name: authStore.user?.full_name || 'System Operator',
-      requester_email: authStore.user?.email || 'admin@eomp.local'
+      requester_id: authStore.user.id,
+      requester_name: authStore.user.full_name || authStore.user.email,
+      requester_email: authStore.user.email
     }
 
     await api.post('/api/v1/workflows/instances', payload)

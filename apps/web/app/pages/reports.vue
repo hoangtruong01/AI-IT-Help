@@ -27,16 +27,16 @@ const agentSortBy = ref<'resolved' | 'csat' | 'sla' | 'mttr'>('resolved')
 
 // Data Stores
 const overview = ref<ExecutiveOverview>({
-  avg_mttr_minutes: 31.8,
-  avg_mttd_minutes: 7.2,
-  sla_compliance_pct: 97.4,
-  fcr_rate_pct: 88.6,
-  csat_rating: 4.86,
-  total_incidents: 606,
-  total_resolved: 590,
-  total_breached: 16,
-  mttr_improvement_pct: 18.2,
-  period_label: 'Last 30 Days (August 2026)'
+  avg_mttr_minutes: 0,
+  avg_mttd_minutes: 0,
+  sla_compliance_pct: 0,
+  fcr_rate_pct: 0,
+  csat_rating: 0,
+  total_incidents: 0,
+  total_resolved: 0,
+  total_breached: 0,
+  mttr_improvement_pct: 0,
+  period_label: 'No reporting data'
 })
 
 const trends = ref<IncidentTrend[]>([])
@@ -56,74 +56,25 @@ async function fetchReportData() {
       api.get<AgentScorecard[]>('/api/v1/reports/agents', { params: { range: selectedPeriod.value } }).catch(() => null)
     ])
 
-    if (ovRes) {
-      overview.value = ovRes
+    overview.value = ovRes ?? {
+      avg_mttr_minutes: 0,
+      avg_mttd_minutes: 0,
+      sla_compliance_pct: 0,
+      fcr_rate_pct: 0,
+      csat_rating: 0,
+      total_incidents: 0,
+      total_resolved: 0,
+      total_breached: 0,
+      mttr_improvement_pct: 0,
+      period_label: 'Reporting service unavailable'
     }
 
-    if (trRes && trRes.length > 0) {
-      trends.value = trRes
-    } else if (selectedPeriod.value !== 'empty') {
-      // Fallback
-      trends.value = [
-        { date: '08-07', opened_count: 42, resolved_count: 41, sla_compliance_pct: 97.6 },
-        { date: '08-08', opened_count: 38, resolved_count: 37, sla_compliance_pct: 97.4 },
-        { date: '08-09', opened_count: 45, resolved_count: 43, sla_compliance_pct: 95.6 },
-        { date: '08-10', opened_count: 50, resolved_count: 48, sla_compliance_pct: 96.0 },
-        { date: '08-11', opened_count: 52, resolved_count: 51, sla_compliance_pct: 98.1 },
-        { date: '08-12', opened_count: 28, resolved_count: 28, sla_compliance_pct: 100.0 },
-        { date: '08-13', opened_count: 24, resolved_count: 24, sla_compliance_pct: 100.0 },
-        { date: '08-14', opened_count: 48, resolved_count: 46, sla_compliance_pct: 95.8 },
-        { date: '08-15', opened_count: 54, resolved_count: 52, sla_compliance_pct: 96.3 },
-        { date: '08-16', opened_count: 60, resolved_count: 58, sla_compliance_pct: 96.7 },
-        { date: '08-17', opened_count: 49, resolved_count: 48, sla_compliance_pct: 98.0 },
-        { date: '08-18', opened_count: 55, resolved_count: 53, sla_compliance_pct: 96.4 },
-        { date: '08-19', opened_count: 41, resolved_count: 40, sla_compliance_pct: 97.6 },
-        { date: '08-20', opened_count: 35, resolved_count: 34, sla_compliance_pct: 97.1 }
-      ]
-    } else {
-      trends.value = []
-    }
-
-    if (catRes && catRes.length > 0) {
-      categories.value = catRes
-    } else if (selectedPeriod.value !== 'empty') {
-      categories.value = [
-        { category_name: 'Network & Connectivity', category_code: 'network', icon: 'i-lucide-wifi', total_count: 184, resolved_count: 178, avg_resolution_minutes: 38.5, share_pct: 32.5 },
-        { category_name: 'Account & Access (SSO/MFA)', category_code: 'security', icon: 'i-lucide-shield-check', total_count: 142, resolved_count: 140, avg_resolution_minutes: 22.0, share_pct: 25.1 },
-        { category_name: 'Hardware & Peripherals', category_code: 'hardware', icon: 'i-lucide-laptop', total_count: 115, resolved_count: 110, avg_resolution_minutes: 45.2, share_pct: 20.3 },
-        { category_name: 'Software & Applications', category_code: 'software', icon: 'i-lucide-app-window', total_count: 82, resolved_count: 79, avg_resolution_minutes: 34.0, share_pct: 14.5 },
-        { category_name: 'Email & Collaboration', category_code: 'collaboration', icon: 'i-lucide-mail', total_count: 43, resolved_count: 42, avg_resolution_minutes: 18.4, share_pct: 7.6 }
-      ]
-    } else {
-      categories.value = []
-    }
-
-    if (deptRes && deptRes.length > 0) {
-      departments.value = deptRes
-    } else if (selectedPeriod.value !== 'empty') {
-      departments.value = [
-        { department_name: 'Software Engineering', department_code: 'ENG', total_tickets: 185, within_sla_count: 181, breached_sla_count: 4, sla_compliance_pct: 97.84, avg_mttr_minutes: 31.4 },
-        { department_name: 'Sales & Business Development', department_code: 'SALES', total_tickets: 124, within_sla_count: 120, breached_sla_count: 4, sla_compliance_pct: 96.77, avg_mttr_minutes: 28.5 },
-        { department_name: 'Human Resources', department_code: 'HR', total_tickets: 86, within_sla_count: 84, breached_sla_count: 2, sla_compliance_pct: 97.67, avg_mttr_minutes: 25.0 },
-        { department_name: 'Finance & Accounting', department_code: 'FIN', total_tickets: 92, within_sla_count: 89, breached_sla_count: 3, sla_compliance_pct: 96.74, avg_mttr_minutes: 33.2 },
-        { department_name: 'Marketing & Operations', department_code: 'MKT', total_tickets: 79, within_sla_count: 78, breached_sla_count: 1, sla_compliance_pct: 98.73, avg_mttr_minutes: 27.8 }
-      ]
-    } else {
-      departments.value = []
-    }
-
-    if (agRes && agRes.length > 0) {
-      agents.value = agRes
-    } else if (selectedPeriod.value !== 'empty') {
-      agents.value = [
-        { agent_id: 'u1', agent_name: 'Marcus Vance', agent_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', job_title: 'Senior IT Ops Specialist', department: 'IT Support L2', tickets_assigned: 68, tickets_resolved: 66, avg_mttr_minutes: 28.4, csat_rating: 4.92, sla_compliance_pct: 98.5 },
-        { agent_id: 'u2', agent_name: 'Sarah Jenkins', agent_avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150', job_title: 'Cybersecurity & IAM Engineer', department: 'IT Security', tickets_assigned: 54, tickets_resolved: 53, avg_mttr_minutes: 31.2, csat_rating: 4.88, sla_compliance_pct: 98.1 },
-        { agent_id: 'u3', agent_name: 'David Kim', agent_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', job_title: 'Systems & Cloud Administrator', department: 'DevOps & Infra', tickets_assigned: 48, tickets_resolved: 46, avg_mttr_minutes: 35.8, csat_rating: 4.79, sla_compliance_pct: 95.8 },
-        { agent_id: 'u4', agent_name: 'Elena Rostova', agent_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', job_title: 'IT Support Specialist L1', department: 'IT Helpdesk L1', tickets_assigned: 72, tickets_resolved: 70, avg_mttr_minutes: 24.6, csat_rating: 4.95, sla_compliance_pct: 97.2 },
-        { agent_id: 'u5', agent_name: 'Alex Chen', agent_avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', job_title: 'Network Operations Specialist', department: 'Network Engineering', tickets_assigned: 42, tickets_resolved: 40, avg_mttr_minutes: 42.0, csat_rating: 4.70, sla_compliance_pct: 95.2 }
-      ]
-    } else {
-      agents.value = []
+    trends.value = trRes ?? []
+    categories.value = catRes ?? []
+    departments.value = deptRes ?? []
+    agents.value = agRes ?? []
+    if (!ovRes || !trRes || !catRes || !deptRes || !agRes) {
+      toast.add({ title: 'Some reporting data could not be loaded', color: 'warning' })
     }
   } finally {
     loading.value = false
@@ -171,16 +122,7 @@ async function handleExport(format: 'pdf' | 'csv') {
         color: 'success'
       })
     } else {
-      // Fallback direct generation
-      const dummyContent = format === 'csv'
-        ? `Ticket,Category,Assignee,MTTR,SLA\nTK-1001,Network,Marcus Vance,28,WITHIN_SLA\nTK-1002,Security,Sarah Jenkins,18,WITHIN_SLA\n`
-        : `%PDF-1.4 ...`
-      const blob = new Blob([dummyContent], { type: format === 'csv' ? 'text/csv' : 'application/pdf' })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = `eomp-report-${Date.now()}.${format === 'csv' ? 'csv' : 'pdf'}`
-      link.click()
-      toast.add({ title: 'Export Ready', description: `Generated ${format.toUpperCase()} report successfully.`, color: 'success' })
+      throw new Error('Reporting service returned no export content')
     }
   } catch (err: unknown) {
     const errObj = err as { message?: string }

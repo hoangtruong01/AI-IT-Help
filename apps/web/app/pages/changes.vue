@@ -23,11 +23,11 @@ const activeView = ref<'table' | 'risk_matrix' | 'calendar'>('table')
 const changes = ref<ChangeRequest[]>([])
 const calendarItems = ref<ChangeCalendarItem[]>([])
 const stats = ref<ChangeStats>({
-  active_changes: 4,
-  pending_cab_review: 2,
-  emergency_changes: 1,
-  success_rate_percent: 96.5,
-  total_this_month: 8
+  active_changes: 0,
+  pending_cab_review: 0,
+  emergency_changes: 0,
+  success_rate_percent: 0,
+  total_this_month: 0
 })
 
 const loading = ref(false)
@@ -95,127 +95,19 @@ async function fetchData() {
       api.get<ChangeCalendarItem[]>('/api/v1/changes/calendar').catch(() => null)
     ])
 
-    if (cRes && cRes.data) {
-      changes.value = cRes.data
-    } else {
-      // Fallback
-      changes.value = [
-        {
-          id: 'c1',
-          change_number: 'CHG-2001',
-          title: 'Kubernetes Production Ingress Gateway Upgrade to Traefik v3.1',
-          description: 'Upgrade production Kubernetes Ingress controllers across all worker nodes to support HTTP/3 QUIC protocol and enhanced TLS 1.3 cipher security.',
-          change_type: 'MAJOR',
-          category: 'DevOps & Infrastructure',
-          priority: 'HIGH',
-          risk_level: 'HIGH',
-          impact_level: 'HIGH',
-          probability_level: 'MEDIUM',
-          status: 'CAB_REVIEW',
-          requester_id: 'u2',
-          requester_name: 'Alex Rivera (Network Architect)',
-          requester_email: 'alex.rivera@eomp.local',
-          assigned_to_id: 'u2',
-          assigned_to_name: 'Alex Rivera (Network Architect)',
-          reason_for_change: 'Deprecation of Traefik v2.x upstream support and requirement for zero-trust mTLS header validation.',
-          implementation_plan: '1. Apply Helm values v3.1 on Staging\n2. Perform blue-green ingress cutover on Prod cluster\n3. Verify HTTP 200 on health probes.',
-          rollback_plan: 'Helm rollback to revision 42 (Traefik v2.10) within 3 minutes if error rate exceeds 0.5%.',
-          test_plan: 'Automated synthetic test suite checking /health endpoints across all 11 microservices.',
-          scheduled_start_time: new Date(Date.now() + 2 * 86400000).toISOString(),
-          scheduled_end_time: new Date(Date.now() + 2 * 86400000 + 7200000).toISOString(),
-          actual_start_time: null,
-          actual_end_time: null,
-          downtime_required: false,
-          downtime_minutes: 0,
-          cab_required_count: 2,
-          cab_approved_count: 1,
-          created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'c2',
-          change_number: 'CHG-2002',
-          title: 'PostgreSQL 16 Analytical Partial Index Creation for SLA Auditing',
-          description: 'Add CONCURRENTLY partial indexes on tickets(sla_resolution_deadline) where status != RESOLVED to accelerate BI metrics calculation.',
-          change_type: 'NORMAL',
-          category: 'Database & Storage',
-          priority: 'MEDIUM',
-          risk_level: 'LOW',
-          impact_level: 'LOW',
-          probability_level: 'LOW',
-          status: 'APPROVED',
-          requester_id: 'u4',
-          requester_name: 'Marcus Vance (Lead DBA)',
-          requester_email: 'marcus.vance@eomp.local',
-          assigned_to_id: 'u4',
-          assigned_to_name: 'Marcus Vance (Lead DBA)',
-          reason_for_change: 'Speed up SLA breach warning worker batch query from 1,200ms down to 18ms.',
-          implementation_plan: 'Execute CREATE INDEX CONCURRENTLY idx_tickets_active_sla ON tickets(sla_resolution_deadline) WHERE status != RESOLVED;',
-          rollback_plan: 'Execute DROP INDEX CONCURRENTLY IF EXISTS idx_tickets_active_sla;',
-          test_plan: 'Verify EXPLAIN ANALYZE execution plan reflects Index Scan.',
-          scheduled_start_time: new Date(Date.now() + 1 * 86400000).toISOString(),
-          scheduled_end_time: new Date(Date.now() + 1 * 86400000 + 1800000).toISOString(),
-          actual_start_time: null,
-          actual_end_time: null,
-          downtime_required: false,
-          downtime_minutes: 0,
-          cab_required_count: 1,
-          cab_approved_count: 1,
-          created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'c3',
-          change_number: 'CHG-2003',
-          title: 'Emergency Zero-Day CVE-2026-8819 Patching on Core Edge Routers',
-          description: 'Urgent vendor microcode update to mitigate unauthenticated buffer overflow vulnerability on border gateway BGP routers.',
-          change_type: 'EMERGENCY',
-          category: 'Network & Access',
-          priority: 'CRITICAL',
-          risk_level: 'CRITICAL',
-          impact_level: 'CRITICAL',
-          probability_level: 'LOW',
-          status: 'CAB_REVIEW',
-          requester_id: 'u1',
-          requester_name: 'Sarah Jenkins (IT Security Lead)',
-          requester_email: 'sarah.jenkins@eomp.local',
-          assigned_to_id: 'u2',
-          assigned_to_name: 'Alex Rivera (Network Architect)',
-          reason_for_change: 'Critical security advisory requiring remediation within 24 hours per SOC2 compliance policy.',
-          implementation_plan: '1. Isolate primary router 01 via VRRP failover\n2. Flash firmware 15.4.1-P2\n3. Warm reload\n4. Repeat for redundant node 02.',
-          rollback_plan: 'Fallback to dual-homed LTE backup WAN interface if VRRP failover fails.',
-          test_plan: 'BGP route flapping tests and traceroute latency verification.',
-          scheduled_start_time: new Date(Date.now() + 6 * 3600000).toISOString(),
-          scheduled_end_time: new Date(Date.now() + 7 * 3600000).toISOString(),
-          actual_start_time: null,
-          actual_end_time: null,
-          downtime_required: true,
-          downtime_minutes: 15,
-          cab_required_count: 2,
-          cab_approved_count: 1,
-          created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]
-    }
+    changes.value = cRes?.data ?? []
 
-    if (sRes) stats.value = sRes
-    if (calRes) {
-      calendarItems.value = calRes
-    } else {
-      calendarItems.value = changes.value.map(c => ({
-        id: c.id,
-        change_number: c.change_number,
-        title: c.title,
-        change_type: c.change_type,
-        category: c.category,
-        risk_level: c.risk_level,
-        status: c.status,
-        scheduled_start: c.scheduled_start_time,
-        scheduled_end: c.scheduled_end_time,
-        downtime_required: c.downtime_required,
-        downtime_minutes: c.downtime_minutes
-      }))
+    stats.value = sRes ?? {
+      active_changes: 0,
+      pending_cab_review: 0,
+      emergency_changes: 0,
+      success_rate_percent: 0,
+      total_this_month: 0
+    }
+    calendarItems.value = calRes ?? []
+
+    if (!cRes || !sRes || !calRes) {
+      toast.add({ title: 'Some change-management data could not be loaded', color: 'warning' })
     }
   } finally {
     loading.value = false
@@ -229,22 +121,7 @@ async function openChangeDetail(c: ChangeRequest) {
 
   try {
     const res = await api.get<{ change: ChangeRequest, cab_reviews: CABReview[] }>(`/api/v1/changes/${c.id}`)
-    if (res && res.cab_reviews) {
-      cabReviews.value = res.cab_reviews
-    } else {
-      cabReviews.value = [
-        {
-          id: 'r1',
-          change_id: c.id,
-          reviewer_id: 'u1',
-          reviewer_name: 'Sarah Jenkins (IT Security Lead)',
-          reviewer_role: 'Security Officer',
-          vote: 'APPROVED',
-          comments: 'Security evaluation complete. Zero-trust mTLS header validation passes compliance.',
-          reviewed_at: new Date(Date.now() - 1 * 86400000).toISOString()
-        }
-      ]
-    }
+    cabReviews.value = res?.cab_reviews ?? []
   } catch {
     cabReviews.value = []
   }
@@ -253,12 +130,16 @@ async function openChangeDetail(c: ChangeRequest) {
 // Submit CAB Vote
 async function handleSubmitCABVote() {
   if (!selectedChange.value) return
+  if (!authStore.user) {
+    toast.add({ title: 'An authenticated user profile is required', color: 'error' })
+    return
+  }
   isSubmittingVote.value = true
   try {
     const payload: SubmitCABVotePayload = {
-      reviewer_id: authStore.user?.id || 'cab-user',
-      reviewer_name: authStore.user?.full_name || 'CAB Board Member',
-      reviewer_role: authStore.user?.role || 'CAB Committee',
+      reviewer_id: authStore.user.id,
+      reviewer_name: authStore.user.full_name,
+      reviewer_role: authStore.user.role,
       vote: voteDecision.value,
       comments: voteComments.value || undefined
     }

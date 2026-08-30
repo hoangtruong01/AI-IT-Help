@@ -1,69 +1,71 @@
 # EOMP implementation status
 
 Last audited: 2026-08-30
-Code version: 0.1.0
+
+Code version: `0.1.0`
+
 Readiness decision: **not yet approved for production**
 
-This file is the current status baseline. “Implemented” means code exists and its local automated checks pass; it does not mean the feature has completed production acceptance.
+This is the current evidence baseline. “Implemented” means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
 
 ## Verified inventory
 
-- 11 Go services plus Nuxt web application.
-- Service ports: gateway 8080, auth 8081, employee 8082, asset 8083, helpdesk 8084, workflow 8085, notification 8086, knowledge 8087, AI 8088, audit 8089, reporting 8090.
+- 11 Go services plus one Nuxt web application.
+- Service ports: gateway 8080, auth 8081, employee 8082, asset 8083, helpdesk 8084, workflow 8085, notification 8086, knowledge 8087, AI 8088, audit 8089 and reporting 8090.
 - Nine PostgreSQL databases: auth, employee, asset, helpdesk, workflow, notification, knowledge, audit and reporting.
-- 96 runtime `/api/v1` operations were found in the Go route registrations during the 2026-08-30 audit.
-- The checked-in OpenAPI document describes only 17 operations and is therefore not yet a complete API contract.
+- 101 registered `/api/v1` operations. All 101 are present in the OpenAPI operation inventory.
+- `go run scripts/check_openapi_coverage.go` validates route compatibility and exact runtime/OpenAPI parity. Jenkins now runs this gate.
 
 ## Remediation completed on 2026-08-30
 
-- Public registration always creates `ROLE_EMPLOYEE`; caller-selected privileged roles were removed.
-- Registration validates email and strong passwords. JWTs now have unique IDs and explicit access/refresh token types; refresh rotation verifies JWT signature, issuer, expiry and subject.
-- Fixed demo administrator seeds were removed. Existing historical fixed-ID demo accounts are disabled by migration. Optional initial admin bootstrap requires explicit environment variables.
-- Gateway write routes now enforce role-based authorization; monitoring and reporting endpoints are restricted.
-- Frontend route authentication was enabled, login defaults/demo buttons were removed and production cookies use `Secure`.
-- Production Compose/Kubernetes variable names now match the service configuration contract. PostgreSQL, Redis, RabbitMQ and Nuxt API variables were corrected.
-- Plaintext Kubernetes/Helm production secrets were removed. Deployments now expect an externally managed `eomp-secrets` Secret.
-- Docker builds use pinned Go/pnpm versions, a valid workspace build context, conditional migrations and `.dockerignore`.
-- RabbitMQ configuration URL-escapes credentials, reconnects after boot failure and returns publish errors while disconnected instead of reporting false success.
-- Redis sliding-window members are unique per request; trusted-proxy defaults are loopback-only.
-- Database-backed services fail fast when DB/migrations fail and expose `/ready` with a real DB ping.
-- Audit/reporting repositories no longer return fabricated production data after DB errors. Test fixtures now live only in test code.
-- Asset assign/return/status and Change status transitions use optimistic compare-and-swap and return HTTP 409 on stale versions.
-- Backup restore validation no longer creates simulated artifacts; DR acceptance requires evidence from a real temporary-database restore.
-- Frontend now has a real Vitest command. QA distinguishes PASS, FAIL and SKIP.
+- Registration always creates `ROLE_EMPLOYEE`; caller-selected privileged roles and fixed demo administrator seeds were removed. Optional initial-admin bootstrap is explicit.
+- Email/password validation, JWT IDs and access/refresh token types were added. Refresh rotation verifies signature, issuer, expiry and subject.
+- Gateway mutations enforce role-based authorization. Monitoring, reporting and audit endpoints are restricted.
+- Frontend authentication is enabled; demo credentials/buttons were removed and production cookies use `Secure`.
+- Production Compose/Kubernetes variables match service configuration. Plaintext production secrets were replaced by an external `eomp-secrets` contract.
+- Docker builds use pinned Go/pnpm versions, the correct workspace context, conditional migrations and `.dockerignore`.
+- RabbitMQ reconnects after startup failure and returns publish errors while disconnected. Redis rate-limit members are unique and trusted-proxy defaults are loopback-only.
+- Database-backed services fail fast on DB/migration failure and expose real readiness checks.
+- Production repositories and UI screens no longer replace DB/API failures with fabricated audit, reporting, monitoring, change, knowledge or AI data.
+- Monitoring reports live service health probes and latency. RED/resource/log fields are explicitly unavailable until their real backends are configured; log API returns HTTP 501.
+- Audit records use a chained HMAC-SHA256 proof with a minimum 32-character key. The repository serializes chain-head writes, exposes an integrity endpoint and migration `003` blocks ordinary UPDATE/DELETE operations.
+- Asset, change, ticket, problem and workflow-approval critical transitions use optimistic compare-and-swap and return HTTP 409 for stale versions.
+- AI/Qdrant mock fallback is disabled for real production providers unless `ALLOW_MOCK_AI=true` is explicitly set. Production manifests default to OpenAI and require an external key.
+- The conflicting Helpdesk routes `/tickets/asset/{assetId}` and `/tickets/{id}/assign` were replaced with an unambiguous asset-ticket route.
+- Backup validation no longer creates simulated evidence; release DR acceptance requires an actual temporary-database restore.
+- CI security gates are fail-closed for gosec, govulncheck and Trivy, and include frontend tests/typecheck plus Go race tests.
 
 ## Verification evidence
 
-Completed locally on 2026-08-30:
+Completed locally on 2026-08-30 after the remediation above:
 
 - Go tests passed for all 13 workspace modules, including `tests/e2e`.
-- Frontend Vitest: 1 file, 3 tests passed.
-- Frontend Nuxt typecheck passed.
-- Frontend ESLint passed after remediation.
-- Production Nuxt build passed during the audit; it must be rerun after every subsequent UI change.
+- OpenAPI YAML parsed successfully and Redocly reported a valid OpenAPI document.
+- Runtime/OpenAPI gate passed: `101/101` operations documented, with no `http.ServeMux` conflicts.
+- Frontend Vitest (3 tests), Nuxt typecheck, ESLint and production build passed.
 
 Environment-limited checks:
 
-- Docker/Kubernetes runtime integration was not executed because the local Docker daemon was unavailable.
-- Helm rendering was not executed because Helm was not installed.
-- No real PostgreSQL restore drill was available; RPO/RTO are unverified until `scripts/backup_restore.ps1 test-restore` produces `backups/dr_evidence.json`.
-- Go coverage could not be collected because this local Go installation lacks the `covdata` tool. No coverage percentage is claimed.
+- Docker/Kubernetes runtime integration was not executed because the local Docker daemon is unavailable.
+- Helm rendering was not executed because Helm is not installed.
+- No real PostgreSQL restore drill was available; RPO/RTO remain unverified until `scripts/backup_restore.ps1 test-restore` produces real evidence.
+- No production AI provider key or external Qdrant instance was available for an end-to-end AI validation.
 
 ## Remaining release blockers
 
 | Priority | Blocker | Acceptance condition |
 |---|---|---|
-| P0 | Previously committed secrets may already be compromised | Rotate PostgreSQL, JWT, RabbitMQ, MinIO and Grafana credentials in every environment and secret store |
-| P0 | OpenAPI covers only a fraction of runtime endpoints | Document and validate all 96 operations in CI |
-| P0 | No real deployment/runtime proof | Build all images, render Helm, apply manifests in a test cluster and run smoke/integration tests |
-| P0 | DR targets are unverified | Complete a measured nine-database backup/restore drill and retain evidence |
-| P1 | Access/refresh tokens remain readable by browser JavaScript | Introduce a BFF/session design with HttpOnly refresh cookie and CSRF protection |
-| P1 | Audit checksum is SHA-256, not an HMAC hash chain or database-enforced immutability | Add keyed chained hashes, verification endpoint and restricted append-only DB role/permissions |
-| P1 | Monitoring handler still exposes synthetic/static values | Replace it with Prometheus/service probes or label and isolate it as demo data |
-| P1 | Optimistic locking is not yet consistent across every mutable aggregate | Add CAS to tickets, problems, workflow instances and remaining update paths with DB integration tests |
-| P1 | No browser E2E suite or measured load run | Add Playwright for critical user journeys and run k6 against a deployed environment |
-| P1 | Static Kubernetes defaults explicitly acknowledge the mock AI provider | Set a real provider and securely inject its API key before production acceptance |
+| P0 | Previously committed secrets may already be compromised | Rotate PostgreSQL, JWT, RabbitMQ, MinIO, Grafana and any provider credentials in every environment and secret store |
+| P0 | No real deployment/runtime proof | Build and scan every image, render Helm, deploy to a test cluster and pass smoke/integration checks |
+| P0 | DR targets are unverified | Complete a measured nine-database backup/restore drill and retain objective evidence |
+| P1 | Access/refresh tokens remain readable by browser JavaScript | Introduce a BFF/session design with an HttpOnly refresh cookie and CSRF protection |
+| P1 | Audit immutability is not yet enforced by a dedicated restricted DB role | Run the audit service with append-only grants, document HMAC key rotation and validate tamper detection against PostgreSQL |
+| P1 | Monitoring has probes but no real RED/log backend | Integrate Prometheus queries and a Loki-compatible log backend; keep unavailable fields explicit until then |
+| P1 | OpenAPI has complete operation parity but many generic bodies/responses | Replace generic schemas with domain models and add request/response conformance tests |
+| P1 | Optimistic locking is not universal | Add CAS and DB integration tests to every remaining mutable aggregate/update path |
+| P1 | No browser E2E suite or measured load run | Add Playwright journeys and run k6 against a deployed environment |
+| P1 | Production AI has not been exercised with a real provider | Inject a real key/provider, validate Qdrant ingestion and prove failure behavior without fabricated fallback |
 
 ## Release rule
 
-Do not describe the platform as “100% complete”, “fully certified” or “production ready” until every P0 item has objective evidence and the acceptance document is signed by the accountable owners.
+Do not describe EOMP as “100% complete”, “fully certified” or “production ready” until every P0 condition has objective evidence and accountable owners sign the handover acceptance.

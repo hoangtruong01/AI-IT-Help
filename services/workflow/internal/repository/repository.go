@@ -28,6 +28,7 @@ type Repository interface {
 	FindApprovalByID(ctx context.Context, id string) (*model.ApprovalRequest, error)
 	CreateApproval(ctx context.Context, app *model.ApprovalRequest) error
 	UpdateApprovalDecision(ctx context.Context, id, status, notes string, decidedAt *time.Time) error
+	ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time) error
 
 	AddLog(ctx context.Context, log *model.WorkflowLog) error
 	ListLogs(ctx context.Context, instanceID string) ([]model.WorkflowLog, error)
@@ -37,6 +38,8 @@ type Repository interface {
 type postgresRepository struct {
 	db *sql.DB
 }
+
+var ErrApprovalConflict = errors.New("approval or workflow instance version conflict")
 
 // NewRepository constructs a PostgreSQL Workflow repository
 func NewRepository(db *sql.DB) Repository {
@@ -454,6 +457,53 @@ func (r *postgresRepository) UpdateApprovalDecision(ctx context.Context, id, sta
 	_, err := r.db.ExecContext(ctx, query, id, status, notes, decidedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update approval decision: %w", err)
+	}
+	return nil
+}
+
+// ApplyApprovalDecision atomically consumes a pending approval and advances its workflow instance.
+func (r *postgresRepository) ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin approval decision transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	approvalResult, err := tx.ExecContext(ctx, `
+		UPDATE approval_requests
+		SET status = $2, decision_notes = $3, decided_at = $4
+		WHERE id = $1 AND status = 'PENDING'`, approvalID, decision, notes, decidedAt)
+	if err != nil {
+		return fmt.Errorf("update pending approval: %w", err)
+	}
+	approvalRows, err := approvalResult.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read approval update result: %w", err)
+	}
+	if approvalRows != 1 {
+		return ErrApprovalConflict
+	}
+
+	instanceResult, err := tx.ExecContext(ctx, `
+		UPDATE workflow_instances
+		SET status = $2, current_step_name = $3,
+		    completed_at = COALESCE($4, completed_at),
+		    version = version + 1, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND version = $5`,
+		instanceID, instanceStatus, currentStep, completedAt, expectedInstanceVersion)
+	if err != nil {
+		return fmt.Errorf("advance workflow instance: %w", err)
+	}
+	instanceRows, err := instanceResult.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read workflow instance update result: %w", err)
+	}
+	if instanceRows != 1 {
+		return ErrApprovalConflict
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit approval decision: %w", err)
 	}
 	return nil
 }

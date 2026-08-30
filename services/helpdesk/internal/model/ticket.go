@@ -104,14 +104,14 @@ type UpdateTicketStatusRequest struct {
 	Notes        string  `json:"notes,omitempty"`
 	AssigneeID   *string `json:"assignee_id,omitempty"`
 	AssigneeName *string `json:"assignee_name,omitempty"`
-	Version      *int    `json:"version,omitempty"`
+	Version      *int    `json:"version"`
 }
 
 // AssignTicketRequest DTO
 type AssignTicketRequest struct {
 	AssigneeID   string `json:"assignee_id"`
 	AssigneeName string `json:"assignee_name"`
-	Version      *int   `json:"version,omitempty"`
+	Version      *int   `json:"version"`
 }
 
 // TicketComment entity

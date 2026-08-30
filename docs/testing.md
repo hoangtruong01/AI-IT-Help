@@ -78,7 +78,7 @@ Tệp kiểm thử [`tests/e2e/e2e_lifecycle_test.go`](file:///d:/IT_help/eomp/t
 4. **`Workflow Engine`:** Kích hoạt quy trình phê duyệt đa cấp -> Manager thực hiện `APPROVED`.
 5. **`Notification Service`:** Lắng nghe CloudEvent realtime `eomp.workflow.approved` gửi tới IT Agent.
 6. **`Asset & CMDB Service`:** Gán thiết bị từ kho CMDB (`AST-MBP-9901`) sang trạng thái `IN_USE`.
-7. **`Audit Service`:** Xác thực bản ghi nhật ký kiểm toán với mã băm **SHA-256 Checksum** bất biến và che giấu trường nhạy cảm (`********`).
+7. **`Audit Service`:** Xác thực chuỗi **HMAC-SHA256**, liên kết predecessor, endpoint integrity và che giấu trường nhạy cảm (`********`).
 
 ```bash
 # Chạy kiểm thử E2E

@@ -64,7 +64,7 @@ Hệ thống EOMP áp dụng mô hình **Distributed Microservices Monorepo** tu
 | **Notification** | Lắng nghe Domain Events từ EventBus, gửi thông báo in-app realtime, quản lý biên nhận đọc (Read Receipt) | `:8086` | `notification_db` |
 | **Knowledge Base** | Cẩm nang kỹ thuật, tài liệu SOP, Runbooks, Full-text Search và lưu trữ Document Embeddings | `:8087` | `knowledge_db` |
 | **AI Copilot** | Trợ lý ảo IT Ops Copilot, RAG Engine, phân loại Ticket tự động (Auto-triage), tìm kiếm ngữ nghĩa với Qdrant Vector Store | `:8088` | *(Stateless / Qdrant)* |
-| **Audit Service** | Ghi nhận nhật ký kiểm toán bất biến với **SHA-256 Checksum**, Data Masking Engine tự động ẩn thông tin nhạy cảm | `:8089` | `audit_db` |
+| **Audit Service** | Ghi nhận nhật ký append-only với chuỗi **HMAC-SHA256**, kiểm tra toàn vẹn và tự động ẩn thông tin nhạy cảm | `:8089` | `audit_db` |
 | **Reporting & BI** | Thống kê MTTR/MTTD, tỷ lệ vi phạm SLA, hiệu suất kỹ thuật viên (Agent Scorecard), xuất báo cáo tốc độ cao PDF & Excel | `:8090` | `reporting_db` |
 
 ---

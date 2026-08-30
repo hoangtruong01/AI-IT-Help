@@ -159,6 +159,9 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 }
 
 func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.UpdateTicketStatusRequest, actorID, actorName string) (*model.Ticket, error) {
+	if req.Version == nil || *req.Version <= 0 {
+		return nil, errors.BadRequest("version is required for ticket status updates")
+	}
 	ticket, err := s.repo.FindTicketByID(ctx, id)
 	if err != nil || ticket == nil {
 		return nil, errors.NotFound("ticket not found")
@@ -182,11 +185,7 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		closedAt = &now
 	}
 
-	// 2. Determine Expected Version for Optimistic Locking
 	expectedVersion := req.Version
-	if expectedVersion == nil {
-		expectedVersion = &ticket.Version
-	}
 
 	err = s.repo.UpdateTicketStatus(ctx, id, newStatus, req.AssigneeID, req.AssigneeName, resolvedAt, closedAt, expectedVersion)
 	if err != nil {
@@ -231,6 +230,9 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 	if req.AssigneeID == "" || req.AssigneeName == "" {
 		return nil, errors.BadRequest("assignee_id and assignee_name are required")
 	}
+	if req.Version == nil || *req.Version <= 0 {
+		return nil, errors.BadRequest("version is required for ticket assignment")
+	}
 
 	ticket, err := s.repo.FindTicketByID(ctx, id)
 	if err != nil || ticket == nil {
@@ -243,9 +245,6 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 	}
 
 	expectedVersion := req.Version
-	if expectedVersion == nil {
-		expectedVersion = &ticket.Version
-	}
 
 	err = s.repo.AssignTicket(ctx, id, req.AssigneeID, req.AssigneeName, expectedVersion)
 	if err != nil {

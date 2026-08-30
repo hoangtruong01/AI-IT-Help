@@ -55,7 +55,7 @@ func main() {
 
 	// 2. Instantiate Dependencies & EventBus Consumer
 	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
-	repo := repository.NewRepository(db)
+	repo := repository.NewRepository(db, cfg.AuditHMACKey)
 	svc := service.NewService(repo)
 
 	// Subscribe Audit Service to all domain events (#) for tamper-evident cryptographic log sealing
@@ -86,6 +86,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/audit/logs", auditHandler.CreateAuditLog)
 	mux.HandleFunc("GET /api/v1/audit/stats", auditHandler.GetStats)
 	mux.HandleFunc("GET /api/v1/audit/security-events", auditHandler.GetSecurityEvents)
+	mux.HandleFunc("GET /api/v1/audit/integrity", auditHandler.VerifyIntegrity)
 
 	// Protected routes gateway header extraction
 	gatewayMiddleware := middleware.ExtractGatewayHeaders()

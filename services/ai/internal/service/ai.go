@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"eomp/services/ai/internal/model"
@@ -22,15 +23,23 @@ type aiService struct {
 	embedder     provider.EmbeddingProvider
 	retriever    rag.Retriever
 	mockFallback *provider.MockProvider
+	allowMock    bool
 }
 
 // NewAIService constructs a new AIService instance.
-func NewAIService(llm provider.LLMProvider, embedder provider.EmbeddingProvider, retriever rag.Retriever) AIService {
+// The optional flag defaults to true for backwards-compatible local tests;
+// production startup always passes the explicit ALLOW_MOCK_AI policy.
+func NewAIService(llm provider.LLMProvider, embedder provider.EmbeddingProvider, retriever rag.Retriever, allowMock ...bool) AIService {
+	fallbackEnabled := true
+	if len(allowMock) > 0 {
+		fallbackEnabled = allowMock[0]
+	}
 	return &aiService{
 		llm:          llm,
 		embedder:     embedder,
 		retriever:    retriever,
 		mockFallback: provider.NewMockProvider(),
+		allowMock:    fallbackEnabled,
 	}
 }
 
@@ -82,7 +91,9 @@ func (s *aiService) Chat(ctx context.Context, req *model.ChatRequest) (*model.Ch
 	// Get response from primary LLM, fallback to mock if error occurs
 	ans, err := s.llm.Generate(ctx, augmentedMessages)
 	if err != nil {
-		// Graceful fallback to MockProvider
+		if !s.allowMock {
+			return nil, fmt.Errorf("primary AI provider failed: %w", err)
+		}
 		ans, _ = s.mockFallback.Generate(ctx, req.Messages)
 		isFallback = true
 	}
@@ -133,7 +144,9 @@ func (s *aiService) AnalyzeTicket(ctx context.Context, title, description string
 	// 2. Perform AI Triage via LLM
 	analysis, err := s.llm.AnalyzeTicket(ctx, title, description)
 	if err != nil {
-		// Fallback to domain mock analysis if LLM fails
+		if !s.allowMock {
+			return nil, fmt.Errorf("primary AI provider failed: %w", err)
+		}
 		analysis, err = s.mockFallback.AnalyzeTicket(ctx, title, description)
 		if err != nil {
 			return nil, err

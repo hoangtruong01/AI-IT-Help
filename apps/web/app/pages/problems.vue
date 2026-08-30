@@ -18,11 +18,11 @@ const toast = useToast()
 // State
 const problems = ref<Problem[]>([])
 const stats = ref<ProblemStats>({
-  total_problems: 3,
-  under_investigation: 1,
-  known_errors: 2,
-  resolved_problems: 1,
-  total_linked_tickets: 4
+  total_problems: 0,
+  under_investigation: 0,
+  known_errors: 0,
+  resolved_problems: 0,
+  total_linked_tickets: 0
 })
 
 const loading = ref(false)
@@ -42,7 +42,8 @@ const isCascading = ref(false)
 const rcaForm = reactive<UpdateProblemRCAPayload>({
   root_cause: '',
   workaround: '',
-  is_known_error: false
+  is_known_error: false,
+  version: 0
 })
 
 // Link Ticket Form
@@ -96,69 +97,7 @@ async function fetchData() {
     if (pRes && pRes.data) {
       problems.value = pRes.data
     } else {
-      // Fallback enterprise seed
-      problems.value = [
-        {
-          id: 'p1',
-          problem_number: 'PRB-1001',
-          title: 'Intermittent WireGuard VPN Gateway Handshake Drops under High Concurrency',
-          description: 'Multiple remote software engineers report sporadic VPN tunnel disconnections every 15-20 minutes when active peer count exceeds 250 connections on Gateway 10.8.0.1.',
-          category: 'Network & Access',
-          priority: 'CRITICAL',
-          status: 'KNOWN_ERROR',
-          impact: 'HIGH',
-          urgency: 'HIGH',
-          assignee_id: 'u2',
-          assignee_name: 'Alex Rivera (Network Architect)',
-          root_cause: '### 5-Whys Root Cause Analysis\n1. Why did tunnels drop? Packet loss on UDP port 51820.\n2. Why was there packet loss? Linux kernel UDP buffer overrun.\n3. Why overrun? `net.core.rmem_max` was set to default 212KB.\n4. Why default? Provisioning template missed sysctl high-load network tuning.\n5. Root Cause: Sysctl socket memory buffers inadequate for >200 concurrent WireGuard peers.',
-          workaround: 'Execute `sysctl -w net.core.rmem_max=26214400 net.core.wmem_max=26214400` on primary VPN gateway host and restart wg-quick service.',
-          resolution: 'Permanent fix applied via Ansible configuration baseline playbook v2.4 across all production VPN nodes.',
-          is_known_error: true,
-          linked_count: 3,
-          created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'p2',
-          problem_number: 'PRB-1002',
-          title: 'PostgreSQL 16 Connection Pool Exhaustion on Reporting Analytics Query Burst',
-          description: 'Application services experience connection timeouts when automated BI reporting jobs trigger unbounded sequential joins during peak business hours.',
-          category: 'DevOps & Infrastructure',
-          priority: 'HIGH',
-          status: 'UNDER_INVESTIGATION',
-          impact: 'HIGH',
-          urgency: 'MEDIUM',
-          assignee_id: 'u4',
-          assignee_name: 'Marcus Vance (Lead DBA)',
-          root_cause: '### Investigation Status\nPgBouncer connection pool configured with `max_client_conn = 100` and `pool_mode = session`. Long-running ETL worker queries hold persistent idle-in-transaction locks.',
-          workaround: 'Scale PgBouncer replica pool to transaction mode on port 6432 for read-only analytical workloads.',
-          resolution: null,
-          is_known_error: false,
-          linked_count: 2,
-          created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 'p3',
-          problem_number: 'PRB-1003',
-          title: 'Okta MFA WebAuthn Security Key Registration Desynchronization',
-          description: 'Hardware FIDO2 YubiKey registration encounters error 400 when users switch between multiple corporate browser profiles.',
-          category: 'IT Security & Access',
-          priority: 'MEDIUM',
-          status: 'WORKAROUND_FOUND',
-          impact: 'MEDIUM',
-          urgency: 'LOW',
-          assignee_id: 'u1',
-          assignee_name: 'Sarah Jenkins (IT Security Lead)',
-          root_cause: 'RP ID (Relying Party Identifier) origin mismatch when accessing staging vs production SSO portals.',
-          workaround: 'Enforce unified subdomain id.eomp.local with strict WebAuthn origin validation.',
-          resolution: null,
-          is_known_error: true,
-          linked_count: 1,
-          created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]
+      problems.value = []
     }
 
     if (sRes) stats.value = sRes
@@ -174,36 +113,13 @@ async function openProblemDetail(p: Problem) {
   rcaForm.root_cause = p.root_cause || ''
   rcaForm.workaround = p.workaround || ''
   rcaForm.is_known_error = p.is_known_error
+  rcaForm.version = p.version || 0
   isDetailOpen.value = true
   activeDetailTab.value = 'rca'
 
   try {
     const res = await api.get<{ problem: Problem, linked_incidents: ProblemIncidentLink[] }>(`/api/v1/problems/${p.id}`)
-    if (res && res.linked_incidents) {
-      linkedIncidents.value = res.linked_incidents
-    } else {
-      // Fallback
-      linkedIncidents.value = [
-        {
-          id: 'l1',
-          problem_id: p.id,
-          ticket_id: 'tk-1',
-          ticket_number: 'INC-1001',
-          ticket_title: 'VPN Connection drops every 10 minutes on remote workstation',
-          linked_by: 'Alex Rivera (Network Architect)',
-          linked_at: new Date(Date.now() - 2 * 86400000).toISOString()
-        },
-        {
-          id: 'l2',
-          problem_id: p.id,
-          ticket_id: 'tk-2',
-          ticket_number: 'INC-1002',
-          ticket_title: 'Cannot access internal Kubernetes dashboard via WireGuard',
-          linked_by: 'Alex Rivera (Network Architect)',
-          linked_at: new Date(Date.now() - 1 * 86400000).toISOString()
-        }
-      ]
-    }
+    linkedIncidents.value = res?.linked_incidents || []
   } catch {
     linkedIncidents.value = []
   }
@@ -216,6 +132,7 @@ async function handleSaveRCA() {
   try {
     const updated = await api.patch<Problem>(`/api/v1/problems/${selectedProblem.value.id}/rca`, rcaForm)
     selectedProblem.value = updated
+    rcaForm.version = updated.version || 0
     toast.add({ title: 'RCA Updated', description: 'Root Cause Analysis and Workaround saved successfully.', color: 'success' })
     fetchData()
   } catch (err: unknown) {
@@ -237,12 +154,14 @@ async function handleCascadeResolve() {
       {
         status: 'RESOLVED',
         resolution: resolutionText,
-        notes: 'Resolved via ITIL Problem Management RCA cascade'
+        notes: 'Resolved via ITIL Problem Management RCA cascade',
+        version: selectedProblem.value.version || 0
       }
     )
 
     if (res && res.problem) {
       selectedProblem.value = res.problem
+      rcaForm.version = res.problem.version || 0
     }
     const count = res?.cascaded_count || linkedIncidents.value.length
     toast.add({

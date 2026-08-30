@@ -14,6 +14,9 @@ secrets:
   existingSecret: eomp-secrets
   postgresPassword: ""
   jwtSecret: ""
+  auditHmacKey: ""
+  openaiApiKey: ""
+  geminiApiKey: ""
   rabbitmqUser: ""
   rabbitmqPassword: ""
   minioAccessKey: ""
@@ -181,8 +184,8 @@ services:
     image: eomp/ai:0.1.0
     port: 8088
     replicas: 2
-    provider: mock
-    allowMock: true
+    provider: openai
+    allowMock: false
     hpa:
       enabled: false
     resources:

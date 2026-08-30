@@ -108,7 +108,7 @@ func (h *ProblemHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 	problem, cascadedTickets, err := h.svc.UpdateStatus(r.Context(), id, payload)
 	if err != nil {
-		errors.WriteHTTP(w, errors.BadRequest(err.Error()))
+		errors.WriteHTTP(w, err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *ProblemHandler) UpdateRCA(w http.ResponseWriter, r *http.Request) {
 
 	problem, err := h.svc.UpdateRCA(r.Context(), id, payload)
 	if err != nil {
-		errors.WriteHTTP(w, errors.BadRequest(err.Error()))
+		errors.WriteHTTP(w, err)
 		return
 	}
 

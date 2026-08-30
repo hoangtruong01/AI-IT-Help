@@ -646,6 +646,7 @@ export interface UpdateProblemStatusPayload {
   status: string
   resolution?: string
   notes?: string
+  version: number
 }
 
 /** Update Problem RCA Payload */
@@ -653,6 +654,7 @@ export interface UpdateProblemRCAPayload {
   root_cause?: string
   workaround?: string
   is_known_error?: boolean
+  version: number
 }
 
 /** Problem Stats */
@@ -781,15 +783,17 @@ export interface ServiceHealthStatus {
   name: string
   category: string
   port: number
-  status: 'ONLINE' | 'DEGRADED' | 'OFFLINE' | string
-  uptime_pct: number
+  status: 'UNKNOWN' | 'ONLINE' | 'DEGRADED' | 'OFFLINE' | string
   latency_ms: number
-  cpu_pct: number
-  memory_mb: number
-  version: string
-  error_rate_pct: number
-  total_requests: number
+  version?: string
   last_probe_time: string
+  probe_error?: string
+  metrics_available: boolean
+  uptime_pct?: number
+  cpu_pct?: number
+  memory_mb?: number
+  error_rate_pct?: number
+  total_requests?: number
 }
 
 /** Cluster Overview Metrics */
@@ -798,10 +802,12 @@ export interface ClusterOverview {
   online_services: number
   degraded_services: number
   offline_services: number
+  unknown_services: number
   cluster_health_pct: number
-  total_requests_per_min: number
-  avg_latency_p95_ms: number
-  error_rate_pct: number
+  avg_probe_latency_ms: number
+  metrics_available: boolean
+  data_source: string
+  last_measurement_utc: string
 }
 
 /** SRE Live Structured Log Entry */
@@ -899,7 +905,9 @@ export interface AuditLog {
   resource_id: string
   old_values?: Record<string, unknown>
   new_values?: Record<string, unknown>
+  previous_checksum?: string
   checksum_sha256: string
+  checksum_algorithm?: string
   created_at: string
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func (m *mockProblemRepo) CreateProblem(ctx context.Context, p *model.Problem) e
 	return nil
 }
 
-func (m *mockProblemRepo) UpdateProblem(ctx context.Context, p *model.Problem) error {
+func (m *mockProblemRepo) UpdateProblem(ctx context.Context, p *model.Problem, expectedVersion int) error {
 	for i, existing := range m.problems {
 		if existing.ID == p.ID {
 			m.problems[i] = *p
@@ -63,10 +64,14 @@ func (m *mockProblemRepo) UpdateProblem(ctx context.Context, p *model.Problem) e
 	return nil
 }
 
-func (m *mockProblemRepo) UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time) error {
+func (m *mockProblemRepo) UpdateProblemStatus(ctx context.Context, id, status string, resolution *string, resolvedAt, closedAt *time.Time, expectedVersion int) error {
 	for i, existing := range m.problems {
 		if existing.ID == id {
+			if existing.Version != expectedVersion {
+				return fmt.Errorf("version conflict")
+			}
 			m.problems[i].Status = status
+			m.problems[i].Version++
 			if resolution != nil {
 				m.problems[i].Resolution = resolution
 			}
@@ -78,12 +83,16 @@ func (m *mockProblemRepo) UpdateProblemStatus(ctx context.Context, id, status st
 	return nil
 }
 
-func (m *mockProblemRepo) UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool) error {
+func (m *mockProblemRepo) UpdateProblemRCA(ctx context.Context, id string, rootCause, workaround *string, isKnownError bool, expectedVersion int) error {
 	for i, existing := range m.problems {
 		if existing.ID == id {
+			if existing.Version != expectedVersion {
+				return fmt.Errorf("version conflict")
+			}
 			m.problems[i].RootCause = rootCause
 			m.problems[i].Workaround = workaround
 			m.problems[i].IsKnownError = isKnownError
+			m.problems[i].Version++
 			return nil
 		}
 	}
@@ -255,6 +264,7 @@ func TestProblemManagement_TestCase_7_1(t *testing.T) {
 	updatedProblem, cascaded, err := probSvc.UpdateStatus(ctx, p.ID, model.UpdateProblemStatusPayload{
 		Status:     "RESOLVED",
 		Resolution: &resText,
+		Version:    p.Version,
 	})
 	if err != nil {
 		t.Fatalf("failed to resolve problem: %v", err)
