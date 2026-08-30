@@ -132,7 +132,13 @@ func (h *EmployeeHandler) DeleteEmployee(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := h.svc.DeleteEmployee(r.Context(), id); err != nil {
+	version, err := strconv.Atoi(r.URL.Query().Get("version"))
+	if err != nil || version <= 0 {
+		errors.WriteHTTP(w, errors.BadRequest("version query parameter is required and must be a positive integer"))
+		return
+	}
+
+	if err := h.svc.DeleteEmployee(r.Context(), id, version); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}

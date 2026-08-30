@@ -89,7 +89,7 @@ func (s *changeService) CreateChange(ctx context.Context, payload model.CreateCh
 
 	changeNum, err := s.repo.NextChangeNumber(ctx)
 	if err != nil {
-		changeNum = fmt.Sprintf("CHG-%d", time.Now().Unix()%10000)
+		return nil, errors.New("failed to allocate change number")
 	}
 
 	changeType := payload.ChangeType

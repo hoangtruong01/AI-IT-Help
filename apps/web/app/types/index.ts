@@ -73,6 +73,7 @@ export interface Employee {
   status: 'ACTIVE' | 'ON_LEAVE' | 'PROBATION' | 'TERMINATED' | string
   location: string
   joined_at: string
+  version: number
   created_at: string
   updated_at: string
 }
@@ -457,6 +458,7 @@ export interface KnowledgeArticle {
   view_count: number
   helpful_count: number
   is_published: boolean
+  version: number
   created_at: string
   updated_at: string
 }
@@ -567,6 +569,19 @@ export interface AIChatResponse {
   confidence: number
   tokens_used: number
   fallback_mode?: boolean
+}
+
+/** Observed AI service runtime configuration and dependency status. */
+export interface AIRuntimeStatus {
+  service_status: 'ONLINE' | string
+  provider: string
+  model: string
+  embedding_model: string
+  mock_fallback_enabled: boolean
+  auto_ingest_enabled: boolean
+  qdrant_status: 'ONLINE' | 'OFFLINE' | string
+  qdrant_collection: string
+  last_checked_at: string
 }
 
 /** AI Ticket Analysis */

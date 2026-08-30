@@ -41,12 +41,12 @@ func (r *postgresProblemRepository) NextProblemNumber(ctx context.Context) (stri
 	if r.db == nil {
 		return "", errors.New("database connection is nil")
 	}
-	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM problems").Scan(&count)
+	var number int64
+	err := r.db.QueryRowContext(ctx, "SELECT nextval('problem_number_seq')").Scan(&number)
 	if err != nil {
-		return fmt.Sprintf("PRB-%d", 1001+count), nil
+		return "", fmt.Errorf("failed to allocate problem number: %w", err)
 	}
-	return fmt.Sprintf("PRB-%04d", 1000+count+1), nil
+	return fmt.Sprintf("PRB-%04d", number), nil
 }
 
 func (r *postgresProblemRepository) ListProblems(ctx context.Context, category, status string, page, pageSize int) ([]model.Problem, int, error) {

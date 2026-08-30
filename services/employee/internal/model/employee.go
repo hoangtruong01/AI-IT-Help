@@ -41,6 +41,7 @@ type Employee struct {
 	Status         string    `json:"status"`
 	Location       string    `json:"location"`
 	JoinedAt       string    `json:"joined_at"`
+	Version        int       `json:"version"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -62,6 +63,7 @@ type CreateEmployeeRequest struct {
 
 // UpdateEmployeeRequest DTO
 type UpdateEmployeeRequest struct {
+	Version      int     `json:"version"`
 	FirstName    *string `json:"first_name,omitempty"`
 	LastName     *string `json:"last_name,omitempty"`
 	Phone        *string `json:"phone,omitempty"`

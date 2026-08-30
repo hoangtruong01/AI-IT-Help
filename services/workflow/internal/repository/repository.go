@@ -21,10 +21,11 @@ type Repository interface {
 	ListInstances(ctx context.Context, query model.WorkflowListQuery) (*model.WorkflowListResponse, error)
 	FindInstanceByID(ctx context.Context, id string) (*model.WorkflowInstance, error)
 	CreateInstance(ctx context.Context, inst *model.WorkflowInstance) error
+	CreateInstanceWithApprovalAndLog(ctx context.Context, inst *model.WorkflowInstance, approval *model.ApprovalRequest, log *model.WorkflowLog) error
 	UpdateInstanceStatus(ctx context.Context, id, status, currentStep string, completedAt *time.Time) error
 	NextInstanceNumber(ctx context.Context) (string, error)
 
-	ListApprovals(ctx context.Context, approverID, status string, page, pageSize int) (*model.ApprovalListResponse, error)
+	ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error)
 	FindApprovalByID(ctx context.Context, id string) (*model.ApprovalRequest, error)
 	CreateApproval(ctx context.Context, app *model.ApprovalRequest) error
 	UpdateApprovalDecision(ctx context.Context, id, status, notes string, decidedAt *time.Time) error
@@ -47,12 +48,12 @@ func NewRepository(db *sql.DB) Repository {
 }
 
 func (r *postgresRepository) NextInstanceNumber(ctx context.Context) (string, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM workflow_instances").Scan(&count)
+	var number int64
+	err := r.db.QueryRowContext(ctx, "SELECT nextval('workflow_instance_number_seq')").Scan(&number)
 	if err != nil {
-		return "", fmt.Errorf("failed to count instances: %w", err)
+		return "", fmt.Errorf("failed to allocate instance number: %w", err)
 	}
-	return fmt.Sprintf("WFI-%04d", 1000+count+1), nil
+	return fmt.Sprintf("WFI-%04d", number), nil
 }
 
 func (r *postgresRepository) ListDefinitions(ctx context.Context) ([]model.WorkflowDefinition, error) {
@@ -141,6 +142,12 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 	if query.Status != "" && query.Status != "All" {
 		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIndex))
 		args = append(args, query.Status)
+		argIndex++
+	}
+
+	if query.RequesterID != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("requester_id = $%d", argIndex))
+		args = append(args, query.RequesterID)
 		argIndex++
 	}
 
@@ -286,6 +293,62 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 	return nil
 }
 
+// CreateInstanceWithApprovalAndLog persists the initial workflow state atomically.
+func (r *postgresRepository) CreateInstanceWithApprovalAndLog(ctx context.Context, inst *model.WorkflowInstance, approval *model.ApprovalRequest, log *model.WorkflowLog) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin workflow transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now()
+	ctxData := "{}"
+	if inst.ContextData != nil && *inst.ContextData != "" {
+		ctxData = *inst.ContextData
+	}
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO workflow_instances (
+			instance_number, definition_id, definition_name, entity_type, entity_id,
+			title, requester_id, requester_name, requester_email,
+			current_step_name, status, context_data, started_at, version, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 1, $14, $14)
+		RETURNING id, version, created_at, updated_at`,
+		inst.InstanceNumber, inst.DefinitionID, inst.DefinitionName, inst.EntityType, inst.EntityID,
+		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail,
+		inst.CurrentStepName, inst.Status, ctxData, inst.StartedAt, now,
+	).Scan(&inst.ID, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt); err != nil {
+		return fmt.Errorf("insert workflow instance: %w", err)
+	}
+
+	approval.InstanceID = inst.ID
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO approval_requests (
+			instance_id, step_id, title, approver_id, approver_name, approver_role,
+			approval_level, status, sla_deadline, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id, created_at`,
+		approval.InstanceID, approval.StepID, approval.Title, approval.ApproverID, approval.ApproverName,
+		approval.ApproverRole, approval.ApprovalLevel, approval.Status, approval.SLADeadline, now,
+	).Scan(&approval.ID, &approval.CreatedAt); err != nil {
+		return fmt.Errorf("insert initial approval: %w", err)
+	}
+
+	log.InstanceID = inst.ID
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO workflow_logs (instance_id, actor_id, actor_name, action, message, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, created_at`,
+		log.InstanceID, log.ActorID, log.ActorName, log.Action, log.Message, now,
+	).Scan(&log.ID, &log.CreatedAt); err != nil {
+		return fmt.Errorf("insert initial workflow log: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit workflow transaction: %w", err)
+	}
+	return nil
+}
+
 func (r *postgresRepository) UpdateInstanceStatus(ctx context.Context, id, status, currentStep string, completedAt *time.Time) error {
 	query := `
 		UPDATE workflow_instances
@@ -299,7 +362,7 @@ func (r *postgresRepository) UpdateInstanceStatus(ctx context.Context, id, statu
 	return nil
 }
 
-func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
+func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -311,7 +374,11 @@ func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, stat
 	args := []any{}
 	idx := 1
 
-	if approverID != "" {
+	if approverID != "" && approverRole != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("(approver_id = $%d OR (approver_id = approver_role AND approver_role = $%d))", idx, idx+1))
+		args = append(args, approverID, approverRole)
+		idx += 2
+	} else if approverID != "" {
 		whereClauses = append(whereClauses, fmt.Sprintf("approver_id = $%d", idx))
 		args = append(args, approverID)
 		idx++

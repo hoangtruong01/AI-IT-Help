@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -21,7 +22,7 @@ type KnowledgeService interface {
 	GetArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error)
 	CreateArticle(ctx context.Context, req *model.CreateArticleRequest) (*model.KnowledgeArticle, error)
 	UpdateArticle(ctx context.Context, id string, req *model.UpdateArticleRequest) (*model.KnowledgeArticle, error)
-	DeleteArticle(ctx context.Context, id string) error
+	DeleteArticle(ctx context.Context, id string, expectedVersion int) error
 
 	ListRunbooks(ctx context.Context, category, search string, page, pageSize int) (*model.RunbookListResponse, error)
 	GetRunbookByID(ctx context.Context, id string) (*model.KnowledgeRunbook, error)
@@ -176,12 +177,25 @@ func (s *knowledgeService) CreateArticle(ctx context.Context, req *model.CreateA
 }
 
 func (s *knowledgeService) UpdateArticle(ctx context.Context, id string, req *model.UpdateArticleRequest) (*model.KnowledgeArticle, error) {
+	if req == nil {
+		return nil, errors.BadRequest("Request payload cannot be empty")
+	}
+	if strings.TrimSpace(id) == "" {
+		return nil, errors.BadRequest("Article ID is required")
+	}
+	if req.Version <= 0 {
+		return nil, errors.BadRequest("version is required for optimistic concurrency control")
+	}
+
 	art, err := s.repo.FindArticleByID(ctx, id)
 	if err != nil {
 		return nil, errors.InternalServerError(err.Error())
 	}
 	if art == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Article %s not found", id))
+	}
+	if art.Version != req.Version {
+		return nil, errors.Conflict("article was modified by another request; reload and retry")
 	}
 
 	if req.CategoryID != nil && *req.CategoryID != "" {
@@ -204,13 +218,22 @@ func (s *knowledgeService) UpdateArticle(ctx context.Context, id string, req *mo
 	}
 
 	if err := s.repo.UpdateArticle(ctx, art); err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return nil, errors.Conflict("article was modified by another request; reload and retry")
+		}
 		return nil, errors.InternalServerError(fmt.Sprintf("failed to update article: %v", err))
 	}
 
 	return art, nil
 }
 
-func (s *knowledgeService) DeleteArticle(ctx context.Context, id string) error {
+func (s *knowledgeService) DeleteArticle(ctx context.Context, id string, expectedVersion int) error {
+	if strings.TrimSpace(id) == "" {
+		return errors.BadRequest("Article ID is required")
+	}
+	if expectedVersion <= 0 {
+		return errors.BadRequest("version is required for optimistic concurrency control")
+	}
 	art, err := s.repo.FindArticleByID(ctx, id)
 	if err != nil {
 		return errors.InternalServerError(err.Error())
@@ -218,7 +241,16 @@ func (s *knowledgeService) DeleteArticle(ctx context.Context, id string) error {
 	if art == nil {
 		return errors.NotFound(fmt.Sprintf("Article %s not found", id))
 	}
-	return s.repo.DeleteArticle(ctx, id)
+	if art.Version != expectedVersion {
+		return errors.Conflict("article was modified by another request; reload and retry")
+	}
+	if err := s.repo.DeleteArticle(ctx, id, expectedVersion); err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return errors.Conflict("article was modified by another request; reload and retry")
+		}
+		return errors.InternalServerError(fmt.Sprintf("failed to delete article: %v", err))
+	}
+	return nil
 }
 
 func (s *knowledgeService) ListRunbooks(ctx context.Context, category, search string, page, pageSize int) (*model.RunbookListResponse, error) {

@@ -6,14 +6,14 @@ Code version: `0.1.0`
 
 Readiness decision: **not yet approved for production**
 
-This is the current evidence baseline. “Implemented” means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
+This is the current evidence baseline. "Implemented" means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
 
 ## Verified inventory
 
 - 11 Go services plus one Nuxt web application.
 - Service ports: gateway 8080, auth 8081, employee 8082, asset 8083, helpdesk 8084, workflow 8085, notification 8086, knowledge 8087, AI 8088, audit 8089 and reporting 8090.
 - Nine PostgreSQL databases: auth, employee, asset, helpdesk, workflow, notification, knowledge, audit and reporting.
-- 101 registered `/api/v1` operations. All 101 are present in the OpenAPI operation inventory.
+- 102 registered `/api/v1` operations. All 102 are present in the OpenAPI operation inventory.
 - `go run scripts/check_openapi_coverage.go` validates route compatibility and exact runtime/OpenAPI parity. Jenkins now runs this gate.
 
 ## Remediation completed on 2026-08-30
@@ -29,7 +29,13 @@ This is the current evidence baseline. “Implemented” means the code exists a
 - Production repositories and UI screens no longer replace DB/API failures with fabricated audit, reporting, monitoring, change, knowledge or AI data.
 - Monitoring reports live service health probes and latency. RED/resource/log fields are explicitly unavailable until their real backends are configured; log API returns HTTP 501.
 - Audit records use a chained HMAC-SHA256 proof with a minimum 32-character key. The repository serializes chain-head writes, exposes an integrity endpoint and migration `003` blocks ordinary UPDATE/DELETE operations.
-- Asset, change, ticket, problem and workflow-approval critical transitions use optimistic compare-and-swap and return HTTP 409 for stale versions.
+- Asset/CMDB, employee, knowledge article, change, ticket, problem and workflow-approval critical transitions use optimistic compare-and-swap and return HTTP 409 for stale versions.
+- Employee ticket access is requester-scoped; requester identity is taken from the gateway identity, internal comments are hidden and cross-owner resource probes return 404.
+- Workflow instances and logs are requester-scoped for employees. Approval decisions are limited to the assigned user or configured role pool, CAB identity comes from the authenticated request and initial workflow state is written atomically.
+- Notification reads are per recipient, including broadcasts; list/count/read queries are parameterized and read receipts enforce ownership.
+- Runtime dashboards now show API results or explicit unavailable/empty states instead of static operational claims. The AI page reads provider/Qdrant state from `/api/v1/ai/status`.
+- Invalid non-hex UUID fixtures were corrected. Exact cleanup migrations remove development employees, knowledge content, tickets/problems, workflow runs, notifications and reporting telemetry without broad production-data deletes.
+- Human-readable ticket, problem, workflow and change numbers are allocated by PostgreSQL sequences rather than row counts or timestamp fallbacks, preventing reuse after deletion and common concurrent-create collisions.
 - AI/Qdrant mock fallback is disabled for real production providers unless `ALLOW_MOCK_AI=true` is explicitly set. Production manifests default to OpenAI and require an external key.
 - The conflicting Helpdesk routes `/tickets/asset/{assetId}` and `/tickets/{id}/assign` were replaced with an unambiguous asset-ticket route.
 - Backup validation no longer creates simulated evidence; release DR acceptance requires an actual temporary-database restore.
@@ -41,7 +47,7 @@ Completed locally on 2026-08-30 after the remediation above:
 
 - Go tests passed for all 13 workspace modules, including `tests/e2e`.
 - OpenAPI YAML parsed successfully and Redocly reported a valid OpenAPI document.
-- Runtime/OpenAPI gate passed: `101/101` operations documented, with no `http.ServeMux` conflicts.
+- Runtime/OpenAPI gate passed: `102/102` operations documented, with no `http.ServeMux` conflicts.
 - Frontend Vitest (3 tests), Nuxt typecheck, ESLint and production build passed.
 
 Environment-limited checks:
@@ -62,10 +68,10 @@ Environment-limited checks:
 | P1 | Audit immutability is not yet enforced by a dedicated restricted DB role | Run the audit service with append-only grants, document HMAC key rotation and validate tamper detection against PostgreSQL |
 | P1 | Monitoring has probes but no real RED/log backend | Integrate Prometheus queries and a Loki-compatible log backend; keep unavailable fields explicit until then |
 | P1 | OpenAPI has complete operation parity but many generic bodies/responses | Replace generic schemas with domain models and add request/response conformance tests |
-| P1 | Optimistic locking is not universal | Add CAS and DB integration tests to every remaining mutable aggregate/update path |
+| P1 | Optimistic locking and transaction coverage is not universal | Audit every remaining mutable aggregate and add PostgreSQL integration tests for CAS, rollback and migration-upgrade behavior |
 | P1 | No browser E2E suite or measured load run | Add Playwright journeys and run k6 against a deployed environment |
 | P1 | Production AI has not been exercised with a real provider | Inject a real key/provider, validate Qdrant ingestion and prove failure behavior without fabricated fallback |
 
 ## Release rule
 
-Do not describe EOMP as “100% complete”, “fully certified” or “production ready” until every P0 condition has objective evidence and accountable owners sign the handover acceptance.
+Do not describe EOMP as "100% complete", "fully certified" or "production ready" until every P0 condition has objective evidence and accountable owners sign the handover acceptance.

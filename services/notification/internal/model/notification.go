@@ -60,11 +60,12 @@ type CreateNotificationRequest struct {
 
 // NotificationListQuery parameters
 type NotificationListQuery struct {
-	RecipientID string `json:"recipient_id"`
-	IsRead      *bool  `json:"is_read,omitempty"`
-	Category    string `json:"category"`
-	Page        int    `json:"page"`
-	PageSize    int    `json:"page_size"`
+	RecipientID   string `json:"recipient_id"`
+	RecipientRole string `json:"recipient_role,omitempty"`
+	IsRead        *bool  `json:"is_read,omitempty"`
+	Category      string `json:"category"`
+	Page          int    `json:"page"`
+	PageSize      int    `json:"page_size"`
 }
 
 // NotificationListResponse envelope

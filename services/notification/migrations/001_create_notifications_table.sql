@@ -49,7 +49,7 @@ INSERT INTO notifications (
     id, recipient_id, recipient_email, title, message, category, priority, is_read, channel
 ) VALUES
     (
-        'n0000000-0000-0000-0000-000000000001',
+        'f0000000-0000-0000-0000-000000000001',
         'e0000000-0000-0000-0000-000000000001',
         'admin@eomp.local',
         'CAB Approval Required: PostgreSQL 17.2 Patch',
@@ -60,7 +60,7 @@ INSERT INTO notifications (
         'IN_APP'
     ),
     (
-        'n0000000-0000-0000-0000-000000000002',
+        'f0000000-0000-0000-0000-000000000002',
         'e0000000-0000-0000-0000-000000000001',
         'admin@eomp.local',
         'Urgent Incident Raised: VPN Connection Failure',
@@ -71,7 +71,7 @@ INSERT INTO notifications (
         'IN_APP'
     ),
     (
-        'n0000000-0000-0000-0000-000000000003',
+        'f0000000-0000-0000-0000-000000000003',
         'e0000000-0000-0000-0000-000000000002',
         'manager@eomp.local',
         'Approval Request: MacBook Pro 16" Allocation',
@@ -82,7 +82,7 @@ INSERT INTO notifications (
         'IN_APP'
     ),
     (
-        'n0000000-0000-0000-0000-000000000004',
+        'f0000000-0000-0000-0000-000000000004',
         'e0000000-0000-0000-0000-000000000003',
         'agent@eomp.local',
         'New Ticket Assigned: TK-1092',

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/packages/shared/pkg/response"
 	"eomp/services/workflow/internal/model"
 	"eomp/services/workflow/internal/repository"
@@ -87,6 +88,9 @@ func (h *ChangeHandler) CreateChange(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json payload"))
 		return
 	}
+	payload.RequesterID = middleware.GetUserID(r.Context())
+	payload.RequesterEmail = middleware.GetUserEmail(r.Context())
+	payload.RequesterName = payload.RequesterEmail
 
 	change, err := h.svc.CreateChange(r.Context(), payload)
 	if err != nil {
@@ -136,12 +140,14 @@ func (h *ChangeHandler) SubmitCABVote(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("change id is required"))
 		return
 	}
-
 	var payload model.SubmitCABVotePayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json payload"))
 		return
 	}
+	payload.ReviewerID = middleware.GetUserID(r.Context())
+	payload.ReviewerName = middleware.GetUserEmail(r.Context())
+	payload.ReviewerRole = middleware.GetUserRole(r.Context())
 
 	review, updatedChange, err := h.svc.SubmitCABVote(r.Context(), id, payload)
 	if err != nil {

@@ -112,11 +112,11 @@ ON CONFLICT (metric_date) DO NOTHING;
 -- Agent Performance Scorecard
 INSERT INTO agent_performance (agent_id, agent_name, agent_avatar, job_title, department, tickets_assigned, tickets_resolved, avg_mttr_minutes, csat_rating, sla_compliance_pct, period)
 VALUES
-    ('u0000000-0000-0000-0000-000000000003', 'Marcus Vance', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 'Senior IT Ops Specialist', 'IT Support L2', 68, 66, 28.4, 4.92, 98.5, '2026-08'),
-    ('u0000000-0000-0000-0000-000000000004', 'Sarah Jenkins', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150', 'Cybersecurity & IAM Engineer', 'IT Security', 54, 53, 31.2, 4.88, 98.1, '2026-08'),
-    ('u0000000-0000-0000-0000-000000000005', 'David Kim', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', 'Systems & Cloud Administrator', 'DevOps & Infra', 48, 46, 35.8, 4.79, 95.8, '2026-08'),
-    ('u0000000-0000-0000-0000-000000000006', 'Elena Rostova', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', 'IT Support Specialist L1', 'IT Helpdesk L1', 72, 70, 24.6, 4.95, 97.2, '2026-08'),
-    ('u0000000-0000-0000-0000-000000000007', 'Alex Chen', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', 'Network Operations Specialist', 'Network Engineering', 42, 40, 42.0, 4.70, 95.2, '2026-08')
+    ('a1000000-0000-0000-0000-000000000003', 'Marcus Vance', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', 'Senior IT Ops Specialist', 'IT Support L2', 68, 66, 28.4, 4.92, 98.5, '2026-08'),
+    ('a1000000-0000-0000-0000-000000000004', 'Sarah Jenkins', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150', 'Cybersecurity & IAM Engineer', 'IT Security', 54, 53, 31.2, 4.88, 98.1, '2026-08'),
+    ('a1000000-0000-0000-0000-000000000005', 'David Kim', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', 'Systems & Cloud Administrator', 'DevOps & Infra', 48, 46, 35.8, 4.79, 95.8, '2026-08'),
+    ('a1000000-0000-0000-0000-000000000006', 'Elena Rostova', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', 'IT Support Specialist L1', 'IT Helpdesk L1', 72, 70, 24.6, 4.95, 97.2, '2026-08'),
+    ('a1000000-0000-0000-0000-000000000007', 'Alex Chen', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', 'Network Operations Specialist', 'Network Engineering', 42, 40, 42.0, 4.70, 95.2, '2026-08')
 ON CONFLICT DO NOTHING;
 
 -- Category Breakdown

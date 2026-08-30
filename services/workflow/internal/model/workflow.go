@@ -123,10 +123,11 @@ type ApprovalDecisionRequest struct {
 
 // WorkflowListQuery parameters
 type WorkflowListQuery struct {
-	Page     int    `json:"page"`
-	PageSize int    `json:"page_size"`
-	Status   string `json:"status"`
-	Search   string `json:"search"`
+	Page        int    `json:"page"`
+	PageSize    int    `json:"page_size"`
+	Status      string `json:"status"`
+	Search      string `json:"search"`
+	RequesterID string `json:"requester_id,omitempty"`
 }
 
 // WorkflowListResponse envelope

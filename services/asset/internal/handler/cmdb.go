@@ -82,20 +82,22 @@ func (h *CMDBHandler) UpdateCIStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var req struct {
-		Status string `json:"status"`
-	}
+	var req model.UpdateCIStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("invalid request body"))
 		return
 	}
 
-	if err := h.svc.UpdateCIStatus(r.Context(), id, req.Status); err != nil {
+	if err := h.svc.UpdateCIStatus(r.Context(), id, req.Status, req.Version); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
 
-	ci, _ := h.svc.GetCI(r.Context(), id)
+	ci, err := h.svc.GetCI(r.Context(), id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 	response.JSON(w, http.StatusOK, ci)
 }
 

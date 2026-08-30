@@ -12,6 +12,9 @@ import (
 	"eomp/services/employee/internal/model"
 )
 
+// ErrVersionConflict indicates that an employee changed after the caller read it.
+var ErrVersionConflict = errors.New("employee version conflict")
+
 // Repository interface combining Employee and Department data operations
 type Repository interface {
 	// Employee methods
@@ -20,7 +23,7 @@ type Repository interface {
 	FindEmployeeByEmail(ctx context.Context, email string) (*model.Employee, error)
 	CreateEmployee(ctx context.Context, emp *model.Employee) error
 	UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error)
-	DeleteEmployee(ctx context.Context, id string) error
+	DeleteEmployee(ctx context.Context, id string, expectedVersion int) error
 
 	// Department methods
 	ListDepartments(ctx context.Context) ([]model.Department, error)
@@ -84,7 +87,7 @@ func (r *postgresRepository) ListEmployees(ctx context.Context, query model.Empl
 			e.id, e.user_id, e.first_name, e.last_name, e.email, e.phone, e.job_title,
 			e.department_id, d.name AS department_name, d.code AS department_code,
 			e.manager_id, CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
-			e.status, e.location, TO_CHAR(e.joined_at, 'YYYY-MM-DD') AS joined_at,
+			e.status, e.location, TO_CHAR(e.joined_at, 'YYYY-MM-DD') AS joined_at, e.version,
 			e.created_at, e.updated_at
 		FROM employees e
 		LEFT JOIN departments d ON e.department_id = d.id
@@ -111,7 +114,7 @@ func (r *postgresRepository) ListEmployees(ctx context.Context, query model.Empl
 			&emp.ID, &emp.UserID, &emp.FirstName, &emp.LastName, &emp.Email, &emp.Phone, &emp.JobTitle,
 			&emp.DepartmentID, &emp.DepartmentName, &emp.DepartmentCode,
 			&emp.ManagerID, &managerName,
-			&emp.Status, &emp.Location, &joinedAt,
+			&emp.Status, &emp.Location, &joinedAt, &emp.Version,
 			&emp.CreatedAt, &emp.UpdatedAt,
 		)
 		if err != nil {
@@ -147,7 +150,7 @@ func (r *postgresRepository) FindEmployeeByID(ctx context.Context, id string) (*
 			e.id, e.user_id, e.first_name, e.last_name, e.email, e.phone, e.job_title,
 			e.department_id, d.name AS department_name, d.code AS department_code,
 			e.manager_id, CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
-			e.status, e.location, TO_CHAR(e.joined_at, 'YYYY-MM-DD') AS joined_at,
+			e.status, e.location, TO_CHAR(e.joined_at, 'YYYY-MM-DD') AS joined_at, e.version,
 			e.created_at, e.updated_at
 		FROM employees e
 		LEFT JOIN departments d ON e.department_id = d.id
@@ -161,7 +164,7 @@ func (r *postgresRepository) FindEmployeeByID(ctx context.Context, id string) (*
 		&emp.ID, &emp.UserID, &emp.FirstName, &emp.LastName, &emp.Email, &emp.Phone, &emp.JobTitle,
 		&emp.DepartmentID, &emp.DepartmentName, &emp.DepartmentCode,
 		&emp.ManagerID, &managerName,
-		&emp.Status, &emp.Location, &joinedAt,
+		&emp.Status, &emp.Location, &joinedAt, &emp.Version,
 		&emp.CreatedAt, &emp.UpdatedAt,
 	)
 	if err != nil {
@@ -185,13 +188,13 @@ func (r *postgresRepository) FindEmployeeByID(ctx context.Context, id string) (*
 
 func (r *postgresRepository) FindEmployeeByEmail(ctx context.Context, email string) (*model.Employee, error) {
 	query := `
-		SELECT id, email, first_name, last_name, job_title, status
+		SELECT id, email, first_name, last_name, job_title, status, version
 		FROM employees
 		WHERE email = $1
 	`
 	var emp model.Employee
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&emp.ID, &emp.Email, &emp.FirstName, &emp.LastName, &emp.JobTitle, &emp.Status,
+		&emp.ID, &emp.Email, &emp.FirstName, &emp.LastName, &emp.JobTitle, &emp.Status, &emp.Version,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -211,7 +214,7 @@ func (r *postgresRepository) CreateEmployee(ctx context.Context, emp *model.Empl
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::date, CURRENT_DATE), $12, $13
 		)
-		RETURNING id, created_at, updated_at
+		RETURNING id, version, created_at, updated_at
 	`
 	now := time.Now()
 	var joinedDate any = nil
@@ -224,7 +227,7 @@ func (r *postgresRepository) CreateEmployee(ctx context.Context, emp *model.Empl
 		emp.UserID, emp.FirstName, emp.LastName, emp.Email, emp.Phone, emp.JobTitle,
 		emp.DepartmentID, emp.ManagerID, emp.Status, emp.Location, joinedDate,
 		now, now,
-	).Scan(&emp.ID, &emp.CreatedAt, &emp.UpdatedAt)
+	).Scan(&emp.ID, &emp.Version, &emp.CreatedAt, &emp.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert employee: %w", err)
@@ -233,7 +236,7 @@ func (r *postgresRepository) CreateEmployee(ctx context.Context, emp *model.Empl
 }
 
 func (r *postgresRepository) UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error) {
-	setClauses := []string{"updated_at = CURRENT_TIMESTAMP"}
+	setClauses := []string{"updated_at = CURRENT_TIMESTAMP", "version = version + 1"}
 	args := []any{id}
 	argIndex := 2
 
@@ -278,25 +281,36 @@ func (r *postgresRepository) UpdateEmployee(ctx context.Context, id string, req 
 		argIndex++
 	}
 
-	query := fmt.Sprintf("UPDATE employees SET %s WHERE id = $1", strings.Join(setClauses, ", "))
+	args = append(args, req.Version)
+	query := fmt.Sprintf("UPDATE employees SET %s WHERE id = $1 AND version = $%d", strings.Join(setClauses, ", "), argIndex)
 	res, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update employee: %w", err)
 	}
 
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect employee update result: %w", err)
+	}
 	if rowsAffected == 0 {
-		return nil, nil // Not found
+		return nil, ErrVersionConflict
 	}
 
 	return r.FindEmployeeByID(ctx, id)
 }
 
-func (r *postgresRepository) DeleteEmployee(ctx context.Context, id string) error {
-	query := "DELETE FROM employees WHERE id = $1"
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *postgresRepository) DeleteEmployee(ctx context.Context, id string, expectedVersion int) error {
+	query := "DELETE FROM employees WHERE id = $1 AND version = $2"
+	result, err := r.db.ExecContext(ctx, query, id, expectedVersion)
 	if err != nil {
 		return fmt.Errorf("failed to delete employee: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to inspect employee delete result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrVersionConflict
 	}
 	return nil
 }

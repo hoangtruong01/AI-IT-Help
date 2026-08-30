@@ -83,6 +83,11 @@ type CreateCIRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
+type UpdateCIStatusRequest struct {
+	Status  string `json:"status"`
+	Version int    `json:"version"`
+}
+
 // CreateCIRelationshipRequest DTO
 type CreateCIRelationshipRequest struct {
 	ParentCIID       string `json:"parent_ci_id"`

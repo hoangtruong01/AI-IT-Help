@@ -4,11 +4,11 @@ info:
   version: 0.1.0
   description: |
     Runtime operation baseline for the EOMP gateway and its downstream services.
-    All 101 registered `/api/v1` operations are represented. Generic write bodies
+    All 102 registered `/api/v1` operations are represented. Generic write bodies
     mark endpoints whose domain schemas still need richer component definitions.
   x-coverage-status: complete-operation-inventory
-  x-runtime-operation-count: 101
-  x-documented-operation-count: 101
+  x-runtime-operation-count: 102
+  x-documented-operation-count: 102
 servers:
   - url: http://localhost:8080
     description: Local gateway
@@ -20,12 +20,14 @@ paths:
     post: {tags: [AI], operationId: analyzeTicket, summary: Analyze and triage a ticket, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/ai/chat:
     post: {tags: [AI], operationId: chatWithCopilot, summary: Chat with the operations copilot, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+  /api/v1/ai/status:
+    get: {tags: [AI], operationId: getAIRuntimeStatus, summary: Get configured AI provider and observed Qdrant status, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
   /api/v1/approvals:
-    get: {tags: [Workflow], operationId: listApprovals, summary: List approval requests, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Workflow], operationId: listApprovals, summary: List approvals assigned to the authenticated manager or role pool (admin may list all), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
   /api/v1/approvals/{id}/decision:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    post: {tags: [Workflow], operationId: decideApproval, summary: Atomically decide an approval and advance its workflow, requestBody: {$ref: '#/components/requestBodies/ApprovalDecision'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+    post: {tags: [Workflow], operationId: decideApproval, summary: Atomically decide an assigned user or role-pool approval and advance its workflow, requestBody: {$ref: '#/components/requestBodies/ApprovalDecision'}, responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}}
 
   /api/v1/assets:
     get: {tags: [Assets], operationId: listAssets, summary: List assets, responses: {'200': {$ref: '#/components/responses/Success'}}}
@@ -81,14 +83,14 @@ paths:
     post: {tags: [Authentication], operationId: registerEmployee, summary: Register a standard employee account, security: [], requestBody: {$ref: '#/components/requestBodies/Register'}, responses: {'201': {$ref: '#/components/responses/Created'}, '409': {$ref: '#/components/responses/Conflict'}}}
 
   /api/v1/changes:
-    get: {tags: [Changes], operationId: listChanges, summary: List change requests, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    post: {tags: [Changes], operationId: createChange, summary: Create a change request, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+    get: {tags: [Changes], operationId: listChanges, summary: List change requests (manager or admin), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
+    post: {tags: [Changes], operationId: createChange, summary: Create a change request using the authenticated requester identity, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}, '403': {$ref: '#/components/responses/Forbidden'}}}
   /api/v1/changes/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Changes], operationId: getChange, summary: Get a change request, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/changes/{id}/cab-vote:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    post: {tags: [Changes], operationId: castCABVote, summary: Cast a CAB vote, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+    post: {tags: [Changes], operationId: castCABVote, summary: Cast a CAB vote using the authenticated reviewer identity, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
   /api/v1/changes/{id}/status:
     parameters: [{$ref: '#/components/parameters/Id'}]
     patch: {tags: [Changes], operationId: updateChangeStatus, summary: Update change status using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
@@ -105,7 +107,7 @@ paths:
     get: {tags: [CMDB], operationId: getConfigurationItem, summary: Get a configuration item, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/cmdb/ci/{id}/status:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    patch: {tags: [CMDB], operationId: updateConfigurationItemStatus, summary: Update configuration item status, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    patch: {tags: [CMDB], operationId: updateConfigurationItemStatus, summary: Update configuration item status, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
   /api/v1/cmdb/relationships:
     get: {tags: [CMDB], operationId: listCMDBRelationships, summary: List CMDB relationships, responses: {'200': {$ref: '#/components/responses/Success'}}}
     post: {tags: [CMDB], operationId: createCMDBRelationship, summary: Create a CMDB relationship, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
@@ -121,8 +123,8 @@ paths:
   /api/v1/employees/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Employees], operationId: getEmployee, summary: Get an employee, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    put: {tags: [Employees], operationId: updateEmployee, summary: Update an employee, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    delete: {tags: [Employees], operationId: deleteEmployee, summary: Delete an employee, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    put: {tags: [Employees], operationId: updateEmployee, summary: Update an employee using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+    delete: {tags: [Employees], operationId: deleteEmployee, summary: Delete an employee using optimistic locking, parameters: [{$ref: '#/components/parameters/VersionQuery'}], responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
   /api/v1/employees/{id}/assets/history:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Employees], operationId: getEmployeeAssets, summary: Get employee asset history, responses: {'200': {$ref: '#/components/responses/Success'}}}
@@ -133,8 +135,8 @@ paths:
   /api/v1/knowledge/articles/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Knowledge], operationId: getArticle, summary: Get a knowledge article, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    put: {tags: [Knowledge], operationId: updateArticle, summary: Update a knowledge article, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    delete: {tags: [Knowledge], operationId: deleteArticle, summary: Delete a knowledge article, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    put: {tags: [Knowledge], operationId: updateArticle, summary: Update a knowledge article using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
+    delete: {tags: [Knowledge], operationId: deleteArticle, summary: Delete a knowledge article using optimistic locking, parameters: [{$ref: '#/components/parameters/VersionQuery'}], responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
   /api/v1/knowledge/categories:
     get: {tags: [Knowledge], operationId: listKnowledgeCategories, summary: List knowledge categories, responses: {'200': {$ref: '#/components/responses/Success'}}}
     post: {tags: [Knowledge], operationId: createKnowledgeCategory, summary: Create a knowledge category, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
@@ -237,14 +239,14 @@ paths:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Workflow], operationId: getWorkflowDefinition, summary: Get a workflow definition, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/workflows/instances:
-    get: {tags: [Workflow], operationId: listWorkflowInstances, summary: List workflow instances, responses: {'200': {$ref: '#/components/responses/Success'}}}
-    post: {tags: [Workflow], operationId: startWorkflow, summary: Start a workflow instance, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
+    get: {tags: [Workflow], operationId: listWorkflowInstances, summary: List workflow instances (employees are requester-scoped), responses: {'200': {$ref: '#/components/responses/Success'}}}
+    post: {tags: [Workflow], operationId: startWorkflow, summary: Atomically start a workflow with its configured role-pool approval and initial log, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
   /api/v1/workflows/instances/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    get: {tags: [Workflow], operationId: getWorkflowInstance, summary: Get a workflow instance, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Workflow], operationId: getWorkflowInstance, summary: Get a workflow instance (employees are requester-scoped), responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/workflows/instances/{id}/logs:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    get: {tags: [Workflow], operationId: listWorkflowLogs, summary: List workflow execution logs, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Workflow], operationId: listWorkflowLogs, summary: List workflow execution logs (employees are requester-scoped), responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/workflows/stats:
     get: {tags: [Workflow], operationId: getWorkflowStats, summary: Get workflow statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
@@ -255,10 +257,12 @@ components:
     Id: {name: id, in: path, required: true, schema: {type: string}}
     TicketId: {name: ticketId, in: path, required: true, schema: {type: string}}
     AssetId: {name: assetId, in: path, required: true, schema: {type: string}}
+    VersionQuery: {name: version, in: query, required: true, schema: {type: integer, minimum: 1}, description: Version last read by the caller}
   responses:
     Success: {description: Successful response}
     Created: {description: Resource created}
     Unauthorized: {description: Authentication failed}
+    Forbidden: {description: Authenticated caller lacks permission for this resource}
     Conflict: {description: Optimistic-lock or uniqueness conflict}
   requestBodies:
     JsonBody:

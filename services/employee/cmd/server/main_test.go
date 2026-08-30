@@ -49,7 +49,7 @@ func (m *mockRepo) ListEmployees(ctx context.Context, query model.EmployeeListQu
 	}, nil
 }
 func (m *mockRepo) FindEmployeeByID(ctx context.Context, id string) (*model.Employee, error) {
-	return &model.Employee{ID: id, FirstName: "Alex", LastName: "Nguyen", Email: "alex@eomp.local", JobTitle: "Dev"}, nil
+	return &model.Employee{ID: id, FirstName: "Alex", LastName: "Nguyen", Email: "alex@eomp.local", JobTitle: "Dev", Version: 1}, nil
 }
 func (m *mockRepo) FindEmployeeByEmail(ctx context.Context, email string) (*model.Employee, error) {
 	return nil, nil
@@ -59,9 +59,9 @@ func (m *mockRepo) CreateEmployee(ctx context.Context, emp *model.Employee) erro
 	return nil
 }
 func (m *mockRepo) UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error) {
-	return &model.Employee{ID: id, FirstName: "Updated"}, nil
+	return &model.Employee{ID: id, FirstName: "Updated", Version: req.Version + 1}, nil
 }
-func (m *mockRepo) DeleteEmployee(ctx context.Context, id string) error {
+func (m *mockRepo) DeleteEmployee(ctx context.Context, id string, expectedVersion int) error {
 	return nil
 }
 func (m *mockRepo) ListDepartments(ctx context.Context) ([]model.Department, error) {
@@ -100,5 +100,12 @@ func TestEmployeeServiceValidation(t *testing.T) {
 	}
 	if created == nil || created.ID != "generated-uuid" {
 		t.Errorf("expected employee with ID 'generated-uuid'")
+	}
+
+	if _, err := svc.UpdateEmployee(ctx, "emp-1", &model.UpdateEmployeeRequest{}); err == nil {
+		t.Error("expected update without version to fail")
+	}
+	if err := svc.DeleteEmployee(ctx, "emp-1", 0); err == nil {
+		t.Error("expected delete without version to fail")
 	}
 }

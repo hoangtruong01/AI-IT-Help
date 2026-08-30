@@ -70,7 +70,7 @@ func (s *problemService) CreateProblem(ctx context.Context, payload model.Create
 
 	num, err := s.problemRepo.NextProblemNumber(ctx)
 	if err != nil {
-		num = fmt.Sprintf("PRB-%d", time.Now().Unix()%10000)
+		return nil, errors.New("failed to allocate problem number")
 	}
 
 	now := time.Now()

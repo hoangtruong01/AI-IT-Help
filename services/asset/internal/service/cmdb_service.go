@@ -14,7 +14,7 @@ type CMDBService interface {
 	ListCIs(ctx context.Context, env, ciType, status string) ([]model.ConfigurationItem, error)
 	GetCI(ctx context.Context, id string) (*model.ConfigurationItem, error)
 	CreateCI(ctx context.Context, req *model.CreateCIRequest) (*model.ConfigurationItem, error)
-	UpdateCIStatus(ctx context.Context, id, status string) error
+	UpdateCIStatus(ctx context.Context, id, status string, expectedVersion int) error
 	ListRelationships(ctx context.Context) ([]model.CIRelationship, error)
 	CreateRelationship(ctx context.Context, req *model.CreateCIRelationshipRequest) error
 	GetTopology(ctx context.Context) (*model.CMDBTopologyGraph, error)
@@ -76,12 +76,30 @@ func (s *cmdbService) CreateCI(ctx context.Context, req *model.CreateCIRequest) 
 	return s.repo.FindCIByID(ctx, ci.ID)
 }
 
-func (s *cmdbService) UpdateCIStatus(ctx context.Context, id, status string) error {
+func (s *cmdbService) UpdateCIStatus(ctx context.Context, id, status string, expectedVersion int) error {
+	if expectedVersion <= 0 {
+		return errors.BadRequest("version is required for CI status updates")
+	}
+	validStatus := map[string]bool{
+		model.CIStatusOperational: true,
+		model.CIStatusDegraded:    true,
+		model.CIStatusOffline:     true,
+		model.CIStatusMaintenance: true,
+	}
+	if !validStatus[status] {
+		return errors.BadRequest("invalid CI status")
+	}
 	ci, err := s.repo.FindCIByID(ctx, id)
 	if err != nil || ci == nil {
 		return errors.NotFound("configuration item not found")
 	}
-	return s.repo.UpdateCIStatus(ctx, id, status)
+	if err := s.repo.UpdateCIStatus(ctx, id, status, expectedVersion); err != nil {
+		if err == repository.ErrVersionConflict {
+			return errors.Conflict("configuration item was modified by another request")
+		}
+		return errors.InternalServerError(fmt.Sprintf("failed to update CI status: %v", err))
+	}
+	return nil
 }
 
 func (s *cmdbService) ListRelationships(ctx context.Context) ([]model.CIRelationship, error) {

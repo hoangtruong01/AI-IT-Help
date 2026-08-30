@@ -33,12 +33,12 @@ EOMP provides an end-to-end, integrated operations ecosystem structured across 1
 4. **IT Helpdesk & SLA Engine (`services/helpdesk` - :8084)**: Incident ticketing, dynamic SLA deadline calculations (`URGENT` 15m/2h, `HIGH` 30m/4h), and ITIL Problem Management with RCA 5-Whys.
 5. **Workflow & Approval Engine (`services/workflow` - :8085)**: State machine workflow execution, multi-level approvals, and Change Advisory Board (CAB) voting.
 6. **Notification Service (`services/notification` - :8086)**: CloudEvents v1.0 event bus consumer, in-app notification center, and email delivery.
-7. **Knowledge Base & SOP Runbooks (`services/knowledge` - :8087)**: IT standard operating procedures, documentation management, and vector embeddings.
+7. **Knowledge Base & SOP Runbooks (`services/knowledge` - :8087)**: IT standard operating procedures, article/runbook management, and PostgreSQL-backed search.
 8. **AI Operations Copilot (`services/ai` - :8088)**: LLM ticket auto-triage, semantic search with Qdrant vector store, and RAG root-cause assistant.
 9. **Audit Trail & Compliance (`services/audit` - :8089)**: Append-only audit logging with a chained **HMAC-SHA256 proof**, integrity verification and automated data masking (`********`).
 10. **Reporting & BI Analytics (`services/reporting` - :8090)**: MTTR/MTTD, SLA compliance, agent performance scorecards and bounded report export. Performance targets require deployed-environment evidence.
 11. **API Gateway (`services/gateway` - :8080)**: Reverse proxy routing, rate limiting (100 req/min/IP), correlation ID injection, and SRE monitoring aggregation.
-12. **Frontend Web App (`apps/web` - :3000)**: Nuxt 4, Vue 3, Tailwind CSS, Dark Glassmorphism aesthetic, realtime live widgets & SSE streaming.
+12. **Frontend Web App (`apps/web` - :3000)**: Nuxt 4, Vue 3, Tailwind CSS and API-backed operational views with explicit unavailable states.
 
 ---
 
@@ -97,8 +97,8 @@ EOMP provides an end-to-end, integrated operations ecosystem structured across 1
 | **Helpdesk & SLA** | `:8084` | HTTP | `helpdesk_db` (PostgreSQL) |
 | **Workflow Engine** | `:8085` | HTTP | `workflow_db` (PostgreSQL) |
 | **Notification** | `:8086` | HTTP | `notification_db` + RabbitMQ |
-| **Knowledge Base** | `:8087` | HTTP | `knowledge_db` + Qdrant |
-| **AI Copilot** | `:8088` | HTTP | RAG SmartRetriever (Stateless) |
+| **Knowledge Base** | `:8087` | HTTP | `knowledge_db` (PostgreSQL search) |
+| **AI Copilot** | `:8088` | HTTP | LLM provider + optional Qdrant RAG |
 | **Audit Trail** | `:8089` | HTTP | `audit_db` (chained HMAC-SHA256 proof) |
 | **Reporting & BI** | `:8090` | HTTP | `reporting_db` (PostgreSQL) |
 | **PostgreSQL Engine** | `:5432` | TCP | 9 Isolated DBs Pool |
@@ -172,7 +172,7 @@ EOMP provides automated CLI toolkits for developer, testing, deployment and SRE 
 | **Phase 0–9** | Core architecture and business modules | **Implemented; integration acceptance pending** |
 | **Phase 10** | Security hardening | **In progress; see current blockers** |
 | **Phase 11** | QA automation | **Partial: unit/static checks exist; browser/load evidence pending** |
-| **Phase 12** | Architecture and OpenAPI documentation | **101/101 operation parity; domain schemas in progress** |
+| **Phase 12** | Architecture and OpenAPI documentation | **102/102 operation parity; domain schemas in progress** |
 | **Phase 13** | Docker and Kubernetes packaging | **Implemented; runtime validation pending** |
 | **Phase 14** | SRE, disaster recovery and handover | **Pending measured DR drill and owner acceptance** |
 

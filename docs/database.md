@@ -1,48 +1,47 @@
-# EOMP — Database Architecture & Data Strategy
+# EOMP — Kiến trúc và chiến lược dữ liệu
 
-> **Tài Liệu Chiến Lược Cơ Sở Dữ Liệu Phân Tán (Database Strategy)**  
-> **Xem tài liệu chi tiết:** [Master ERD & Data Dictionary](architecture/database_erd_and_data_dictionary.md)
+Last audited: 2026-08-30
 
----
+EOMP áp dụng mô hình database-per-service. Mỗi service chỉ truy cập PostgreSQL database do mình sở hữu; trao đổi liên service đi qua HTTP API hoặc CloudEvents/RabbitMQ, không dùng cross-database join.
 
-## 1. Database Architecture & Ownership Strategy
+## Ma trận dữ liệu
 
-EOMP tuân thủ nguyên tắc cốt lõi của Microservices: **Database-per-Service Pattern**. Mỗi service chịu trách nhiệm duy nhất về dữ liệu của mình:
-
-* Tuyệt đối không thực hiện Cross-Database Joins trực tiếp qua SQL.
-* Đồng bộ dữ liệu liên service được thực hiện thông qua **Event-Driven Architecture (CloudEvents EventBus)** hoặc **API Gateway Aggregation**.
-* Cơ chế **PostgreSQL Auto-Migration Runner** tự động khởi chạy và áp dụng các file SQL migration khi mỗi microservice khởi động.
-
----
-
-## 2. Master Databases Matrix (9 Dedicated Microservice Databases)
-
-| Service | Database Name | Entities Owned (Bảng Dữ Liệu) | Vai Trò & Ràng Buộc Chính |
+| Service | Database | Bảng do service sở hữu | Ghi chú chính |
 |---|---|---|---|
-| **Auth Service** | `auth_db` | `users`, `refresh_tokens` | Email Unique, Bcrypt hashed password, Role enum |
-| **Employee Service** | `employee_db` | `departments`, `employees` | Cấu trúc cây tổ chức, Quan hệ đệ quy `manager_id` |
-| **Asset Service** | `asset_db` | `assets`, `asset_assignments`, `configuration_items`, `ci_relationships` | Vòng đời phần cứng, Đồ thị phụ thuộc hạ tầng CMDB |
-| **Helpdesk Service** | `helpdesk_db` | `service_categories`, `service_catalog_items`, `tickets`, `ticket_comments`, `ticket_timeline`, `problems`, `problem_incident_links` | SLA targets, ITIL Problem RCA & KEDB |
-| **Workflow Service** | `workflow_db` | `workflow_definitions`, `workflow_instances`, `workflow_steps`, `approval_requests`, `workflow_logs`, `change_requests`, `cab_reviews` | State machine approvals, Risk Matrix 3x3, CAB |
-| **Notification Service** | `notification_db` | `notifications`, `notification_templates` | In-app notification queue, Unread counter |
-| **Knowledge Base** | `knowledge_db` | `knowledge_categories`, `knowledge_articles`, `runbooks`, `document_embeddings` | SOP Runbooks, Full-text Search + Vector storage |
-| **Audit Service** | `audit_db` | `audit_logs`, `security_events` | Chuỗi **HMAC-SHA256**, trigger append-only, data masking |
-| **Reporting & BI** | `reporting_db` | `sla_metrics_daily`, `agent_performance`, `category_metrics`, `department_sla_metrics`, `raw_incident_records` | Aggregated KPI tables, MTTR/MTTD analytics |
+| Auth | `auth_db` | `users`, `refresh_tokens`, `login_audit_logs` | bcrypt, token rotation và nhật ký đăng nhập |
+| Employee | `employee_db` | `departments`, `employees` | cây tổ chức; `employees.version` dùng optimistic locking |
+| Asset | `asset_db` | `assets`, `asset_assignments`, `configuration_items`, `ci_relationships` | vòng đời tài sản và CMDB; asset/CI có `version` |
+| Helpdesk | `helpdesk_db` | `service_categories`, `service_catalog_items`, `tickets`, `ticket_comments`, `ticket_timeline`, `problems`, `problem_incident_links` | ticket/problem có `version`; số TK/PRB dùng sequence; dữ liệu nhân viên được giới hạn theo requester |
+| Workflow | `workflow_db` | `workflow_definitions`, `workflow_instances`, `workflow_steps`, `approval_requests`, `workflow_logs`, `change_requests`, `cab_reviews` | approval theo user/role; workflow/change có `version`; số WFI/CHG dùng sequence |
+| Notification | `notification_db` | `notifications`, `notification_templates`, `notification_reads` | trạng thái đọc theo từng recipient, kể cả notification broadcast |
+| Knowledge | `knowledge_db` | `knowledge_categories`, `knowledge_articles`, `runbooks`, `document_embeddings` | PostgreSQL full-text search; article có `version` |
+| Audit | `audit_db` | `audit_logs`, `security_events` | chuỗi HMAC-SHA256, sequence ổn định và trigger append-only |
+| Reporting | `reporting_db` | `sla_metrics_daily`, `agent_performance`, `category_metrics`, `department_sla_metrics`, `raw_incident_records` | dữ liệu KPI tổng hợp; không còn seed telemetry giả sau migration cleanup |
 
----
+## Migration runner
 
-## 3. Migration Runner Engine (`packages/shared/pkg/database`)
+`packages/shared/pkg/database` thực hiện các migration `*.sql` theo thứ tự tên file và ghi phiên bản đã áp dụng. Service phụ thuộc database sẽ dừng khởi động nếu kết nối hoặc migration thất bại.
 
-Tất cả các microservices đều sử dụng module kết nối chuẩn `packages/shared/pkg/database/postgres.go`:
+Quy tắc migration:
 
-1. **Connection Pool Cấu Hình:** `SetMaxOpenConns(25)`, `SetMaxIdleConns(5)`, `SetConnMaxLifetime(15m)`.
-2. **Auto Migration:** Quét toàn bộ file `migrations/*.sql` theo thứ tự alphabet/số (`001_...`, `002_...`).
-3. **Transaction Safety:** Mỗi file SQL được thực thi trong một `sql.Tx` độc lập. Nếu xảy ra lỗi cú pháp, transaction tự động rollback an toàn.
+- Chỉ thêm migration mới cho môi trường đã tồn tại; không sửa ý nghĩa migration đã phát hành nếu có thể tránh được.
+- DDL/DML phải chạy lại an toàn khi phù hợp (`IF NOT EXISTS`, `ON CONFLICT`).
+- Cleanup fixture phải định danh chính xác bằng ID và thuộc tính fixture; không dùng điều kiện rộng có thể xóa dữ liệu thật.
+- Mọi thay đổi CAS phải cập nhật đồng bộ schema, repository, API contract và frontend DTO.
+- Trước release phải thử cả fresh install và upgrade từ bản gần nhất trên PostgreSQL thật.
 
----
+## Lưu trữ ngoài PostgreSQL
 
-## 4. Vector Database & Caching Storage
+- **Redis 7 (`:6379`)**: rate limiting và dữ liệu tạm thời. Redis không phải nguồn dữ liệu nghiệp vụ chuẩn.
+- **RabbitMQ (`:5672`)**: vận chuyển CloudEvents giữa service; publisher báo lỗi khi mất kết nối.
+- **Qdrant (`:6333`)**: vector store tùy chọn cho AI/RAG. Trạng thái được probe qua `/api/v1/ai/status`; PostgreSQL search vẫn là nguồn tìm kiếm Knowledge hiện hành.
+- **MinIO (`:9000`)**: object storage theo cấu hình triển khai. Chưa có bằng chứng E2E production cho luồng upload/restore trong lần audit này.
 
-* **Qdrant Vector DB (`:6333`):** Lưu trữ vector embeddings (1536/768 dimensions) của Knowledge Base articles và SOP Runbooks phục vụ tìm kiếm ngữ nghĩa RAG với cosine similarity scoring.
-* **Redis 7 (`:6379`):** Lưu trữ Token Bucket Rate Limiting per IP, Session Cache, và pub/sub tạm thời.
-* **MinIO Object Storage (`:9000`):** Lưu trữ ảnh đính kèm Ticket, tài liệu đính kèm Knowledge Base, và tệp sao lưu WAL database nén.
+## Tính nhất quán và an toàn
+
+- Các aggregate quan trọng dùng trường `version` và compare-and-swap; request stale trả HTTP 409.
+- Workflow tạo instance, approval đầu tiên và log đầu tiên trong cùng transaction.
+- Notification broadcast không dùng cờ đọc toàn cục; `notification_reads(notification_id, recipient_id)` lưu receipt riêng.
+- Audit chain khóa đầu chuỗi khi append và chặn UPDATE/DELETE thông thường bằng trigger. Production vẫn cần dedicated DB role với grant append-only.
+
+Chi tiết bảng và quan hệ: [Master ERD & Data Dictionary](architecture/database_erd_and_data_dictionary.md).

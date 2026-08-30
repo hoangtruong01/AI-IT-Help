@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"strings"
 
@@ -16,7 +17,7 @@ type EmployeeService interface {
 	GetEmployee(ctx context.Context, id string) (*model.Employee, error)
 	CreateEmployee(ctx context.Context, req *model.CreateEmployeeRequest) (*model.Employee, error)
 	UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error)
-	DeleteEmployee(ctx context.Context, id string) error
+	DeleteEmployee(ctx context.Context, id string, expectedVersion int) error
 
 	ListDepartments(ctx context.Context) ([]model.Department, error)
 	CreateDepartment(ctx context.Context, req *model.CreateDepartmentRequest) (*model.Department, error)
@@ -100,9 +101,26 @@ func (s *employeeService) UpdateEmployee(ctx context.Context, id string, req *mo
 	if id == "" {
 		return nil, errors.BadRequest("employee id is required")
 	}
+	if req.Version <= 0 {
+		return nil, errors.BadRequest("version is required for optimistic concurrency control")
+	}
+
+	existing, err := s.repo.FindEmployeeByID(ctx, id)
+	if err != nil {
+		return nil, errors.InternalServerError(fmt.Sprintf("failed to verify employee: %v", err))
+	}
+	if existing == nil {
+		return nil, errors.NotFound("employee not found")
+	}
+	if existing.Version != req.Version {
+		return nil, errors.Conflict("employee was modified by another request; reload and retry")
+	}
 
 	updated, err := s.repo.UpdateEmployee(ctx, id, req)
 	if err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return nil, errors.Conflict("employee was modified by another request; reload and retry")
+		}
 		return nil, errors.InternalServerError(fmt.Sprintf("failed to update employee: %v", err))
 	}
 	if updated == nil {
@@ -112,9 +130,12 @@ func (s *employeeService) UpdateEmployee(ctx context.Context, id string, req *mo
 	return updated, nil
 }
 
-func (s *employeeService) DeleteEmployee(ctx context.Context, id string) error {
+func (s *employeeService) DeleteEmployee(ctx context.Context, id string, expectedVersion int) error {
 	if id == "" {
 		return errors.BadRequest("employee id is required")
+	}
+	if expectedVersion <= 0 {
+		return errors.BadRequest("version is required for optimistic concurrency control")
 	}
 
 	existing, err := s.repo.FindEmployeeByID(ctx, id)
@@ -124,8 +145,14 @@ func (s *employeeService) DeleteEmployee(ctx context.Context, id string) error {
 	if existing == nil {
 		return errors.NotFound("employee not found")
 	}
+	if existing.Version != expectedVersion {
+		return errors.Conflict("employee was modified by another request; reload and retry")
+	}
 
-	if err := s.repo.DeleteEmployee(ctx, id); err != nil {
+	if err := s.repo.DeleteEmployee(ctx, id, expectedVersion); err != nil {
+		if stdErrors.Is(err, repository.ErrVersionConflict) {
+			return errors.Conflict("employee was modified by another request; reload and retry")
+		}
 		return errors.InternalServerError(fmt.Sprintf("failed to delete employee: %v", err))
 	}
 

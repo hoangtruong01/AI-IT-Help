@@ -196,7 +196,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO cab_reviews (id, change_id, reviewer_id, reviewer_name, reviewer_role, vote, comments, reviewed_at)
 VALUES
 (
-    'r0000000-0000-0000-0000-000000000001',
+    'b0000000-0000-0000-0000-000000000001',
     'e0000000-0000-0000-0000-000000000001',
     'u1',
     'Sarah Jenkins (IT Security Lead)',
@@ -206,7 +206,7 @@ VALUES
     CURRENT_TIMESTAMP - INTERVAL '1 day'
 ),
 (
-    'r0000000-0000-0000-0000-000000000002',
+    'b0000000-0000-0000-0000-000000000002',
     'e0000000-0000-0000-0000-000000000002',
     'u2',
     'Alex Rivera (Network Architect)',
@@ -216,7 +216,7 @@ VALUES
     CURRENT_TIMESTAMP - INTERVAL '10 hours'
 ),
 (
-    'r0000000-0000-0000-0000-000000000003',
+    'b0000000-0000-0000-0000-000000000003',
     'e0000000-0000-0000-0000-000000000003',
     'u1',
     'Sarah Jenkins (IT Security Lead)',

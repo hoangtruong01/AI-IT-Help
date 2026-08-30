@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eomp/services/knowledge/internal/model"
+	"eomp/services/knowledge/internal/repository"
 )
 
 // Mock repository for unit testing
@@ -33,6 +34,7 @@ func newMockRepo() *mockRepository {
 				AuthorName:  "Security Team",
 				ViewCount:   100,
 				IsPublished: true,
+				Version:     1,
 				CreatedAt:   time.Now(),
 			},
 		},
@@ -93,15 +95,22 @@ func (m *mockRepository) CreateArticle(ctx context.Context, art *model.Knowledge
 func (m *mockRepository) UpdateArticle(ctx context.Context, art *model.KnowledgeArticle) error {
 	for i, a := range m.articles {
 		if a.ID == art.ID {
+			if a.Version != art.Version {
+				return repository.ErrVersionConflict
+			}
+			art.Version++
 			m.articles[i] = *art
 			return nil
 		}
 	}
 	return nil
 }
-func (m *mockRepository) DeleteArticle(ctx context.Context, id string) error {
+func (m *mockRepository) DeleteArticle(ctx context.Context, id string, expectedVersion int) error {
 	var remaining []model.KnowledgeArticle
 	for _, a := range m.articles {
+		if a.ID == id && a.Version != expectedVersion {
+			return repository.ErrVersionConflict
+		}
 		if a.ID != id {
 			remaining = append(remaining, a)
 		}
@@ -205,6 +214,19 @@ func TestKnowledgeService_GetArticleBySlug(t *testing.T) {
 	}
 	if art == nil || art.Title != "How to Reset User MFA Tokens" {
 		t.Errorf("expected MFA article, got %v", art)
+	}
+}
+
+func TestKnowledgeService_RequiresVersionForArticleWrites(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewKnowledgeService(repo)
+	ctx := context.Background()
+
+	if _, err := svc.UpdateArticle(ctx, "a1", &model.UpdateArticleRequest{}); err == nil {
+		t.Fatal("expected update without version to fail")
+	}
+	if err := svc.DeleteArticle(ctx, "a1", 0); err == nil {
+		t.Fatal("expected delete without version to fail")
 	}
 }
 

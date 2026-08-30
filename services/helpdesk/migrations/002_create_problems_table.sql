@@ -116,7 +116,7 @@ ON CONFLICT (id) DO NOTHING;
 -- 4. Seed Problem Incident Links
 INSERT INTO problem_incident_links (id, problem_id, ticket_id, ticket_number, ticket_title, linked_by, linked_at)
 SELECT
-    'l0000000-0000-0000-0000-000000000001',
+    'f2000000-0000-0000-0000-000000000001',
     'b0000000-0000-0000-0000-000000000001',
     t.id,
     t.ticket_number,

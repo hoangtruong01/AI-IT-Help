@@ -104,12 +104,12 @@ ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO service_catalog_items (id, category_id, name, code, description, default_priority, sla_response_minutes, sla_resolution_minutes, requires_approval)
 VALUES
-    ('s0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'VPN Connection Failure', 'NET_VPN_FAIL', 'Remote VPN connection drops or handshake failure', 'URGENT', 15, 120, FALSE),
-    ('s0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'Request Dual Monitor & Dock', 'HW_DUAL_MON', 'Request secondary display setup for workstation', 'MEDIUM', 240, 480, TRUE),
-    ('s0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000004', 'PostgreSQL Staging Access Issue', 'DEV_DB_ACCESS', 'Access denied to database cluster or staging replication', 'HIGH', 30, 240, FALSE),
-    ('s0000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000003', 'Microsoft 365 License & 2FA Reset', 'SW_M365_2FA', 'MFA token reset or Office 365 subscription issue', 'MEDIUM', 240, 480, FALSE),
-    ('s0000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000002', 'New Employee Laptop Provisioning', 'HW_PROVISION_LAPTOP', 'Setup MacBook Pro / ThinkPad for onboarding team member', 'HIGH', 30, 240, TRUE),
-    ('s0000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000005', 'Office Printer Offline', 'WP_PRINTER_OFFLINE', 'Floor printer paper jam or offline from print server', 'LOW', 480, 1440, FALSE)
+    ('f1000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'VPN Connection Failure', 'NET_VPN_FAIL', 'Remote VPN connection drops or handshake failure', 'URGENT', 15, 120, FALSE),
+    ('f1000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'Request Dual Monitor & Dock', 'HW_DUAL_MON', 'Request secondary display setup for workstation', 'MEDIUM', 240, 480, TRUE),
+    ('f1000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000004', 'PostgreSQL Staging Access Issue', 'DEV_DB_ACCESS', 'Access denied to database cluster or staging replication', 'HIGH', 30, 240, FALSE),
+    ('f1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000003', 'Microsoft 365 License & 2FA Reset', 'SW_M365_2FA', 'MFA token reset or Office 365 subscription issue', 'MEDIUM', 240, 480, FALSE),
+    ('f1000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000002', 'New Employee Laptop Provisioning', 'HW_PROVISION_LAPTOP', 'Setup MacBook Pro / ThinkPad for onboarding team member', 'HIGH', 30, 240, TRUE),
+    ('f1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000005', 'Office Printer Offline', 'WP_PRINTER_OFFLINE', 'Floor printer paper jam or offline from print server', 'LOW', 480, 1440, FALSE)
 ON CONFLICT (code) DO NOTHING;
 
 -- 7. Seed Initial Realistic Tickets
@@ -120,7 +120,7 @@ INSERT INTO tickets (
     sla_response_deadline, sla_resolution_deadline, sla_status
 ) VALUES
     (
-        't0000000-0000-0000-0000-000000000001',
+        'e2000000-0000-0000-0000-000000000001',
         'TK-1094',
         'VPN Connection Failure on Windows 11',
         'Cannot establish secure tunnel to internal VPC subnets. Error: TLS handshake timeout after 30s.',
@@ -138,7 +138,7 @@ INSERT INTO tickets (
         'WITHIN_SLA'
     ),
     (
-        't0000000-0000-0000-0000-000000000002',
+        'e2000000-0000-0000-0000-000000000002',
         'TK-1093',
         'Request Dual Monitor Setup & Docking Station',
         'Requesting dual 27-inch 4K Dell monitors and Thunderbolt 4 dock for Engineering workstation.',
@@ -156,7 +156,7 @@ INSERT INTO tickets (
         'WITHIN_SLA'
     ),
     (
-        't0000000-0000-0000-0000-000000000003',
+        'e2000000-0000-0000-0000-000000000003',
         'TK-1092',
         'Cannot access PostgreSQL Staging Cluster',
         'Application pods throwing FATAL: password authentication failed for user eomp_staging.',
@@ -174,7 +174,7 @@ INSERT INTO tickets (
         'WITHIN_SLA'
     ),
     (
-        't0000000-0000-0000-0000-000000000004',
+        'e2000000-0000-0000-0000-000000000004',
         'TK-1091',
         'Microsoft 365 License renewal & 2FA reset',
         'User changed phone device, needs authenticator app QR code re-issued for Outlook & Teams.',

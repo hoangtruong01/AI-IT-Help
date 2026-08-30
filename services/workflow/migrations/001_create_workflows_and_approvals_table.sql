@@ -137,12 +137,12 @@ INSERT INTO workflow_instances (
     title, requester_id, requester_name, requester_email, current_step_name, status, started_at
 ) VALUES
     (
-        'w0000000-0000-0000-0000-000000000001',
+        'e1000000-0000-0000-0000-000000000001',
         'WFI-1001',
         'd0000000-0000-0000-0000-000000000001',
         'New Employee Hardware Provisioning Workflow',
         'SERVICE_REQUEST',
-        's0000000-0000-0000-0000-000000000005',
+        'f1000000-0000-0000-0000-000000000005',
         'MacBook Pro 16" Provisioning for Senior Backend Engineer',
         'e0000000-0000-0000-0000-000000000004',
         'Emily Davis',
@@ -152,12 +152,12 @@ INSERT INTO workflow_instances (
         CURRENT_TIMESTAMP - INTERVAL '2 hours'
     ),
     (
-        'w0000000-0000-0000-0000-000000000002',
+        'e1000000-0000-0000-0000-000000000002',
         'WFI-1002',
         'd0000000-0000-0000-0000-000000000002',
         'Remote VPC & Zero-Trust VPN Access Approval',
         'SERVICE_REQUEST',
-        's0000000-0000-0000-0000-000000000001',
+        'f1000000-0000-0000-0000-000000000001',
         'Production Staging VPN Access Request',
         'e0000000-0000-0000-0000-000000000003',
         'Alex Nguyen',
@@ -167,7 +167,7 @@ INSERT INTO workflow_instances (
         CURRENT_TIMESTAMP - INTERVAL '30 minutes'
     ),
     (
-        'w0000000-0000-0000-0000-000000000003',
+        'e1000000-0000-0000-0000-000000000003',
         'WFI-1003',
         'd0000000-0000-0000-0000-000000000003',
         'Production Database & Infrastructure Change CAB',
@@ -189,7 +189,7 @@ INSERT INTO approval_requests (
 ) VALUES
     (
         'a0000000-0000-0000-0000-000000000001',
-        'w0000000-0000-0000-0000-000000000001',
+        'e1000000-0000-0000-0000-000000000001',
         'Approve MacBook Pro 16" M3 Max Allocation ($3,499.00)',
         'e0000000-0000-0000-0000-000000000002',
         'David Tran (IT Manager)',
@@ -200,7 +200,7 @@ INSERT INTO approval_requests (
     ),
     (
         'a0000000-0000-0000-0000-000000000002',
-        'w0000000-0000-0000-0000-000000000002',
+        'e1000000-0000-0000-0000-000000000002',
         'Approve WireGuard VPC Tunnel Certificate Issue',
         'e0000000-0000-0000-0000-000000000002',
         'David Tran (IT Manager)',
@@ -211,7 +211,7 @@ INSERT INTO approval_requests (
     ),
     (
         'a0000000-0000-0000-0000-000000000003',
-        'w0000000-0000-0000-0000-000000000003',
+        'e1000000-0000-0000-0000-000000000003',
         'CAB Sign-off: PostgreSQL Security Patch Window',
         'e0000000-0000-0000-0000-000000000001',
         'System Administrator',
@@ -225,8 +225,8 @@ ON CONFLICT DO NOTHING;
 -- 9. Seed Initial Audit Logs
 INSERT INTO workflow_logs (instance_id, actor_id, actor_name, action, message)
 VALUES
-    ('w0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000004', 'Emily Davis', 'WORKFLOW_STARTED', 'Initiated Hardware Provisioning workflow instance WFI-1001.'),
-    ('w0000000-0000-0000-0000-000000000001', 'system', 'Workflow Engine', 'APPROVAL_REQUESTED', 'Dispatched Level 1 approval request to IT Manager David Tran.'),
-    ('w0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000003', 'Alex Nguyen', 'WORKFLOW_STARTED', 'Initiated VPN Access Approval workflow instance WFI-1002.'),
-    ('w0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 'System Administrator', 'WORKFLOW_STARTED', 'Initiated CAB Review workflow instance WFI-1003.')
+    ('e1000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000004', 'Emily Davis', 'WORKFLOW_STARTED', 'Initiated Hardware Provisioning workflow instance WFI-1001.'),
+    ('e1000000-0000-0000-0000-000000000001', 'system', 'Workflow Engine', 'APPROVAL_REQUESTED', 'Dispatched Level 1 approval request to IT Manager David Tran.'),
+    ('e1000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000003', 'Alex Nguyen', 'WORKFLOW_STARTED', 'Initiated VPN Access Approval workflow instance WFI-1002.'),
+    ('e1000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 'System Administrator', 'WORKFLOW_STARTED', 'Initiated CAB Review workflow instance WFI-1003.')
 ON CONFLICT DO NOTHING;

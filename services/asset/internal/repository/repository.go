@@ -32,7 +32,7 @@ type Repository interface {
 	ListCIs(ctx context.Context, env, ciType, status string) ([]model.ConfigurationItem, error)
 	FindCIByID(ctx context.Context, id string) (*model.ConfigurationItem, error)
 	CreateCI(ctx context.Context, ci *model.ConfigurationItem) error
-	UpdateCIStatus(ctx context.Context, id, status string) error
+	UpdateCIStatus(ctx context.Context, id, status string, expectedVersion int) error
 	ListRelationships(ctx context.Context) ([]model.CIRelationship, error)
 	CreateRelationship(ctx context.Context, rel *model.CIRelationship) error
 	GetTopology(ctx context.Context) (*model.CMDBTopologyGraph, error)
@@ -603,11 +603,16 @@ func (r *postgresRepository) CreateCI(ctx context.Context, ci *model.Configurati
 	return nil
 }
 
-func (r *postgresRepository) UpdateCIStatus(ctx context.Context, id, status string) error {
-	query := "UPDATE configuration_items SET status = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1"
-	_, err := r.db.ExecContext(ctx, query, id, status)
+func (r *postgresRepository) UpdateCIStatus(ctx context.Context, id, status string, expectedVersion int) error {
+	query := "UPDATE configuration_items SET status = $2, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND version = $3"
+	result, err := r.db.ExecContext(ctx, query, id, status, expectedVersion)
 	if err != nil {
 		return fmt.Errorf("failed to update CI status: %w", err)
+	}
+	if affected, rowsErr := result.RowsAffected(); rowsErr != nil {
+		return fmt.Errorf("read CI update result: %w", rowsErr)
+	} else if affected == 0 {
+		return ErrVersionConflict
 	}
 	return nil
 }

@@ -30,7 +30,8 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 
 	recipientID := middleware.GetUserID(r.Context())
 	if recipientID == "" {
-		recipientID = r.URL.Query().Get("recipient_id")
+		errors.WriteHTTP(w, errors.Forbidden("recipient identity is required"))
+		return
 	}
 
 	var isRead *bool
@@ -40,11 +41,12 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	}
 
 	query := model.NotificationListQuery{
-		RecipientID: recipientID,
-		IsRead:      isRead,
-		Category:    r.URL.Query().Get("category"),
-		Page:        page,
-		PageSize:    pageSize,
+		RecipientID:   recipientID,
+		RecipientRole: middleware.GetUserRole(r.Context()),
+		IsRead:        isRead,
+		Category:      r.URL.Query().Get("category"),
+		Page:          page,
+		PageSize:      pageSize,
 	}
 
 	resp, err := h.svc.ListNotifications(r.Context(), query)
@@ -83,7 +85,13 @@ func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if err := h.svc.MarkAsRead(r.Context(), id); err != nil {
+	recipientID := middleware.GetUserID(r.Context())
+	if recipientID == "" {
+		errors.WriteHTTP(w, errors.Forbidden("recipient identity is required"))
+		return
+	}
+
+	if err := h.svc.MarkAsRead(r.Context(), id, recipientID, middleware.GetUserRole(r.Context())); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -95,10 +103,11 @@ func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request)
 func (h *NotificationHandler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	recipientID := middleware.GetUserID(r.Context())
 	if recipientID == "" {
-		recipientID = "all"
+		errors.WriteHTTP(w, errors.Forbidden("recipient identity is required"))
+		return
 	}
 
-	if err := h.svc.MarkAllAsRead(r.Context(), recipientID); err != nil {
+	if err := h.svc.MarkAllAsRead(r.Context(), recipientID, middleware.GetUserRole(r.Context())); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -110,10 +119,11 @@ func (h *NotificationHandler) MarkAllAsRead(w http.ResponseWriter, r *http.Reque
 func (h *NotificationHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	recipientID := middleware.GetUserID(r.Context())
 	if recipientID == "" {
-		recipientID = "all"
+		errors.WriteHTTP(w, errors.Forbidden("recipient identity is required"))
+		return
 	}
 
-	stats, err := h.svc.GetStats(r.Context(), recipientID)
+	stats, err := h.svc.GetStats(r.Context(), recipientID, middleware.GetUserRole(r.Context()))
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return

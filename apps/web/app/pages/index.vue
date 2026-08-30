@@ -1,159 +1,140 @@
 <script setup lang="ts">
+import type {
+  AssetStats,
+  AuditLog,
+  PaginatedResponse,
+  ServiceHealthStatus,
+  Ticket,
+  WorkflowStats
+} from '~/types'
+
 definePageMeta({
   layout: 'default'
 })
 
+const api = useApi()
+const toast = useToast()
 const isRefreshing = ref(false)
 
-const stats = [
-  {
-    label: 'Open IT Tickets',
-    value: '24',
-    subtext: '5 High Priority',
-    change: '+3 new today',
-    trend: 'up',
-    icon: 'i-lucide-ticket',
-    gradient: 'from-amber-500 to-orange-600',
-    borderGlow: 'hover:border-amber-500/50',
-    badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-  },
-  {
-    label: 'Active IT Assets',
-    value: '3,850',
-    subtext: '98.4% Assigned',
-    change: '12 in maintenance',
-    trend: 'neutral',
-    icon: 'i-lucide-laptop',
-    gradient: 'from-emerald-500 to-teal-600',
-    borderGlow: 'hover:border-emerald-500/50',
-    badgeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-  },
-  {
-    label: 'Total Employees',
-    value: '1,248',
-    subtext: '8 Departments',
-    change: '+14 this month',
-    trend: 'up',
-    icon: 'i-lucide-users',
-    gradient: 'from-blue-500 to-indigo-600',
-    borderGlow: 'hover:border-blue-500/50',
-    badgeColor: 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-  },
-  {
-    label: 'Pending Approvals',
-    value: '7',
-    subtext: 'Avg SLA: 1.8h',
-    change: '1 Escalated',
-    trend: 'warning',
-    icon: 'i-lucide-clock',
-    gradient: 'from-purple-500 to-pink-600',
-    borderGlow: 'hover:border-purple-500/50',
-    badgeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-  }
-]
-
-const recentTickets = [
-  {
-    id: 'TK-1094',
-    title: 'VPN Connection Failure on Windows 11',
-    category: 'Network',
-    requester: 'Alex Nguyen',
-    department: 'Engineering',
-    priority: 'Urgent',
-    status: 'In Progress',
-    time: '8 mins ago',
-    sla: '52m left'
-  },
-  {
-    id: 'TK-1093',
-    title: 'Request Dual Monitor Setup & Docking Station',
-    category: 'Hardware',
-    requester: 'Emily Davis',
-    department: 'Design & UX',
-    priority: 'Normal',
-    status: 'Assigned',
-    time: '24 mins ago',
-    sla: '3h left'
-  },
-  {
-    id: 'TK-1092',
-    title: 'Cannot access PostgreSQL Staging Cluster',
-    category: 'Database / DevOps',
-    requester: 'David Tran',
-    department: 'Backend Team',
-    priority: 'High',
-    status: 'Investigating',
-    time: '45 mins ago',
-    sla: '1h 15m left'
-  },
-  {
-    id: 'TK-1091',
-    title: 'Microsoft 365 License renewal & 2FA reset',
-    category: 'Software & Auth',
-    requester: 'Michael Chang',
-    department: 'Finance',
-    priority: 'Normal',
-    status: 'Resolved',
-    time: '2 hours ago',
-    sla: 'Completed'
-  }
-]
+const ticketPage = ref<PaginatedResponse<Ticket> | null>(null)
+const assetStats = ref<AssetStats | null>(null)
+const employeeTotal = ref<number | null>(null)
+const workflowStats = ref<WorkflowStats | null>(null)
+const infraServices = ref<ServiceHealthStatus[]>([])
+const auditLogs = ref<AuditLog[]>([])
 
 const activeTab = ref('all')
 
 const filteredTickets = computed(() => {
+  const tickets = ticketPage.value?.data ?? []
   if (activeTab.value === 'urgent') {
-    return recentTickets.filter(t => t.priority === 'Urgent' || t.priority === 'High')
+    return tickets.filter(t => t.priority === 'URGENT' || t.priority === 'HIGH')
   }
   if (activeTab.value === 'hardware') {
-    return recentTickets.filter(t => t.category.includes('Hardware'))
+    return tickets.filter(t => t.category.toUpperCase().includes('HARDWARE'))
   }
-  return recentTickets
+  return tickets.slice(0, 4)
 })
 
-const infraServices = [
-  { name: 'API Gateway', port: 8080, latency: '6ms', status: 'Healthy', type: 'Go Core' },
-  { name: 'Auth Service', port: 8081, latency: '8ms', status: 'Healthy', type: 'Go Core' },
-  { name: 'Employee Service', port: 8082, latency: '9ms', status: 'Healthy', type: 'Go Core' },
-  { name: 'Asset Service', port: 8083, latency: '11ms', status: 'Healthy', type: 'Go Core' },
-  { name: 'Helpdesk Service', port: 8084, latency: '12ms', status: 'Healthy', type: 'Go Core' },
-  { name: 'AI Ops Engine', port: 8088, latency: '24ms', status: 'Healthy', type: 'LLM/RAG' },
-  { name: 'PostgreSQL Cluster', port: 5432, latency: '3ms', status: 'Healthy', type: '7 DBs' },
-  { name: 'RabbitMQ Broker', port: 5672, latency: '4ms', status: 'Healthy', type: 'Message Bus' },
-  { name: 'MinIO Storage', port: 9000, latency: '7ms', status: 'Healthy', type: 'S3 Buckets' },
-  { name: 'Qdrant Vector DB', port: 6333, latency: '10ms', status: 'Healthy', type: 'Vector Search' }
-]
+const urgentTicketCount = computed(() => (ticketPage.value?.data ?? []).filter(t => t.priority === 'URGENT' || t.priority === 'HIGH').length)
+const hardwareTicketCount = computed(() => (ticketPage.value?.data ?? []).filter(t => t.category.toUpperCase().includes('HARDWARE')).length)
+const onlineServiceCount = computed(() => infraServices.value.filter(service => service.status === 'ONLINE').length)
+const allSystemsNominal = computed(() => infraServices.value.length > 0 && onlineServiceCount.value === infraServices.value.length)
 
-const recentAuditEvents = [
+const stats = computed(() => [
   {
-    action: 'Asset Assigned',
-    detail: 'MacBook Pro M3 Max (SN: MBP-9921) assigned to Sarah Tran',
-    time: '12 mins ago',
-    icon: 'i-lucide-laptop',
-    color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+    label: 'Total IT Tickets', value: ticketPage.value?.total ?? '—', subtext: `${urgentTicketCount.value} urgent/high loaded`, change: 'Live API data', trend: 'neutral',
+    icon: 'i-lucide-ticket', gradient: 'from-amber-500 to-orange-600', borderGlow: 'hover:border-amber-500/50', badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30'
   },
   {
-    action: 'AI Ticket Triage',
-    detail: 'AI Assistant auto-classified TK-1094 as [Network - Urgent]',
-    time: '28 mins ago',
-    icon: 'i-lucide-sparkles',
-    color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+    label: 'Total IT Assets', value: assetStats.value?.total_assets ?? '—', subtext: `${assetStats.value?.in_use ?? 0} in use`, change: `${assetStats.value?.in_maintenance ?? 0} in maintenance`, trend: 'neutral',
+    icon: 'i-lucide-laptop', gradient: 'from-emerald-500 to-teal-600', borderGlow: 'hover:border-emerald-500/50', badgeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
   },
   {
-    action: 'Access Granted',
-    detail: 'OAuth2 token issued for admin@eomp.local via Auth Service',
-    time: '42 mins ago',
-    icon: 'i-lucide-shield-check',
-    color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'
+    label: 'Total Employees', value: employeeTotal.value ?? '—', subtext: 'Employee directory', change: 'Live API data', trend: 'neutral',
+    icon: 'i-lucide-users', gradient: 'from-blue-500 to-indigo-600', borderGlow: 'hover:border-blue-500/50', badgeColor: 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+  },
+  {
+    label: 'Pending Approvals', value: workflowStats.value?.pending_approvals ?? '—', subtext: `${workflowStats.value?.active_instances ?? 0} active workflows`, change: `${workflowStats.value?.completed_today ?? 0} completed today`, trend: 'warning',
+    icon: 'i-lucide-clock', gradient: 'from-purple-500 to-pink-600', borderGlow: 'hover:border-purple-500/50', badgeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30'
   }
-]
+])
 
-function refreshInfrastructure() {
-  isRefreshing.value = true
-  setTimeout(() => {
-    isRefreshing.value = false
-  }, 700)
+const recentAuditEvents = computed(() => auditLogs.value.map(log => ({
+  action: formatLabel(log.event_type),
+  detail: `${log.actor_name || log.actor_email || 'Unknown actor'} · ${log.service_name} · ${formatLabel(log.resource_type)} ${log.resource_id || ''}`.trim(),
+  time: formatRelativeTime(log.created_at),
+  icon: log.status === 'SUCCESS' ? 'i-lucide-shield-check' : 'i-lucide-shield-alert',
+  color: log.status === 'SUCCESS'
+    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+})))
+
+function formatLabel(value: string) {
+  return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
+
+function formatRelativeTime(value: string) {
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return 'Unknown time'
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
+}
+
+function formatSLA(ticket: Ticket) {
+  if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') return 'Completed'
+  const deadline = new Date(ticket.sla_resolution_deadline).getTime()
+  if (!Number.isFinite(deadline)) return 'Unavailable'
+  const minutes = Math.floor((deadline - Date.now()) / 60000)
+  if (minutes < 0) return `Breached ${Math.abs(minutes)}m`
+  if (minutes < 60) return `${minutes}m left`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m left`
+}
+
+function serviceDotClass(status: string) {
+  if (status === 'ONLINE') return 'bg-emerald-400 shadow-emerald-400/50'
+  if (status === 'DEGRADED') return 'bg-amber-400 shadow-amber-400/50'
+  if (status === 'OFFLINE') return 'bg-rose-400 shadow-rose-400/50'
+  return 'bg-slate-500 shadow-slate-500/30'
+}
+
+async function loadDashboard() {
+  const [tickets, assets, employees, workflows, services, audits] = await Promise.all([
+    api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { params: { page: 1, page_size: 100 } }).catch(() => null),
+    api.get<AssetStats>('/api/v1/assets/stats').catch(() => null),
+    api.get<PaginatedResponse<unknown>>('/api/v1/employees', { params: { page: 1, page_size: 1 } }).catch(() => null),
+    api.get<WorkflowStats>('/api/v1/workflows/stats').catch(() => null),
+    api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null),
+    api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', { params: { page: 1, page_size: 3 } }).catch(() => null)
+  ])
+
+  ticketPage.value = tickets
+  assetStats.value = assets
+  employeeTotal.value = employees?.total ?? null
+  workflowStats.value = workflows
+  infraServices.value = services ?? []
+  auditLogs.value = audits?.data ?? []
+  if ([tickets, assets, employees, workflows, services].some(result => result === null)) {
+    toast.add({ title: 'Some dashboard data is unavailable', color: 'warning' })
+  }
+}
+
+async function refreshInfrastructure() {
+  isRefreshing.value = true
+  try {
+    infraServices.value = await api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services')
+  } catch {
+    infraServices.value = []
+    toast.add({ title: 'Service health is unavailable', color: 'error' })
+  } finally {
+    isRefreshing.value = false
+  }
+}
+
+onMounted(loadDashboard)
 </script>
 
 <template>
@@ -174,9 +155,15 @@ function refreshInfrastructure() {
               />
               EOMP Command Center v0.1
             </span>
-            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              All Systems Nominal
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5"
+              :class="allSystemsNominal ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-slate-500/15 text-slate-300 border-slate-500/30'"
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full"
+                :class="allSystemsNominal ? 'bg-emerald-400' : 'bg-slate-400'"
+              />
+              {{ infraServices.length ? `${onlineServiceCount}/${infraServices.length} Services Online` : 'Health Unavailable' }}
             </span>
           </div>
 
@@ -307,27 +294,33 @@ function refreshInfrastructure() {
                 :class="activeTab === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
                 @click="activeTab = 'all'"
               >
-                All (24)
+                All ({{ ticketPage?.total ?? 0 }})
               </button>
               <button
                 class="px-3 py-1 rounded-lg font-medium transition-all"
                 :class="activeTab === 'urgent' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
                 @click="activeTab = 'urgent'"
               >
-                Urgent / High (5)
+                Urgent / High ({{ urgentTicketCount }})
               </button>
               <button
                 class="px-3 py-1 rounded-lg font-medium transition-all"
                 :class="activeTab === 'hardware' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
                 @click="activeTab = 'hardware'"
               >
-                Hardware (8)
+                Hardware ({{ hardwareTicketCount }})
               </button>
             </div>
           </div>
 
           <!-- Ticket Items List -->
           <div class="space-y-3">
+            <p
+              v-if="filteredTickets.length === 0"
+              class="py-8 text-center text-xs text-slate-500"
+            >
+              No tickets returned by the Helpdesk API.
+            </p>
             <div
               v-for="ticket in filteredTickets"
               :key="ticket.id"
@@ -336,7 +329,7 @@ function refreshInfrastructure() {
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                 <div class="flex items-center gap-2.5">
                   <span class="font-mono text-xs font-bold text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
-                    {{ ticket.id }}
+                    {{ ticket.ticket_number }}
                   </span>
                   <h3 class="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">
                     {{ ticket.title }}
@@ -346,22 +339,22 @@ function refreshInfrastructure() {
                 <div class="flex items-center gap-2 shrink-0">
                   <span
                     class="text-[11px] font-semibold px-2 py-0.5 rounded-full border"
-                    :class="ticket.priority === 'Urgent'
+                    :class="ticket.priority === 'URGENT'
                       ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 animate-pulse'
-                      : ticket.priority === 'High'
+                      : ticket.priority === 'HIGH'
                         ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                         : 'bg-slate-800 text-slate-300 border-slate-700'"
                   >
-                    {{ ticket.priority }}
+                    {{ formatLabel(ticket.priority) }}
                   </span>
 
                   <span
                     class="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                    :class="ticket.status === 'Resolved'
+                    :class="ticket.status === 'RESOLVED'
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                       : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'"
                   >
-                    {{ ticket.status }}
+                    {{ formatLabel(ticket.status) }}
                   </span>
                 </div>
               </div>
@@ -374,7 +367,7 @@ function refreshInfrastructure() {
                       name="i-lucide-user"
                       class="w-3.5 h-3.5 text-slate-400"
                     />
-                    {{ ticket.requester }} ({{ ticket.department }})
+                    {{ ticket.requester_name }}<span v-if="ticket.department_id"> ({{ ticket.department_id }})</span>
                   </span>
                   <span class="hidden sm:inline-block text-slate-400 font-mono">
                     {{ ticket.category }}
@@ -387,10 +380,10 @@ function refreshInfrastructure() {
                       name="i-lucide-clock"
                       class="w-3.5 h-3.5"
                     />
-                    {{ ticket.time }}
+                    {{ formatRelativeTime(ticket.created_at) }}
                   </span>
                   <span class="font-mono text-[11px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    SLA: {{ ticket.sla }}
+                    SLA: {{ formatSLA(ticket) }}
                   </span>
                 </div>
               </div>
@@ -403,7 +396,7 @@ function refreshInfrastructure() {
               to="/helpdesk"
               class="inline-flex items-center gap-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
             >
-              <span>View All 24 Tickets in IT Help Desk</span>
+              <span>View All {{ ticketPage?.total ?? 0 }} Tickets in IT Help Desk</span>
               <UIcon
                 name="i-lucide-arrow-right"
                 class="w-4 h-4"
@@ -496,7 +489,7 @@ function refreshInfrastructure() {
                 Microservice Cluster
               </h2>
               <p class="text-xs text-slate-400">
-                11 Microservices + Infra Health
+                Active health probes from the Gateway
               </p>
             </div>
 
@@ -521,32 +514,42 @@ function refreshInfrastructure() {
               class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/60 hover:border-slate-700/80 transition-colors"
             >
               <div class="flex items-center gap-2.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+                <span
+                  class="w-2 h-2 rounded-full shadow-sm"
+                  :class="serviceDotClass(svc.status)"
+                />
                 <div>
                   <p class="text-xs font-semibold text-slate-200">
                     {{ svc.name }}
                   </p>
                   <p class="text-[10px] font-mono text-slate-400">
-                    Port: {{ svc.port }} · {{ svc.type }}
+                    Port: {{ svc.port }} · {{ svc.category }} · {{ formatLabel(svc.status) }}
                   </p>
                 </div>
               </div>
 
               <div class="text-right">
-                <span class="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                  {{ svc.latency }}
+                <span class="text-[10px] font-mono font-bold text-slate-300 bg-slate-500/10 px-1.5 py-0.5 rounded border border-slate-500/20">
+                  {{ svc.latency_ms }}ms
                 </span>
               </div>
             </div>
           </div>
 
+          <p
+            v-if="infraServices.length === 0"
+            class="py-5 text-center text-xs text-slate-500"
+          >
+            Service health is unavailable.
+          </p>
+
           <div class="pt-2 flex items-center justify-between text-xs text-slate-400">
-            <span>Overall Uptime: <strong class="text-emerald-400 font-mono">99.98%</strong></span>
+            <span>Observed online: <strong class="text-emerald-400 font-mono">{{ onlineServiceCount }}/{{ infraServices.length }}</strong></span>
             <NuxtLink
-              to="/reports"
+              to="/monitoring"
               class="text-indigo-400 hover:underline"
             >
-              Grafana Metrics &rarr;
+              Monitoring details &rarr;
             </NuxtLink>
           </div>
         </div>
@@ -565,27 +568,23 @@ function refreshInfrastructure() {
                 AI Ops Assistant
               </h3>
               <p class="text-[11px] text-indigo-200/70">
-                Powered by Qdrant RAG & LLM
+                Provider status is reported in AI Operations
               </p>
             </div>
           </div>
 
           <div class="p-3 rounded-2xl bg-slate-950/60 border border-indigo-500/20 text-xs text-slate-300 space-y-2">
             <p class="leading-relaxed">
-              💡 <em>"Detected 3 recurring VPN tickets this morning. Recommended action: Auto-push DNS configuration fix."</em>
+              Open the AI workspace to submit a real prompt. This dashboard does not generate synthetic recommendations.
             </p>
           </div>
 
-          <div class="space-y-2">
-            <input
-              type="text"
-              placeholder="Ask AI to triage, search manuals, or summarize..."
-              class="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-950/80 border border-indigo-500/30 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400"
-            >
-            <button class="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors shadow-md shadow-indigo-600/30">
-              Analyze Operations
-            </button>
-          </div>
+          <NuxtLink
+            to="/ai"
+            class="block w-full py-2 text-center rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors shadow-md shadow-indigo-600/30"
+          >
+            Open AI Operations
+          </NuxtLink>
         </div>
 
         <!-- Recent Audit Stream -->
@@ -599,6 +598,12 @@ function refreshInfrastructure() {
           </h2>
 
           <div class="space-y-3 pt-2">
+            <p
+              v-if="recentAuditEvents.length === 0"
+              class="py-5 text-center text-xs text-slate-500"
+            >
+              No audit events are available for this account.
+            </p>
             <div
               v-for="(event, idx) in recentAuditEvents"
               :key="idx"

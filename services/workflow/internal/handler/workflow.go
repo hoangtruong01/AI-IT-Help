@@ -63,6 +63,9 @@ func (h *WorkflowHandler) ListInstances(w http.ResponseWriter, r *http.Request) 
 		Status:   r.URL.Query().Get("status"),
 		Search:   r.URL.Query().Get("search"),
 	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		query.RequesterID = middleware.GetUserID(r.Context())
+	}
 
 	resp, err := h.svc.ListInstances(r.Context(), query)
 	if err != nil {
@@ -81,11 +84,16 @@ func (h *WorkflowHandler) StartWorkflow(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if req.RequesterID == "" {
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
 		req.RequesterID = middleware.GetUserID(r.Context())
-	}
-	if req.RequesterEmail == "" {
 		req.RequesterEmail = middleware.GetUserEmail(r.Context())
+		req.RequesterName = req.RequesterEmail
+	} else if req.RequesterID == "" {
+		req.RequesterID = middleware.GetUserID(r.Context())
+		req.RequesterEmail = middleware.GetUserEmail(r.Context())
+		if req.RequesterName == "" {
+			req.RequesterName = req.RequesterEmail
+		}
 	}
 
 	inst, err := h.svc.StartWorkflow(r.Context(), &req)
@@ -112,6 +120,10 @@ func (h *WorkflowHandler) GetInstance(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, err)
 		return
 	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" && inst.RequesterID != middleware.GetUserID(r.Context()) {
+		errors.WriteHTTP(w, errors.NotFound("workflow instance not found"))
+		return
+	}
 
 	response.JSON(w, http.StatusOK, inst)
 }
@@ -123,6 +135,13 @@ func (h *WorkflowHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		if len(parts) >= 2 {
 			id = parts[len(parts)-2]
+		}
+	}
+	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
+		inst, err := h.svc.GetInstance(r.Context(), id)
+		if err != nil || inst.RequesterID != middleware.GetUserID(r.Context()) {
+			errors.WriteHTTP(w, errors.NotFound("workflow instance not found"))
+			return
 		}
 	}
 

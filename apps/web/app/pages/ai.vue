@@ -2,7 +2,8 @@
 import type {
   AIChatMessage,
   AIChatResponse,
-  AITicketAnalysis
+  AITicketAnalysis,
+  AIRuntimeStatus
 } from '~/types'
 
 definePageMeta({ layout: 'default' })
@@ -12,6 +13,7 @@ const toast = useToast()
 
 // Active Mode: 'chat' | 'triage' | 'rag-status'
 const activeMode = ref<'chat' | 'triage' | 'rag-status'>('chat')
+const runtimeStatus = ref<AIRuntimeStatus | null>(null)
 
 // Chat State
 const inputQuery = ref('')
@@ -19,20 +21,15 @@ const isSending = ref(false)
 const chatMessages = ref<AIChatMessage[]>([
   {
     role: 'assistant',
-    content: `👋 Xin chào Kỹ thuật viên & Quản trị viên IT! Tôi là **EOMP AI Operations Copilot**, được tích hợp cùng **Qdrant Vector Database** và 11 Microservices.
+    content: `👋 Xin chào! Tôi là **EOMP AI Operations Copilot**.
 
 Tôi có thể hỗ trợ bạn:
-- 🔍 **Tra cứu tài liệu kỹ thuật & SOP Runbooks** (MFA reset, VPN setup, Server failover).
-- 🏷️ **Tự động phân loại Ticket & Chẩn đoán nguyên nhân gốc rễ (Root Cause)**.
-- ⚡ **Gợi ý giải pháp xử lý sự cố tức thì** với độ tin cậy được kiểm chứng.
+- 🔍 **Tra cứu ngữ cảnh kỹ thuật** khi kho vector có sẵn.
+- 🏷️ **Đề xuất phân loại Ticket và nguyên nhân cần kiểm tra**.
+- ⚡ **Gợi ý hướng xử lý để kỹ thuật viên đánh giá**.
 
-*Bạn có thể nhập câu hỏi bên dưới hoặc chọn một trong các gợi ý nhanh!*`,
-    confidence: 0.98,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    citations: [
-      { article_id: 'a1', title: 'How to Reset User MFA and Okta Verify Tokens', score: 0.96, category: 'IT Security', type: 'article' },
-      { article_id: 'a2', title: 'Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide', score: 0.95, category: 'Network & Access', type: 'article' }
-    ]
+*Câu trả lời và nguồn trích dẫn chỉ xuất hiện sau khi backend trả về kết quả thật.*`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 ])
 
@@ -45,24 +42,10 @@ const quickPrompts = [
 ]
 
 // Auto-Triage State
-const triageTitle = ref('Cannot connect to VPN Staging Server')
-const triageDescription = ref('Remote engineer is unable to maintain WireGuard connection to internal staging subnet. Handshake times out every 10 minutes.')
+const triageTitle = ref('')
+const triageDescription = ref('')
 const isTriaging = ref(false)
-const triageResult = ref<AITicketAnalysis | null>({
-  ticket_id: 'AI-TK-1094',
-  suggested_category: 'Network & Access',
-  priority: 'HIGH',
-  summary: 'VPN tunnel connection timeout to Staging Server cluster.',
-  root_cause: 'WireGuard handshake packet drop or MTU mismatch on Gateway subnet.',
-  suggested_resolution: '1. Instruct user to flush DNS cache and verify client MTU is 1380.\n2. Verify upstream VPN gateway status on 10.8.0.1.\n3. Refer to Runbook RB-NET-01 if gateway failover is required.',
-  confidence: 0.94,
-  citations: [
-    { article_id: 'a2', title: 'Corporate WireGuard & GlobalProtect VPN Troubleshooting Guide', score: 0.95, category: 'Network & Access', type: 'article' },
-    { article_id: 'r2', title: 'RB-NET-01: Emergency VPN Tunnel Failover SOP', score: 0.94, category: 'Network & Access', type: 'runbook' }
-  ],
-  requires_human_review: true,
-  created_at: new Date().toISOString()
-})
+const triageResult = ref<AITicketAnalysis | null>(null)
 
 // Send Chat Message
 async function sendMessage(overrideQuery?: string) {
@@ -162,6 +145,12 @@ function loadSampleTicket(type: string) {
   }
   runAnalyzeTicket()
 }
+
+async function loadRuntimeStatus() {
+  runtimeStatus.value = await api.get<AIRuntimeStatus>('/api/v1/ai/status').catch(() => null)
+}
+
+onMounted(loadRuntimeStatus)
 </script>
 
 <template>
@@ -177,7 +166,7 @@ function loadSampleTicket(type: string) {
           AI Operations Copilot & RAG Engine
         </h1>
         <p class="text-xs text-slate-400 mt-0.5">
-          LLM-Powered Ticket Triage, Realtime Diagnostics & Vector-Grounded Knowledge Assistant
+          Provider-backed ticket triage and knowledge assistance with human review
         </p>
       </div>
 
@@ -215,13 +204,16 @@ function loadSampleTicket(type: string) {
               name="i-lucide-database"
               class="w-3.5 h-3.5"
             />
-            <span>Qdrant Status</span>
+            <span>AI Runtime Status</span>
           </button>
         </div>
 
         <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-mono text-indigo-300">
-          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <span>Port 8088 / RAG Active</span>
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="runtimeStatus ? 'bg-cyan-400' : 'bg-slate-500'"
+          />
+          <span>{{ runtimeStatus ? `${runtimeStatus.provider} / ${runtimeStatus.service_status}` : 'Status unavailable' }}</span>
         </div>
       </div>
     </div>
@@ -371,7 +363,7 @@ function loadSampleTicket(type: string) {
             />
           </div>
           <div class="px-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400 font-mono flex items-center gap-2">
-            <span>AI Copilot is retrieving Qdrant vectors and analyzing runbooks...</span>
+            <span>Waiting for the configured AI provider...</span>
           </div>
         </div>
       </div>
@@ -566,7 +558,7 @@ function loadSampleTicket(type: string) {
             v-if="triageResult.citations && triageResult.citations.length > 0"
             class="space-y-2 text-xs"
           >
-            <span class="font-bold text-slate-300">Tài Liệu SOP Trích Dẫn (Qdrant Grounded Citations):</span>
+            <span class="font-bold text-slate-300">Nguồn do AI Service trả về:</span>
             <div class="space-y-1.5">
               <div
                 v-for="c in triageResult.citations"
@@ -607,7 +599,7 @@ function loadSampleTicket(type: string) {
       </div>
     </div>
 
-    <!-- MODE 3: QDRANT VECTOR & RAG INDEX STATUS -->
+    <!-- MODE 3: OBSERVED AI RUNTIME STATUS -->
     <div
       v-if="activeMode === 'rag-status'"
       class="flex-1 space-y-6 overflow-y-auto"
@@ -615,27 +607,30 @@ function loadSampleTicket(type: string) {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-400 font-semibold">Qdrant Vector Cluster</span>
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            <span class="text-xs text-slate-400 font-semibold">Qdrant Vector Store</span>
+            <span
+              class="w-2.5 h-2.5 rounded-full"
+              :class="runtimeStatus?.qdrant_status === 'ONLINE' ? 'bg-emerald-400' : 'bg-rose-400'"
+            />
           </div>
           <p class="text-xl font-bold text-white">
-            Online (:6333)
+            {{ runtimeStatus?.qdrant_status ?? 'Unavailable' }}
           </p>
-          <span class="text-xs text-slate-400">Collection: <code class="text-cyan-400">knowledge_base</code></span>
+          <span class="text-xs text-slate-400">Collection: <code class="text-cyan-400">{{ runtimeStatus?.qdrant_collection ?? 'unknown' }}</code></span>
         </div>
 
         <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-400 font-semibold">Vector Dimensions</span>
+            <span class="text-xs text-slate-400 font-semibold">Configured Provider</span>
             <UIcon
               name="i-lucide-cpu"
               class="w-5 h-5 text-indigo-400"
             />
           </div>
           <p class="text-xl font-bold text-white">
-            768 Dimensions
+            {{ runtimeStatus?.provider ?? 'Unavailable' }}
           </p>
-          <span class="text-xs text-slate-400">Model: <code class="text-indigo-400">text-embedding-004</code></span>
+          <span class="text-xs text-slate-400">Model: <code class="text-indigo-400">{{ runtimeStatus?.model ?? 'unknown' }}</code> · Embedding: <code class="text-indigo-400">{{ runtimeStatus?.embedding_model ?? 'unknown' }}</code></span>
         </div>
 
         <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-2">
@@ -647,39 +642,23 @@ function loadSampleTicket(type: string) {
             />
           </div>
           <p class="text-xl font-bold text-emerald-400">
-            Enabled (Zero Crash)
+            {{ runtimeStatus ? (runtimeStatus.mock_fallback_enabled ? 'Enabled' : 'Disabled') : 'Unavailable' }}
           </p>
-          <span class="text-xs text-slate-400">Requires ALLOW_MOCK_AI; disabled for production providers by default</span>
+          <span class="text-xs text-slate-400">Controlled by provider choice and ALLOW_MOCK_AI</span>
         </div>
       </div>
 
       <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl space-y-4">
         <h3 class="text-sm font-bold text-white">
-          Active Vector Collections & Grounding Documents
+          Runtime Evidence
         </h3>
         <div class="space-y-2 text-xs">
-          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p class="font-bold text-white">
-                knowledge_articles (6 Articles Indexed)
-              </p>
-              <p class="text-slate-400 text-[11px]">
-                SOP guides, MFA policies, VPN troubleshooting, PostgreSQL runbooks
-              </p>
-            </div>
-            <span class="text-xs font-mono text-cyan-400">768-dim Vectors Active</span>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300">
+            Last checked: <span class="font-mono text-cyan-400">{{ runtimeStatus?.last_checked_at ? new Date(runtimeStatus.last_checked_at).toLocaleString() : 'Unavailable' }}</span>
           </div>
-
-          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <div>
-              <p class="font-bold text-white">
-                sop_runbooks (4 Actionable Workflows Indexed)
-              </p>
-              <p class="text-slate-400 text-[11px]">
-                RB-SEC-02, RB-NET-01, RB-DB-03, RB-HW-04
-              </p>
-            </div>
-            <span class="text-xs font-mono text-amber-400">SOP Steps Active</span>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-400">
+            Automatic ingestion: <strong class="text-slate-200">{{ runtimeStatus ? (runtimeStatus.auto_ingest_enabled ? 'Enabled' : 'Disabled') : 'Unavailable' }}</strong>.
+            Indexed document counts are not exposed by the runtime endpoint, so no synthetic totals are displayed.
           </div>
         </div>
       </div>

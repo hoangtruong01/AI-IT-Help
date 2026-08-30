@@ -39,6 +39,7 @@ type KnowledgeArticle struct {
 	ViewCount    int       `json:"view_count"`
 	HelpfulCount int       `json:"helpful_count"`
 	IsPublished  bool      `json:"is_published"`
+	Version      int       `json:"version"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -58,6 +59,7 @@ type CreateArticleRequest struct {
 
 // UpdateArticleRequest DTO for updating an existing article.
 type UpdateArticleRequest struct {
+	Version     int       `json:"version"`
 	CategoryID  *string   `json:"category_id,omitempty"`
 	Title       *string   `json:"title,omitempty"`
 	Summary     *string   `json:"summary,omitempty"`
