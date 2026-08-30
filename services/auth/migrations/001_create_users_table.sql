@@ -35,38 +35,5 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
 
--- 3. Default Seed Data: Super Admin & Demo Accounts
--- Default password is: Admin@123456 (bcrypt hash: $2a$10$wK1F5N8q.mZ8GkPvh73ZRe7Z8Z/4p6O66a0V8k.C1kY4Z7Yq1s62u or generated on startup)
--- We insert using an ON CONFLICT clause for idempotency.
-INSERT INTO users (id, email, password_hash, full_name, role, is_active)
-VALUES (
-    'a0000000-0000-0000-0000-000000000001',
-    'admin@eomp.local',
-    '$2a$10$4.qJbL6q05Nq3u9lP3a1AecNlXqV05mQhB54QJ.xP2C8QJ9g8sJgK', -- Admin@123456
-    'System Administrator',
-    'ROLE_ADMIN',
-    TRUE
-)
-ON CONFLICT (email) DO NOTHING;
-
-INSERT INTO users (id, email, password_hash, full_name, role, is_active)
-VALUES (
-    'a0000000-0000-0000-0000-000000000002',
-    'manager@eomp.local',
-    '$2a$10$4.qJbL6q05Nq3u9lP3a1AecNlXqV05mQhB54QJ.xP2C8QJ9g8sJgK', -- Admin@123456
-    'IT Operations Manager',
-    'ROLE_MANAGER',
-    TRUE
-)
-ON CONFLICT (email) DO NOTHING;
-
-INSERT INTO users (id, email, password_hash, full_name, role, is_active)
-VALUES (
-    'a0000000-0000-0000-0000-000000000003',
-    'agent@eomp.local',
-    '$2a$10$4.qJbL6q05Nq3u9lP3a1AecNlXqV05mQhB54QJ.xP2C8QJ9g8sJgK', -- Admin@123456
-    'IT Support L1 Lead',
-    'ROLE_AGENT',
-    TRUE
-)
-ON CONFLICT (email) DO NOTHING;
+-- Privileged accounts are intentionally not seeded. Bootstrap them through a
+-- controlled administrative process with a unique, rotated password.

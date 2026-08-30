@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -69,8 +71,8 @@ func TestPhase8_SecurityAndComplianceValidation(t *testing.T) {
 	// 3. Client IP Extraction with Anti-Spoofing
 	trustedProxies := []string{"127.0.0.1", "10.0.0.0/8"}
 	untrustedReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
-	untrustedReq.RemoteAddr = "198.51.100.25:54321"                     // External untrusted client
-	untrustedReq.Header.Set("X-Forwarded-For", "1.1.1.1, 8.8.8.8")      // Client attempts spoofing
+	untrustedReq.RemoteAddr = "198.51.100.25:54321"                // External untrusted client
+	untrustedReq.Header.Set("X-Forwarded-For", "1.1.1.1, 8.8.8.8") // Client attempts spoofing
 	extractedIP := middleware.ExtractClientIP(untrustedReq, trustedProxies)
 
 	if extractedIP != "198.51.100.25" {
@@ -119,9 +121,9 @@ func TestPhase8_SecurityAndComplianceValidation(t *testing.T) {
 
 	// 6. Sensitive Data Masking Validation
 	sensitiveData := map[string]interface{}{
-		"username": "admin",
-		"password": "MySuperSecretPassword2026!",
-		"token":    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.t-IDNxdg99yWXRmwqEHszShFsCPvkYAA5eliH",
+		"username":    "admin",
+		"password":    "MySuperSecretPassword2026!",
+		"token":       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.t-IDNxdg99yWXRmwqEHszShFsCPvkYAA5eliH",
 		"auth_header": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
 	}
 	maskedData := middleware.MaskSensitiveData(sensitiveData)
@@ -310,22 +312,32 @@ func TestPhase8_SREResilienceAndDisasterRecoveryValidation(t *testing.T) {
 	}
 	t.Log("  [2/4] [+] Graceful In-Memory Fallback: EventBus operating seamlessly with zero downtime during AMQP failover")
 
-	// 3. Disaster Recovery (DR) Drill Metrics Verification
-	// Objective: RPO < 5 mins, RTO < 15 mins
-	simulatedBackupTime := time.Now().Add(-15 * time.Second) // Backup is 15 seconds old
-	measuredRPO := time.Since(simulatedBackupTime)
-	simulatedRestoreDuration := 45 * time.Second // Restore took 45s
+	t.Run("measured disaster recovery evidence", func(t *testing.T) {
+		evidencePath := os.Getenv("EOMP_DR_EVIDENCE_FILE")
+		if evidencePath == "" {
+			t.Skip("EOMP_DR_EVIDENCE_FILE is not set; no real restore drill was executed")
+		}
+		raw, err := os.ReadFile(evidencePath)
+		if err != nil {
+			t.Fatalf("read DR evidence: %v", err)
+		}
+		var evidence struct {
+			BackupCreatedAt       time.Time `json:"backup_created_at"`
+			RestoreDurationSecond float64   `json:"restore_duration_seconds"`
+		}
+		if err := json.Unmarshal(raw, &evidence); err != nil {
+			t.Fatalf("decode DR evidence: %v", err)
+		}
+		measuredRPO := time.Since(evidence.BackupCreatedAt)
+		restoreDuration := time.Duration(evidence.RestoreDurationSecond * float64(time.Second))
+		if measuredRPO < 0 || measuredRPO > 5*time.Minute {
+			t.Fatalf("RPO violated or invalid: %v", measuredRPO)
+		}
+		if restoreDuration <= 0 || restoreDuration > 15*time.Minute {
+			t.Fatalf("RTO violated or invalid: %v", restoreDuration)
+		}
+		t.Logf("measured DR evidence accepted: RPO=%v RTO=%v", measuredRPO, restoreDuration)
+	})
 
-	if measuredRPO > 5*time.Minute {
-		t.Fatalf("RPO violated: %v > 5m", measuredRPO)
-	}
-	if simulatedRestoreDuration > 15*time.Minute {
-		t.Fatalf("RTO violated: %v > 15m", simulatedRestoreDuration)
-	}
-	t.Logf("  [3/4] [✓] Disaster Recovery Drill Verified: RPO = %.1f seconds (< 5m SLA), RTO = %.1f seconds (< 15m SLA)",
-		measuredRPO.Seconds(), simulatedRestoreDuration.Seconds())
-
-	// 4. Platform Sign-off Summary
-	t.Log("  [4/4] [✓] Master Platform Validation Complete: 100% Passing across all 11 Go Microservices & Nuxt 4 Web Application.")
-	t.Log("🎉 PHASE 8 ENTERPRISE VALIDATION & PRODUCTION READINESS: FULLY CERTIFIED & APPROVED.")
+	t.Log("SRE unit checks completed; production certification still requires external infrastructure and DR evidence")
 }

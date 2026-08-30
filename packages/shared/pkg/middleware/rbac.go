@@ -43,3 +43,25 @@ func RequireRoles(allowedRoles ...string) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// RequireRolesForMethods applies RBAC only to the listed HTTP methods. It is
+// useful for resources that all authenticated users may read but only operators
+// may mutate.
+func RequireRolesForMethods(methods []string, allowedRoles ...string) func(http.Handler) http.Handler {
+	methodSet := make(map[string]bool, len(methods))
+	for _, method := range methods {
+		methodSet[strings.ToUpper(method)] = true
+	}
+	authorize := RequireRoles(allowedRoles...)
+
+	return func(next http.Handler) http.Handler {
+		protected := authorize(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !methodSet[strings.ToUpper(r.Method)] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			protected.ServeHTTP(w, r)
+		})
+	}
+}

@@ -73,6 +73,12 @@ func TestJWTGenerationAndValidation(t *testing.T) {
 	if accessToken == "" || refreshToken == "" {
 		t.Errorf("tokens must not be empty")
 	}
+	if _, err := manager.ValidateToken(refreshToken); err == nil {
+		t.Fatal("refresh token must not be accepted as an access token")
+	}
+	if _, err := manager.ValidateRefreshToken(refreshToken); err != nil {
+		t.Fatalf("signed refresh token should validate: %v", err)
+	}
 
 	claims, err := manager.ValidateToken(accessToken)
 	if err != nil {

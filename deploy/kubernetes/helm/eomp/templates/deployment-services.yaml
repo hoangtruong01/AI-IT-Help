@@ -39,7 +39,7 @@ spec:
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" $ }}-secrets
+                  name: {{ include "eomp.secretName" $ }}
                   key: JWT_SECRET
           {{- else if eq $svcName "web" }}
           envFrom:
@@ -52,33 +52,49 @@ spec:
             - name: PORT
               value: {{ $svcConfig.port | quote }}
             {{- if $svcConfig.dbName }}
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               value: "{{ include "eomp.fullname" $ }}-postgres"
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               value: "5432"
-            - name: DB_USER
+            - name: POSTGRES_USER
               value: "eomp"
-            - name: DB_NAME
+            - name: {{ printf "%s_DB_NAME" (upper $svcName) }}
               value: {{ $svcConfig.dbName | quote }}
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" $ }}-secrets
+                  name: {{ include "eomp.secretName" $ }}
                   key: POSTGRES_PASSWORD
             {{- end }}
             {{- if eq $svcName "auth" }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" $ }}-secrets
+                  name: {{ include "eomp.secretName" $ }}
                   key: JWT_SECRET
-            {{- else if eq $svcName "notification" }}
-            - name: RABBITMQ_URL
-              value: "amqp://{{ $.Values.secrets.rabbitmqUser }}:{{ $.Values.secrets.rabbitmqPassword }}@{{ include "eomp.fullname" $ }}-rabbitmq:5672/"
-            {{- else if eq $svcName "knowledge" }}
+            {{- end }}
+            {{- if has $svcName (list "asset" "helpdesk" "workflow" "notification" "audit") }}
+            - name: RABBITMQ_HOST
+              value: "{{ include "eomp.fullname" $ }}-rabbitmq"
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.secretName" $ }}
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eomp.secretName" $ }}
+                  key: RABBITMQ_PASSWORD
+            {{- end }}
+            {{- if eq $svcName "knowledge" }}
             - name: QDRANT_URL
               value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
             {{- else if eq $svcName "ai" }}
+            - name: AI_PROVIDER
+              value: {{ $svcConfig.provider | quote }}
+            - name: ALLOW_MOCK_AI
+              value: {{ $svcConfig.allowMock | quote }}
             - name: QDRANT_URL
               value: "http://{{ include "eomp.fullname" $ }}-qdrant:6333"
             - name: KNOWLEDGE_SERVICE_URL
@@ -93,7 +109,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: {{ if eq $svcName "web" }}/{{ else }}/health{{ end }}
+              path: {{ if eq $svcName "web" }}/{{ else if $svcConfig.dbName }}/ready{{ else }}/health{{ end }}
               port: {{ $svcConfig.port }}
             initialDelaySeconds: 5
             periodSeconds: 5

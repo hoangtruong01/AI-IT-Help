@@ -30,7 +30,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               value: "eomp"
@@ -114,12 +114,12 @@ spec:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: RABBITMQ_USER
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: RABBITMQ_PASSWORD
           resources:
             {{- toYaml .Values.infrastructure.rabbitmq.resources | nindent 12 }}
@@ -164,12 +164,12 @@ spec:
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: MINIO_ACCESS_KEY
             - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: MINIO_SECRET_KEY
           resources:
             {{- toYaml .Values.infrastructure.minio.resources | nindent 12 }}
@@ -287,12 +287,12 @@ spec:
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: GRAFANA_ADMIN_USER
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "eomp.fullname" . }}-secrets
+                  name: {{ include "eomp.secretName" . }}
                   key: GRAFANA_ADMIN_PASSWORD
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"

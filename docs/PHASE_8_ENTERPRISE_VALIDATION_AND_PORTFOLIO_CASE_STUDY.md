@@ -1,5 +1,7 @@
 # 🏆 EOMP — PHASE 8: ENTERPRISE VALIDATION EVIDENCE & MASTER PORTFOLIO CASE STUDY
 
+> **Portfolio document only:** Certification claims below are historical and are not current acceptance evidence. See `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Platform:** Enterprise Operations Management Platform (EOMP)  
 > **Version:** 2.0.0 Enterprise Master Edition  
 > **Role Perspectives:** Principal Full-Stack Engineer, Lead Business Analyst (BA), Product Owner (PO), QA/QC & Test Engineering Lead, SRE / DevOps Architect  

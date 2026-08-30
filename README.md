@@ -2,11 +2,11 @@
 
 [![CI Pipeline](https://img.shields.io/badge/CI-Jenkins%20Multi--Stage-blue.svg)](Jenkinsfile)
 [![Nuxt 4](https://img.shields.io/badge/Frontend-Nuxt%204.5%20%7C%20Vue%203%20%7C%20Tailwind-00DC82.svg?logo=nuxt.js)](apps/web)
-[![Go 1.24](https://img.shields.io/badge/Backend-11%20Go%20Microservices-00ADD8.svg?logo=go)](services)
+[![Go 1.25](https://img.shields.io/badge/Backend-11%20Go%20Microservices-00ADD8.svg?logo=go)](services)
 [![Docker](https://img.shields.io/badge/Docker-Multi--Stage%20%3C25MB-2496ED.svg?logo=docker)](deploy/docker)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm%20Chart%20%26%20HPA-326CE5.svg?logo=kubernetes)](deploy/kubernetes)
-[![SRE & DR](https://img.shields.io/badge/SRE-RPO%20%3C5m%20%7C%20RTO%20%3C15m-success.svg)](docs/sre)
-[![Status](https://img.shields.io/badge/14%20Phases-100%25%20COMPLETE-brightgreen.svg)](#-bảng-tiến-độ-14-phases-master-roadmap)
+[![SRE & DR](https://img.shields.io/badge/SRE%20%26%20DR-Awaiting%20Drill-orange.svg)](docs/IMPLEMENTATION_STATUS.md)
+[![Status](https://img.shields.io/badge/Status-Remediation%20in%20Progress-orange.svg)](docs/IMPLEMENTATION_STATUS.md)
 
 > **Enterprise-grade, modular, event-driven microservices operations management platform designed for high-scale organizations.**
 
@@ -18,7 +18,7 @@
 3. [Service & Network Port Matrix](#-service--network-port-matrix)
 4. [Quick Start (Local & Production Setup)](#-quick-start-local--production-setup)
 5. [Development & Operations CLI](#-development--operations-cli)
-6. [Master Roadmap (14 Phases Complete)](#-master-roadmap-14-phases-complete)
+6. [Master Roadmap](#-master-roadmap)
 7. [Engineering Documentation Hub](#-engineering-documentation-hub)
 
 ---
@@ -27,7 +27,7 @@
 
 EOMP provides an end-to-end, integrated operations ecosystem structured across 11 Golang microservices and a modern Nuxt 4 SSR Web Application:
 
-1. **Authentication & RBAC (`services/auth` - :8081)**: Multi-role access control (`ADMIN`, `MANAGER`, `AGENT`, `USER`), JWT HS256 authentication, Bcrypt password hashing, and token refresh.
+1. **Authentication & RBAC (`services/auth` - :8081)**: Multi-role access control (`admin`, `manager`, `agent`, `employee`), JWT HS256 authentication, Bcrypt password hashing, and token refresh.
 2. **Employee Directory (`services/employee` - :8082)**: Organizational structure, department hierarchy, search & employee profile management.
 3. **Asset Management & CMDB (`services/asset` - :8083)**: IT hardware lifecycle, stock allocation/return, and CMDB Infrastructure Dependency Topology graph.
 4. **IT Helpdesk & SLA Engine (`services/helpdesk` - :8084)**: Incident ticketing, dynamic SLA deadline calculations (`URGENT` 15m/2h, `HIGH` 30m/4h), and ITIL Problem Management with RCA 5-Whys.
@@ -36,7 +36,7 @@ EOMP provides an end-to-end, integrated operations ecosystem structured across 1
 7. **Knowledge Base & SOP Runbooks (`services/knowledge` - :8087)**: IT standard operating procedures, documentation management, and vector embeddings.
 8. **AI Operations Copilot (`services/ai` - :8088)**: LLM ticket auto-triage, semantic search with Qdrant vector store, and RAG root-cause assistant.
 9. **Audit Trail & Compliance (`services/audit` - :8089)**: Immutable audit logging with **SHA-256 Checksum** and automated data masking (`********`).
-10. **Reporting & BI Analytics (`services/reporting` - :8090)**: Realtime MTTR/MTTD, SLA compliance rate %, agent performance scorecard, and high-speed PDF/Excel report export (< 3s).
+10. **Reporting & BI Analytics (`services/reporting` - :8090)**: MTTR/MTTD, SLA compliance, agent performance scorecards and bounded report export. Performance targets require deployed-environment evidence.
 11. **API Gateway (`services/gateway` - :8080)**: Reverse proxy routing, rate limiting (100 req/min/IP), correlation ID injection, and SRE monitoring aggregation.
 12. **Frontend Web App (`apps/web` - :3000)**: Nuxt 4, Vue 3, Tailwind CSS, Dark Glassmorphism aesthetic, realtime live widgets & SSE streaming.
 
@@ -78,7 +78,7 @@ EOMP provides an end-to-end, integrated operations ecosystem structured across 1
                                                                ▼
  ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
  │                                   Distributed Infrastructure                                │
- │   PostgreSQL 17 (8 Isolated DBs) · Redis 7 · MinIO S3 · Qdrant Vector Store                 │
+ │   PostgreSQL 17 (9 Isolated DBs) · Redis 7 · MinIO S3 · Qdrant Vector Store                 │
  │   Prometheus Metrics · Grafana Dashboards (:3002) · Loki Log Aggregator                     │
  └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -101,7 +101,7 @@ EOMP provides an end-to-end, integrated operations ecosystem structured across 1
 | **AI Copilot** | `:8088` | HTTP | RAG SmartRetriever (Stateless) |
 | **Audit Trail** | `:8089` | HTTP | `audit_db` (SHA-256 Checksum) |
 | **Reporting & BI** | `:8090` | HTTP | `reporting_db` (PostgreSQL) |
-| **PostgreSQL Engine** | `:5432` | TCP | 8 Isolated DBs Pool |
+| **PostgreSQL Engine** | `:5432` | TCP | 9 Isolated DBs Pool |
 | **Redis Cache** | `:6379` | TCP | Session & Token Bucket Store |
 | **RabbitMQ AMQP / UI** | `:5672` / `:15672` | TCP/HTTP | CloudEvents Message Broker |
 | **MinIO Storage / UI** | `:9000` / `:9001` | HTTP | S3 Object Storage |
@@ -165,25 +165,18 @@ EOMP provides automated CLI toolkits for developer, testing, deployment and SRE 
 
 ---
 
-## 🚀 Master Roadmap (14 Phases Complete)
+## 🚀 Master Roadmap
 
 | Phase | Module Scope | Status |
 |:---:|---|:---:|
-| **Phase 0** | Repository Audit, Codebase Clean-up & Architecture Strategy | **COMPLETED (Done)** |
-| **Phase 1** | Business Foundation, Auth/RBAC, Employee Service & Nuxt 4 Integration | **COMPLETED (Done)** |
-| **Phase 2** | Incident Management, Service Catalog & Realtime SLA Engine | **COMPLETED (Done)** |
-| **Phase 3** | IT Asset Management & CMDB Dependency Topology Graph | **COMPLETED (Done)** |
-| **Phase 4** | Workflow State Machine Engine, Multi-level Approvals & Audit Trail | **COMPLETED (Done)** |
-| **Phase 5** | Event-Driven Architecture, CloudEvents EventBus & Notification Service | **COMPLETED (Done)** |
-| **Phase 6** | AI Operations Copilot, Qdrant Vector Search & RAG Knowledge Engine | **COMPLETED (Done)** |
-| **Phase 7** | ITIL Problem Management, RCA 5-Whys & Change Advisory Board (CAB) | **COMPLETED (Done)** |
-| **Phase 8** | Enterprise Observability (Prometheus RED Metrics, Grafana, Loki Logs) | **COMPLETED (Done)** |
-| **Phase 9** | Business Intelligence Reporting, MTTR/MTTD & SLA Dashboard | **COMPLETED (Done)** |
-| **Phase 10** | Security Hardening, Strict RBAC, Rate Limiting & Immutable Audit Trail | **COMPLETED (Done)** |
-| **Phase 11** | QA Automation Suite (Unit, Integration, Playwright E2E, K6 Load 500 VUs) | **COMPLETED (Done)** |
-| **Phase 12** | Technical BA Artifacts, C4 Model Blueprints & OpenAPI 3.0 Spec Hub | **COMPLETED (Done)** |
-| **Phase 13** | Production Packaging, Docker Multi-stage (<25MB) & Kubernetes Helm Charts | **COMPLETED (Done)** |
-| **Phase 14** | SRE Operations, Disaster Recovery (RPO<5m, RTO<15m) & Platform Handover | **COMPLETED (Done)** |
+| **Phase 0–9** | Core architecture and business modules | **Implemented; integration acceptance pending** |
+| **Phase 10** | Security hardening | **In progress; see current blockers** |
+| **Phase 11** | QA automation | **Partial: unit/static checks exist; browser/load evidence pending** |
+| **Phase 12** | Architecture and OpenAPI documentation | **Partial: OpenAPI parity pending** |
+| **Phase 13** | Docker and Kubernetes packaging | **Implemented; runtime validation pending** |
+| **Phase 14** | SRE, disaster recovery and handover | **Pending measured DR drill and owner acceptance** |
+
+The evidence-backed status and release blockers are maintained in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ---
 

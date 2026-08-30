@@ -50,6 +50,25 @@ func TestRBAC_RequireRoles(t *testing.T) {
 	}
 }
 
+func TestRBAC_RequireRolesForMethods(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	handler := RequireRolesForMethods([]string{http.MethodPost, http.MethodPatch}, "ROLE_MANAGER")(next)
+
+	read := httptest.NewRecorder()
+	handler.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/resource", nil))
+	if read.Code != http.StatusOK {
+		t.Fatalf("read request should remain available to authenticated callers, got %d", read.Code)
+	}
+
+	writeReq := httptest.NewRequest(http.MethodPost, "/resource", nil)
+	writeReq.Header.Set("X-User-Role", "ROLE_EMPLOYEE")
+	write := httptest.NewRecorder()
+	handler.ServeHTTP(write, writeReq)
+	if write.Code != http.StatusForbidden {
+		t.Fatalf("employee write should be forbidden, got %d", write.Code)
+	}
+}
+
 // Test Case 10.2: IP Rate Limiting.
 func TestRateLimiter_IPLimit(t *testing.T) {
 	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

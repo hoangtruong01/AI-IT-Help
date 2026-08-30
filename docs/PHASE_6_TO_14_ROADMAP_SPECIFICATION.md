@@ -1,5 +1,7 @@
 # EOMP — Đặc Tả Chi Tiết Lộ Trình Triển Khai Từ Phase 6 Đến Phase 14
 
+> **Specification, not acceptance evidence:** Current verified status is in `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Tài liệu Hướng Dẫn & Đặc Tả Kỹ Thuật Đa Vai Trò (Multi-Role Specification Document)**  
 > **Dành cho:** Business Analyst (BA), UI/UX Designer (Des), QA/QC Engineer, Manual/Automation Tester & Developers.  
 > **Mục tiêu:** Cung cấp bức tranh toàn cảnh, chi tiết nghiệp vụ (User Stories, Acceptance Criteria), hướng dẫn thiết kế giao diện (UI/UX Specs) và kịch bản kiểm thử (Test Matrix) từ **Phase 6 đến Phase 14** nhằm đảm bảo toàn bộ đội ngũ phát triển đồng nhất 100%.

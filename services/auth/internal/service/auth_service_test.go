@@ -16,6 +16,45 @@ type mockUserRepo struct {
 	auditLogs []model.LoginAuditLog
 }
 
+func TestAuthService_PublicRegistrationAlwaysCreatesEmployee(t *testing.T) {
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+
+	resp, err := authSvc.Register(context.Background(), &model.RegisterRequest{
+		Email: "new.user@example.com", Password: "StrongPass!123", FullName: "New User",
+	})
+	if err != nil {
+		t.Fatalf("registration failed: %v", err)
+	}
+	if resp.User.Role != model.RoleEmployee {
+		t.Fatalf("public registration assigned %q, want %q", resp.User.Role, model.RoleEmployee)
+	}
+}
+
+func TestAuthService_RejectsWeakRegistrationPassword(t *testing.T) {
+	authSvc := service.NewAuthService(newMockUserRepo(), auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+	_, err := authSvc.Register(context.Background(), &model.RegisterRequest{
+		Email: "new.user@example.com", Password: "password", FullName: "New User",
+	})
+	if err == nil {
+		t.Fatal("expected weak password to be rejected")
+	}
+}
+
+func TestAuthService_BootstrapAdminDoesNotPromoteExistingAccount(t *testing.T) {
+	repo := newMockUserRepo()
+	repo.users["employee@example.com"] = &model.User{ID: "u-employee", Email: "employee@example.com", Role: model.RoleEmployee, IsActive: true}
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+
+	err := authSvc.BootstrapAdmin(context.Background(), "employee@example.com", "StrongPass!123", "Employee")
+	if err == nil {
+		t.Fatal("expected bootstrap to reject promotion of an existing account")
+	}
+	if repo.users["employee@example.com"].Role != model.RoleEmployee {
+		t.Fatal("bootstrap unexpectedly changed the existing account role")
+	}
+}
+
 type tokenRecord struct {
 	userID    string
 	tokenHash string

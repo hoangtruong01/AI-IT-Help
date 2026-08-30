@@ -72,6 +72,7 @@ type AssignAssetRequest struct {
 	DepartmentID      *string `json:"department_id,omitempty"`
 	ConditionOnAssign string  `json:"condition_on_assign"`
 	Notes             *string `json:"notes,omitempty"`
+	ExpectedVersion   int     `json:"version"`
 }
 
 // AssetAssignment entity

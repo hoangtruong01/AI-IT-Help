@@ -1,5 +1,7 @@
 // QA Unit Test Suite for Frontend BI & SLA Math
 
+import { describe, expect, it } from 'vitest'
+
 export function calculateSLACompliance(totalTickets: number, resolvedWithinSLA: number): number {
   if (totalTickets <= 0) return 0.0
   const pct = (resolvedWithinSLA / totalTickets) * 100
@@ -18,24 +20,17 @@ export function maskCreditCard(cardNumber: string): string {
   return `****-****-****-${digits.slice(-4)}`
 }
 
-// Test Runner Verification
-function runTests() {
-  // Test Case 9.2: Zero-safe compliance rate
-  const zeroSLA = calculateSLACompliance(0, 0)
-  if (zeroSLA !== 0.0) throw new Error(`Expected 0.0 for zero SLA, got ${zeroSLA}`)
+describe('KPI calculators', () => {
+  it('returns a zero-safe SLA rate', () => {
+    expect(calculateSLACompliance(0, 0)).toBe(0)
+    expect(calculateSLACompliance(100, 97)).toBe(97)
+  })
 
-  const normalSLA = calculateSLACompliance(100, 97)
-  if (normalSLA !== 97.0) throw new Error(`Expected 97.0%, got ${normalSLA}`)
+  it('calculates MTTR improvement', () => {
+    expect(calculateMTTRImprovement(38.87, 31.8)).toBeGreaterThan(0)
+  })
 
-  // MTTR Improvement calculation
-  const mttrImp = calculateMTTRImprovement(38.87, 31.8)
-  if (mttrImp <= 0) throw new Error(`Expected positive MTTR improvement, got ${mttrImp}`)
-
-  // Data Masking
-  const masked = maskCreditCard('4111 2222 3333 4444')
-  if (masked !== '****-****-****-4444') throw new Error(`Expected masked CC, got ${masked}`)
-
-  return true
-}
-
-runTests()
+  it('masks valid card numbers', () => {
+    expect(maskCreditCard('4111 2222 3333 4444')).toBe('****-****-****-4444')
+  })
+})

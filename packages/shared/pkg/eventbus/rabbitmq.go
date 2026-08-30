@@ -49,7 +49,18 @@ func NewRabbitMQEventBus(url string, serviceName string) (*RabbitMQEventBus, err
 		serviceName = "eomp-service"
 	}
 
-	bus := &RabbitMQEventBus{
+	bus := newRabbitMQEventBus(url, serviceName)
+
+	if err := bus.connect(); err != nil {
+		return nil, err
+	}
+
+	go bus.reconnectSupervisor()
+	return bus, nil
+}
+
+func newRabbitMQEventBus(url string, serviceName string) *RabbitMQEventBus {
+	return &RabbitMQEventBus{
 		url:          url,
 		serviceName:  serviceName,
 		exchange:     DefaultExchange,
@@ -57,19 +68,10 @@ func NewRabbitMQEventBus(url string, serviceName string) (*RabbitMQEventBus, err
 		memoryBus:    NewMemoryEventBus(),
 		reconnectSig: make(chan struct{}, 1),
 	}
-
-	if err := bus.connect(); err != nil {
-		return nil, err
-	}
-
-	// Start background supervisor for connection monitoring & auto-reconnect
-	go bus.reconnectSupervisor()
-
-	return bus, nil
 }
 
-// NewResilientEventBus returns a RabbitMQEventBus if broker is reachable,
-// or a graceful memoryEventBus with background connector if offline.
+// NewResilientEventBus always returns a RabbitMQ bus with local subscribers and
+// an active reconnect supervisor, even when the broker is unavailable at boot.
 func NewResilientEventBus(url string, serviceName string) EventBus {
 	if serviceName == "" {
 		serviceName = "eomp-service"
@@ -78,21 +80,20 @@ func NewResilientEventBus(url string, serviceName string) EventBus {
 		url = "amqp://guest:guest@localhost:5672/"
 	}
 
-	bus, err := NewRabbitMQEventBus(url, serviceName)
+	bus := newRabbitMQEventBus(url, serviceName)
+	err := bus.connect()
 	if err != nil {
-		slog.Warn("rabbitMQ broker not reachable on boot, running resilient in-memory fallback",
+		slog.Warn("rabbitMQ broker not reachable on boot; background reconnect enabled",
 			slog.String("service", serviceName),
-			slog.String("url", url),
 			slog.Any("error", err),
 		)
-		// Return resilient memory bus
-		return NewMemoryEventBus()
+	} else {
+		slog.Info("connected to RabbitMQ AMQP broker successfully",
+			slog.String("service", serviceName),
+			slog.String("exchange", DefaultExchange),
+		)
 	}
-
-	slog.Info("connected to RabbitMQ AMQP broker successfully",
-		slog.String("service", serviceName),
-		slog.String("exchange", DefaultExchange),
-	)
+	go bus.reconnectSupervisor()
 	return bus
 }
 
@@ -165,7 +166,10 @@ func (b *RabbitMQEventBus) connect() error {
 
 func (b *RabbitMQEventBus) reconnectSupervisor() {
 	for {
-		if b.isClosed {
+		b.mu.RLock()
+		closed := b.isClosed
+		b.mu.RUnlock()
+		if closed {
 			return
 		}
 
@@ -175,7 +179,10 @@ func (b *RabbitMQEventBus) reconnectSupervisor() {
 
 		if conn == nil {
 			time.Sleep(2 * time.Second)
-			_ = b.connect()
+			if err := b.connect(); err == nil {
+				slog.Info("rabbitMQ connected after startup, restoring active subscriptions")
+				b.restoreSubscriptions()
+			}
 			continue
 		}
 
@@ -242,8 +249,7 @@ func (b *RabbitMQEventBus) Publish(ctx context.Context, event Event) error {
 	b.mu.RUnlock()
 
 	if !connected || ch == nil {
-		// Degrade gracefully without crashing caller
-		return nil
+		return fmt.Errorf("rabbitMQ publish unavailable: broker is disconnected")
 	}
 
 	body, err := json.Marshal(event)

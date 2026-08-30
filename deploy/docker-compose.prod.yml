@@ -9,7 +9,7 @@ services:
   # Edge Gateway & Ingress (Nginx)
   # ============================================================================
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27.4-alpine
     container_name: eomp-prod-nginx
     restart: always
     ports:
@@ -32,14 +32,14 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.web
-    image: eomp/web:prod
+    image: eomp/web:0.1.0
     container_name: eomp-prod-web
     restart: always
     environment:
       NODE_ENV: production
       PORT: 3000
       HOST: "0.0.0.0"
-      NUXT_PUBLIC_API_BASE_URL: "/api/v1"
+      NUXT_PUBLIC_API_URL: "/"
     deploy:
       resources:
         limits:
@@ -61,13 +61,13 @@ services:
       args:
         SERVICE_NAME: gateway
         PORT: 8080
-    image: eomp/gateway:prod
+    image: eomp/gateway:0.1.0
     container_name: eomp-prod-gateway
     restart: always
     environment:
       APP_ENV: production
       PORT: 8080
-      JWT_SECRET: ${JWT_SECRET:-eomp_production_super_secure_jwt_secret_key_2026}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       AUTH_SERVICE_URL: http://auth:8081
       EMPLOYEE_SERVICE_URL: http://employee:8082
       ASSET_SERVICE_URL: http://asset:8083
@@ -78,7 +78,8 @@ services:
       AI_SERVICE_URL: http://ai:8088
       AUDIT_SERVICE_URL: http://audit:8089
       REPORTING_SERVICE_URL: http://reporting:8090
-      REDIS_ADDR: redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       auth:
         condition: service_healthy
@@ -102,19 +103,21 @@ services:
       args:
         SERVICE_NAME: auth
         PORT: 8081
-    image: eomp/auth:prod
+    image: eomp/auth:0.1.0
     container_name: eomp-prod-auth
     restart: always
     environment:
       APP_ENV: production
       PORT: 8081
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: auth_db
-      DB_SSLMODE: disable
-      JWT_SECRET: ${JWT_SECRET:-eomp_production_super_secure_jwt_secret_key_2026}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      AUTH_DB_NAME: auth_db
+      POSTGRES_SSLMODE: disable
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,18 +134,18 @@ services:
       args:
         SERVICE_NAME: employee
         PORT: 8082
-    image: eomp/employee:prod
+    image: eomp/employee:0.1.0
     container_name: eomp-prod-employee
     restart: always
     environment:
       APP_ENV: production
       PORT: 8082
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: employee_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      EMPLOYEE_DB_NAME: employee_db
+      POSTGRES_SSLMODE: disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,18 +162,22 @@ services:
       args:
         SERVICE_NAME: asset
         PORT: 8083
-    image: eomp/asset:prod
+    image: eomp/asset:0.1.0
     container_name: eomp-prod-asset
     restart: always
     environment:
       APP_ENV: production
       PORT: 8083
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: asset_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      ASSET_DB_NAME: asset_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,18 +194,22 @@ services:
       args:
         SERVICE_NAME: helpdesk
         PORT: 8084
-    image: eomp/helpdesk:prod
+    image: eomp/helpdesk:0.1.0
     container_name: eomp-prod-helpdesk
     restart: always
     environment:
       APP_ENV: production
       PORT: 8084
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: helpdesk_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      HELPDESK_DB_NAME: helpdesk_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -215,18 +226,22 @@ services:
       args:
         SERVICE_NAME: workflow
         PORT: 8085
-    image: eomp/workflow:prod
+    image: eomp/workflow:0.1.0
     container_name: eomp-prod-workflow
     restart: always
     environment:
       APP_ENV: production
       PORT: 8085
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: workflow_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      WORKFLOW_DB_NAME: workflow_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -243,19 +258,22 @@ services:
       args:
         SERVICE_NAME: notification
         PORT: 8086
-    image: eomp/notification:prod
+    image: eomp/notification:0.1.0
     container_name: eomp-prod-notification
     restart: always
     environment:
       APP_ENV: production
       PORT: 8086
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: notification_db
-      DB_SSLMODE: disable
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-eomp}:${RABBITMQ_PASSWORD:-eomp_dev_password}@rabbitmq:5672/
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      NOTIFICATION_DB_NAME: notification_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -274,18 +292,18 @@ services:
       args:
         SERVICE_NAME: knowledge
         PORT: 8087
-    image: eomp/knowledge:prod
+    image: eomp/knowledge:0.1.0
     container_name: eomp-prod-knowledge
     restart: always
     environment:
       APP_ENV: production
       PORT: 8087
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: knowledge_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      KNOWLEDGE_DB_NAME: knowledge_db
+      POSTGRES_SSLMODE: disable
       QDRANT_URL: http://qdrant:6333
     depends_on:
       postgres:
@@ -305,12 +323,16 @@ services:
       args:
         SERVICE_NAME: ai
         PORT: 8088
-    image: eomp/ai:prod
+    image: eomp/ai:0.1.0
     container_name: eomp-prod-ai
     restart: always
     environment:
       APP_ENV: production
       PORT: 8088
+      AI_PROVIDER: ${AI_PROVIDER:?AI_PROVIDER is required}
+      ALLOW_MOCK_AI: ${ALLOW_MOCK_AI:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       QDRANT_URL: http://qdrant:6333
       KNOWLEDGE_SERVICE_URL: http://knowledge:8087
     depends_on:
@@ -331,18 +353,22 @@ services:
       args:
         SERVICE_NAME: audit
         PORT: 8089
-    image: eomp/audit:prod
+    image: eomp/audit:0.1.0
     container_name: eomp-prod-audit
     restart: always
     environment:
       APP_ENV: production
       PORT: 8089
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: audit_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      AUDIT_DB_NAME: audit_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -359,18 +385,18 @@ services:
       args:
         SERVICE_NAME: reporting
         PORT: 8090
-    image: eomp/reporting:prod
+    image: eomp/reporting:0.1.0
     container_name: eomp-prod-reporting
     restart: always
     environment:
       APP_ENV: production
       PORT: 8090
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-eomp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
-      DB_NAME: reporting_db
-      DB_SSLMODE: disable
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-eomp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      REPORTING_DB_NAME: reporting_db
+      POSTGRES_SSLMODE: disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -386,7 +412,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eomp_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: eomp
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
@@ -419,8 +445,8 @@ services:
     container_name: eomp-prod-rabbitmq
     restart: always
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-eomp}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-eomp_dev_password}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
     volumes:
       - rabbitmq_prod_data:/var/lib/rabbitmq
     healthcheck:
@@ -437,7 +463,7 @@ services:
     restart: always
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-eomp_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-eomp_minio_secret}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
     command: server /data --console-address ":9001"
     volumes:
       - minio_prod_data:/data
@@ -488,7 +514,7 @@ services:
     restart: always
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-eomp_grafana}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/monitoring/grafana/"

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -71,4 +72,23 @@ func MustGetEnv(key string) string {
 		panic(err)
 	}
 	return val
+}
+
+// RabbitMQURL returns an explicit RABBITMQ_URL when supplied, otherwise it
+// safely builds one from component variables and URL-escapes the credentials.
+func RabbitMQURL() string {
+	if value := GetEnv("RABBITMQ_URL", ""); value != "" {
+		return value
+	}
+	host := GetEnv("RABBITMQ_HOST", "localhost")
+	port := GetEnvInt("RABBITMQ_PORT", 5672)
+	user := GetEnv("RABBITMQ_USER", "guest")
+	password := GetEnv("RABBITMQ_PASSWORD", "guest")
+	u := &url.URL{
+		Scheme: "amqp",
+		User:   url.UserPassword(user, password),
+		Host:   fmt.Sprintf("%s:%d", host, port),
+		Path:   "/",
+	}
+	return u.String()
 }

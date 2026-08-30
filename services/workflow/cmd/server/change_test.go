@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eomp/services/workflow/internal/model"
+	"eomp/services/workflow/internal/repository"
 	"eomp/services/workflow/internal/service"
 )
 
@@ -59,11 +60,15 @@ func (m *mockChangeRepo) UpdateChange(ctx context.Context, c *model.ChangeReques
 	return nil
 }
 
-func (m *mockChangeRepo) UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time) error {
+func (m *mockChangeRepo) UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time, expectedVersion int) error {
 	if c, ok := m.changes[id]; ok {
+		if c.Version != expectedVersion {
+			return repository.ErrVersionConflict
+		}
 		c.Status = status
 		c.ActualStartTime = actualStart
 		c.ActualEndTime = actualEnd
+		c.Version++
 	}
 	return nil
 }
@@ -153,7 +158,7 @@ func TestChangeManagement_TestCase_7_2(t *testing.T) {
 	}
 
 	// 2. Try to transition to IMPLEMENTING with 0 approvals -> Must fail
-	_, err = svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING"})
+	_, err = svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING", ExpectedVersion: repo.changes[c.ID].Version})
 	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "insufficient cab") {
 		t.Fatalf("expected Insufficient CAB approvals error, got: %v", err)
 	}
@@ -173,7 +178,7 @@ func TestChangeManagement_TestCase_7_2(t *testing.T) {
 	}
 
 	// 4. Try to transition to IMPLEMENTING with only 1 approval -> Must still fail
-	_, err = svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING"})
+	_, err = svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING", ExpectedVersion: repo.changes[c.ID].Version})
 	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "insufficient cab") {
 		t.Fatalf("expected Insufficient CAB approvals error with 1 vote, got: %v", err)
 	}
@@ -196,7 +201,7 @@ func TestChangeManagement_TestCase_7_2(t *testing.T) {
 	}
 
 	// 6. Transition to IMPLEMENTING -> Must succeed!
-	implementingChange, err := svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING"})
+	implementingChange, err := svc.UpdateStatus(ctx, c.ID, model.UpdateChangeStatusPayload{Status: "IMPLEMENTING", ExpectedVersion: repo.changes[c.ID].Version})
 	if err != nil {
 		t.Fatalf("failed to transition to IMPLEMENTING after quorum reached: %v", err)
 	}

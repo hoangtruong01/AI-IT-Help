@@ -5,7 +5,10 @@ info:
     Comprehensive Unified OpenAPI 3.0 Specification for EOMP Microservices Ecosystem:
     Authentication, Employee CMDB, Helpdesk, Workflows, Notification Center, AI Operations Copilot,
     Enterprise Observability, BI Reporting, and SOC2 Immutable Audit Trail.
-  version: 1.0.0
+  version: 0.1.0
+  x-coverage-status: incomplete
+  x-runtime-operation-count: 96
+  x-documented-operation-count: 17
   contact:
     name: EOMP Architecture & SRE Team
     email: sre-lead@eomp.local
@@ -34,7 +37,7 @@ paths:
               properties:
                 email:
                   type: string
-                  example: admin@eomp.local
+                  example: user@example.com
                 password:
                   type: string
                   example: AdminSecretPass123!
@@ -55,6 +58,61 @@ paths:
       responses:
         '200':
           description: User profile details
+
+  /api/v1/auth/register:
+    post:
+      summary: Register a standard employee account
+      description: Public registration always assigns ROLE_EMPLOYEE. Privileged roles are not accepted in this request.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 12, maxLength: 72 }
+                full_name: { type: string }
+                department_id: { type: string, format: uuid, nullable: true }
+      responses:
+        '201': { description: Employee account created }
+        '400': { description: Invalid email or password policy violation }
+        '409': { description: Email already exists }
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Rotate a signed refresh token
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { description: Rotated token pair }
+        '401': { description: Invalid, expired or revoked refresh token }
+
+  /api/v1/auth/logout:
+    post:
+      summary: Revoke a refresh token
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200': { description: Token revoked }
 
   # =========================================================================
   # 2. HELPDESK & TICKETING

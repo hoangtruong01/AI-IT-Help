@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +14,39 @@ import (
 	"eomp/services/audit/internal/service"
 )
 
+type memoryAuditRepository struct {
+	logs []model.AuditLog
+}
+
+func (m *memoryAuditRepository) ListAuditLogs(context.Context, model.AuditFilterQuery) ([]model.AuditLog, int, error) {
+	return m.logs, len(m.logs), nil
+}
+func (m *memoryAuditRepository) GetAuditLogByID(_ context.Context, id string) (*model.AuditLog, error) {
+	for _, item := range m.logs {
+		if item.ID == id {
+			copy := item
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+func (m *memoryAuditRepository) CreateAuditLog(_ context.Context, log *model.AuditLog) error {
+	if err := repository.ComputeChecksum(log); err != nil {
+		return err
+	}
+	m.logs = append(m.logs, *log)
+	return nil
+}
+func (m *memoryAuditRepository) GetStats(context.Context) (*model.AuditStats, error) {
+	total := int64(len(m.logs))
+	return &model.AuditStats{TotalLogs: total, SuccessCount: total, ImmutableProofsCount: total}, nil
+}
+func (m *memoryAuditRepository) GetSecurityEvents(context.Context, int) ([]model.SecurityEvent, error) {
+	return []model.SecurityEvent{}, nil
+}
+
 func setupAuditTestApp() *handler.AuditHandler {
-	repo := repository.NewRepository(nil)
+	repo := &memoryAuditRepository{logs: []model.AuditLog{{ID: "fixture", ChecksumSHA256: "test"}}}
 	svc := service.NewService(repo)
 	return handler.NewAuditHandler(svc)
 }

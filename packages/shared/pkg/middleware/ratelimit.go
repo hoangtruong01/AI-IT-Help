@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
@@ -40,7 +41,7 @@ func ExtractClientIP(r *http.Request, trustedProxies []string) string {
 			}
 		}
 		if len(trustedProxies) == 0 {
-			trustedProxies = []string{"127.0.0.1", "::1", "localhost", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+			trustedProxies = []string{"127.0.0.1", "::1", "localhost"}
 		}
 	}
 
@@ -188,13 +189,15 @@ redis.call('ZREMRANGEBYSCORE', key, 0, clearBefore)
 local currentRequests = redis.call('ZCARD', key)
 
 if currentRequests < limit then
-    redis.call('ZADD', key, now, now)
+    redis.call('ZADD', key, now, ARGV[4])
     redis.call('EXPIRE', key, math.ceil(window / 1000) + 5)
     return {1, limit - currentRequests - 1}
 else
     return {0, 0}
 end
 `)
+
+var slidingWindowSequence uint64
 
 // RedisSlidingWindowRateLimiter creates a distributed rate limiter backed by Redis.
 // If Redis is unavailable or nil, it gracefully falls back to the in-memory sliding window limiter.
@@ -226,11 +229,12 @@ func RedisSlidingWindowRateLimiter(
 
 			nowMillis := time.Now().UnixMilli()
 			windowMillis := window.Milliseconds()
+			member := fmt.Sprintf("%d-%d", nowMillis, atomic.AddUint64(&slidingWindowSequence, 1))
 
 			ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
 			defer cancel()
 
-			res, err := slidingWindowLuaScript.Run(ctx, rawRdb, []string{redisKey}, nowMillis, windowMillis, limit).Slice()
+			res, err := slidingWindowLuaScript.Run(ctx, rawRdb, []string{redisKey}, nowMillis, windowMillis, limit, member).Slice()
 			if err != nil {
 				// Redis error / timeout -> Graceful in-memory fallback
 				if logger != nil {

@@ -1,5 +1,7 @@
 # EOMP — Disaster Recovery (DR) Plan & Business Continuity Strategy
 
+> **Target plan, not measured evidence:** RPO/RTO values below remain objectives until a real nine-database restore drill generates `backups/dr_evidence.json` and is reviewed. See `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Tài liệu Kế Hoạch Phục Hồi Thảm Họa & Duy Trì Hoạt Động Doanh Nghiệp (DR & BCP)**  
 > **Áp dụng cho:** Site Reliability Engineers (SRE), Cloud Architects, DevOps & SysAdmins.  
 > **Tiêu chuẩn cam kết:** RPO < 5 phút | RTO < 15 phút  

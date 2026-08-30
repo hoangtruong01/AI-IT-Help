@@ -65,7 +65,6 @@ async function viewEmployeeAssets(emp: Employee) {
   }
 }
 
-
 async function fetchDepartments() {
   try {
     const res = await api.get<Department[]>('/api/v1/departments')
@@ -354,14 +353,16 @@ onMounted(() => {
               class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[11px] font-medium flex items-center gap-1 transition-colors"
               @click="viewEmployeeAssets(emp)"
             >
-              <UIcon name="i-lucide-laptop" class="w-3.5 h-3.5" />
+              <UIcon
+                name="i-lucide-laptop"
+                class="w-3.5 h-3.5"
+              />
               <span>Assigned Assets</span>
             </button>
           </div>
         </div>
       </div>
     </div>
-
 
     <!-- Add Employee Modal -->
     <div
@@ -534,10 +535,16 @@ onMounted(() => {
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <UIcon name="i-lucide-laptop" class="w-5 h-5 text-blue-400" />
+              <UIcon
+                name="i-lucide-laptop"
+                class="w-5 h-5 text-blue-400"
+              />
               <span>Assigned Equipment History</span>
             </h3>
-            <p class="text-xs text-slate-400 mt-0.5" v-if="selectedEmployeeForAssets">
+            <p
+              v-if="selectedEmployeeForAssets"
+              class="text-xs text-slate-400 mt-0.5"
+            >
               Employee: <span class="text-white font-medium">{{ selectedEmployeeForAssets.first_name }} {{ selectedEmployeeForAssets.last_name }}</span> ({{ selectedEmployeeForAssets.email }})
             </p>
           </div>
@@ -545,21 +552,41 @@ onMounted(() => {
             class="text-slate-400 hover:text-white"
             @click="isAssetHistoryModalOpen = false"
           >
-            <UIcon name="i-lucide-x" class="w-5 h-5" />
+            <UIcon
+              name="i-lucide-x"
+              class="w-5 h-5"
+            />
           </button>
         </div>
 
-        <div v-if="loadingAssetHistory" class="py-12 flex flex-col items-center justify-center space-y-3">
-          <UIcon name="i-lucide-loader-2" class="w-7 h-7 text-blue-400 animate-spin" />
+        <div
+          v-if="loadingAssetHistory"
+          class="py-12 flex flex-col items-center justify-center space-y-3"
+        >
+          <UIcon
+            name="i-lucide-loader-2"
+            class="w-7 h-7 text-blue-400 animate-spin"
+          />
           <span class="text-xs text-slate-400">Loading equipment records...</span>
         </div>
 
-        <div v-else-if="employeeAssetHistory.length === 0" class="py-10 text-center space-y-2">
-          <UIcon name="i-lucide-inbox" class="w-10 h-10 text-slate-600 mx-auto" />
-          <p class="text-xs text-slate-400">No hardware assets have been assigned to this employee yet.</p>
+        <div
+          v-else-if="employeeAssetHistory.length === 0"
+          class="py-10 text-center space-y-2"
+        >
+          <UIcon
+            name="i-lucide-inbox"
+            class="w-10 h-10 text-slate-600 mx-auto"
+          />
+          <p class="text-xs text-slate-400">
+            No hardware assets have been assigned to this employee yet.
+          </p>
         </div>
 
-        <div v-else class="max-h-96 overflow-y-auto space-y-3 pr-1">
+        <div
+          v-else
+          class="max-h-96 overflow-y-auto space-y-3 pr-1"
+        >
           <div
             v-for="item in employeeAssetHistory"
             :key="item.assignment_id"
@@ -594,7 +621,10 @@ onMounted(() => {
               </div>
             </div>
 
-            <div v-if="item.notes" class="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded-xl border border-slate-800/40">
+            <div
+              v-if="item.notes"
+              class="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded-xl border border-slate-800/40"
+            >
               "{{ item.notes }}"
             </div>
           </div>
@@ -612,4 +642,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-

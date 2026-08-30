@@ -1,5 +1,7 @@
 # 🏛️ EOMP — MASTER UPGRADE PLAN & IMPLEMENTATION SPECIFICATION (P0 — P8)
 
+> **Planning archive:** “Done” markers record implementation activity, not production acceptance. Current gaps and evidence are maintained in `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Platform:** Enterprise Operations Management Platform (EOMP)  
 > **Architecture:** 11 Go Microservices · Nuxt 4 SSR · PostgreSQL · Redis · RabbitMQ · Qdrant · Kubernetes  
 > **Version:** 2.0.0 Enterprise Master Edition  
@@ -348,4 +350,3 @@ Nghiệm thu toàn diện hệ thống, thu thập đầy đủ số liệu ch�
 
 > 🎯 **Trạng thái tài liệu:** Đã nghiệm thu toàn diện và khóa cứng (Production Master Sign-off).  
 > 🚀 **Kết quả tổng kết:** Hoàn thành **100% Toàn Bộ Kế Hoạch Nâng Cấp Master (Phase 0 — Phase 8)**.
-

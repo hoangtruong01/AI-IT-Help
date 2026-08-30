@@ -10,14 +10,16 @@ global:
 
 # --- Core Secrets ---
 secrets:
-  postgresPassword: "eomp_production_secure_db_pass_2026"
-  jwtSecret: "eomp_production_super_secure_jwt_secret_key_2026"
-  rabbitmqUser: "eomp"
-  rabbitmqPassword: "eomp_production_rabbitmq_pass_2026"
-  minioAccessKey: "eomp_minio_admin"
-  minioSecretKey: "eomp_minio_production_secret_2026"
-  grafanaAdminUser: "admin"
-  grafanaAdminPassword: "eomp_grafana_secure_admin_pass_2026"
+  create: false
+  existingSecret: eomp-secrets
+  postgresPassword: ""
+  jwtSecret: ""
+  rabbitmqUser: ""
+  rabbitmqPassword: ""
+  minioAccessKey: ""
+  minioSecretKey: ""
+  grafanaAdminUser: ""
+  grafanaAdminPassword: ""
 
 # --- Ingress Configuration ---
 ingress:
@@ -33,7 +35,7 @@ ingress:
 services:
   gateway:
     enabled: true
-    image: eomp/gateway:latest
+    image: eomp/gateway:0.1.0
     port: 8080
     replicas: 2
     hpa:
@@ -52,7 +54,7 @@ services:
 
   auth:
     enabled: true
-    image: eomp/auth:latest
+    image: eomp/auth:0.1.0
     port: 8081
     replicas: 2
     dbName: auth_db
@@ -71,7 +73,7 @@ services:
 
   employee:
     enabled: true
-    image: eomp/employee:latest
+    image: eomp/employee:0.1.0
     port: 8082
     replicas: 2
     dbName: employee_db
@@ -87,7 +89,7 @@ services:
 
   asset:
     enabled: true
-    image: eomp/asset:latest
+    image: eomp/asset:0.1.0
     port: 8083
     replicas: 2
     dbName: asset_db
@@ -106,7 +108,7 @@ services:
 
   helpdesk:
     enabled: true
-    image: eomp/helpdesk:latest
+    image: eomp/helpdesk:0.1.0
     port: 8084
     replicas: 2
     dbName: helpdesk_db
@@ -125,7 +127,7 @@ services:
 
   workflow:
     enabled: true
-    image: eomp/workflow:latest
+    image: eomp/workflow:0.1.0
     port: 8085
     replicas: 2
     dbName: workflow_db
@@ -144,7 +146,7 @@ services:
 
   notification:
     enabled: true
-    image: eomp/notification:latest
+    image: eomp/notification:0.1.0
     port: 8086
     replicas: 2
     dbName: notification_db
@@ -160,7 +162,7 @@ services:
 
   knowledge:
     enabled: true
-    image: eomp/knowledge:latest
+    image: eomp/knowledge:0.1.0
     port: 8087
     replicas: 2
     dbName: knowledge_db
@@ -176,9 +178,11 @@ services:
 
   ai:
     enabled: true
-    image: eomp/ai:latest
+    image: eomp/ai:0.1.0
     port: 8088
     replicas: 2
+    provider: mock
+    allowMock: true
     hpa:
       enabled: false
     resources:
@@ -191,7 +195,7 @@ services:
 
   audit:
     enabled: true
-    image: eomp/audit:latest
+    image: eomp/audit:0.1.0
     port: 8089
     replicas: 2
     dbName: audit_db
@@ -207,7 +211,7 @@ services:
 
   reporting:
     enabled: true
-    image: eomp/reporting:latest
+    image: eomp/reporting:0.1.0
     port: 8090
     replicas: 2
     dbName: reporting_db
@@ -223,7 +227,7 @@ services:
 
   web:
     enabled: true
-    image: eomp/web:latest
+    image: eomp/web:0.1.0
     port: 3000
     replicas: 2
     hpa:
@@ -244,7 +248,7 @@ services:
 infrastructure:
   postgres:
     enabled: true
-    image: postgres:17-alpine
+    image: postgres:17.2-alpine3.21
     storage: 20Gi
     resources:
       requests:
@@ -256,7 +260,7 @@ infrastructure:
 
   redis:
     enabled: true
-    image: redis:7-alpine
+    image: redis:7.4.2-alpine
     storage: 5Gi
     resources:
       requests:
@@ -268,7 +272,7 @@ infrastructure:
 
   rabbitmq:
     enabled: true
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:4.0.5-management-alpine
     storage: 10Gi
     resources:
       requests:
@@ -280,7 +284,7 @@ infrastructure:
 
   minio:
     enabled: true
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
     storage: 50Gi
     resources:
       requests:
@@ -292,7 +296,7 @@ infrastructure:
 
   qdrant:
     enabled: true
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.13.2
     storage: 20Gi
     resources:
       requests:
@@ -304,7 +308,7 @@ infrastructure:
 
   prometheus:
     enabled: true
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.1.0
     storage: 30Gi
     resources:
       requests:
@@ -316,7 +320,7 @@ infrastructure:
 
   grafana:
     enabled: true
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.1
     storage: 5Gi
     resources:
       requests:
@@ -328,7 +332,7 @@ infrastructure:
 
   loki:
     enabled: true
-    image: grafana/loki:latest
+    image: grafana/loki:3.4.1
     storage: 30Gi
     resources:
       requests:

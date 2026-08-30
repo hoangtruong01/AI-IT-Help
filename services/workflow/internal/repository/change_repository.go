@@ -17,7 +17,7 @@ type ChangeRepository interface {
 	GetChangeByID(ctx context.Context, id string) (*model.ChangeRequest, error)
 	CreateChange(ctx context.Context, c *model.ChangeRequest) error
 	UpdateChange(ctx context.Context, c *model.ChangeRequest) error
-	UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time) error
+	UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time, expectedVersion int) error
 	AddCABReview(ctx context.Context, r *model.CABReview) error
 	GetCABReviews(ctx context.Context, changeID string) ([]model.CABReview, error)
 	RecalculateCABApprovedCount(ctx context.Context, changeID string) (int, error)
@@ -25,6 +25,8 @@ type ChangeRepository interface {
 	GetChangeStats(ctx context.Context) (*model.ChangeStats, error)
 	NextChangeNumber(ctx context.Context) (string, error)
 }
+
+var ErrVersionConflict = errors.New("change request version conflict")
 
 type postgresChangeRepository struct {
 	db *sql.DB
@@ -243,7 +245,7 @@ func (r *postgresChangeRepository) UpdateChange(ctx context.Context, c *model.Ch
 	return err
 }
 
-func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time) error {
+func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, status string, actualStart, actualEnd *time.Time, expectedVersion int) error {
 	if r.db == nil {
 		return nil
 	}
@@ -255,10 +257,16 @@ func (r *postgresChangeRepository) UpdateChangeStatus(ctx context.Context, id, s
 			actual_end_time = COALESCE($3, actual_end_time),
 			version = version + 1,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4
+		WHERE id = $4 AND version = $5
 	`
-	_, err := r.db.ExecContext(ctx, query, status, actualStart, actualEnd, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, status, actualStart, actualEnd, id, expectedVersion)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrVersionConflict
+	}
+	return nil
 }
 
 func (r *postgresChangeRepository) AddCABReview(ctx context.Context, rev *model.CABReview) error {
@@ -318,7 +326,7 @@ func (r *postgresChangeRepository) RecalculateCABApprovedCount(ctx context.Conte
 			WHERE change_id = $1 AND vote = 'APPROVED'
 		)
 		UPDATE change_requests
-		SET cab_approved_count = (SELECT cnt FROM approved), updated_at = CURRENT_TIMESTAMP
+		SET cab_approved_count = (SELECT cnt FROM approved), version = version + 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 		RETURNING cab_approved_count
 	`

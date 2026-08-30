@@ -38,7 +38,7 @@ func Load() *Config {
 		DBSSLMode:          config.GetEnv("POSTGRES_SSLMODE", "disable"),
 		MigrationsPath:     config.GetEnv("ASSET_MIGRATIONS_PATH", "migrations"),
 		HelpdeskServiceURL: config.GetEnv("HELPDESK_SERVICE_URL", "http://localhost:8084"),
-		RabbitMQURL:        config.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		RabbitMQURL:        config.RabbitMQURL(),
 	}
 }
 

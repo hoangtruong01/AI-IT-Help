@@ -38,3 +38,8 @@ Selector labels
 app.kubernetes.io/name: {{ include "eomp.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/* Secret name, external by default. */}}
+{{- define "eomp.secretName" -}}
+{{- default (printf "%s-secrets" (include "eomp.fullname" .)) .Values.secrets.existingSecret -}}
+{{- end }}

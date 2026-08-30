@@ -1,5 +1,7 @@
 # 📋 EOMP — SRE & QA EVIDENCE REPORT: PHASE 8 ENTERPRISE VALIDATION
 
+> **Archived / superseded:** This report contains historical simulated evidence and is not valid for production acceptance. See `docs/IMPLEMENTATION_STATUS.md` and `docs/sre/project_handover_acceptance.md`.
+
 > **Document Type:** Production Readiness Evidence & Test Sign-Off Report  
 > **Target Audience:** DevOps / SRE, Security Auditor, QA/QC Lead, Engineering Manager  
 > **Platform Version:** 2.0.0 Enterprise Master Edition  

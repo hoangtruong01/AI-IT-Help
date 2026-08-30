@@ -96,13 +96,14 @@ func (h *AssetHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		Status   string  `json:"status"`
 		Location string  `json:"location"`
 		Notes    *string `json:"notes"`
+		Version  int     `json:"version"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("invalid request body"))
 		return
 	}
 
-	if err := h.svc.UpdateStatus(r.Context(), id, req.Status, req.Location, req.Notes); err != nil {
+	if err := h.svc.UpdateStatus(r.Context(), id, req.Status, req.Location, req.Notes, req.Version); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -149,13 +150,14 @@ func (h *AssetHandler) ReturnAsset(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Condition string  `json:"condition"`
 		Notes     *string `json:"notes"`
+		Version   int     `json:"version"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("invalid request body"))
 		return
 	}
 
-	if err := h.svc.ReturnAsset(r.Context(), id, req.Condition, req.Notes); err != nil {
+	if err := h.svc.ReturnAsset(r.Context(), id, req.Condition, req.Notes, req.Version); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}

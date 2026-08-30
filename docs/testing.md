@@ -1,5 +1,7 @@
 # EOMP — Master Testing Strategy & QA Automation Suite
 
+> Coverage above 85%, Playwright coverage and deployed load-test results are targets, not current verified results. See `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Tài Liệu Chiến Lược Kiểm Thử Tự Động & Tiêu Chuẩn Chất Lượng (QA/QC Suite)**  
 > **Áp dụng cho:** QA Engineers, Automation Testers, Developers & SRE.  
 > **Mục tiêu:** Đạt độ bao phủ Code Coverage > 85% và 100% Pass trên pipeline CI/CD.

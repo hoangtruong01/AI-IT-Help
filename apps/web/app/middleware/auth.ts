@@ -3,7 +3,7 @@
  * Redirects unauthenticated users to login page.
  */
 export default defineNuxtRouteMiddleware((to) => {
-  const _authStore = useAuthStore()
+  const authStore = useAuthStore()
 
   // Skip auth check for public routes
   const publicRoutes = ['/login', '/register', '/forgot-password']
@@ -11,8 +11,7 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
 
-  // TODO: Enable when auth is implemented
-  // if (!authStore.isAuthenticated) {
-  //   return navigateTo('/login')
-  // }
+  if (!authStore.isAuthenticated) {
+    return navigateTo('/login')
+  }
 })

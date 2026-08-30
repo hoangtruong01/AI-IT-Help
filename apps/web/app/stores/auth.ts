@@ -3,17 +3,19 @@ import type { User, AuthResponse } from '~/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiUrl || 'http://localhost:8080'
+  const apiBase = (config.public.apiUrl || 'http://localhost:8080').replace(/\/$/, '')
 
   const tokenCookie = useCookie<string | null>('eomp_token', {
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60, // access token lifetime
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    secure: import.meta.env.PROD
   })
   const refreshTokenCookie = useCookie<string | null>('eomp_refresh_token', {
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: 60 * 60 * 24 * 7,
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    secure: import.meta.env.PROD
   })
 
   const token = ref<string | null>(tokenCookie.value || null)
@@ -84,7 +86,6 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     navigateTo('/login')
   }
-
 
   // Initialize user profile if token exists on load
   if (token.value && !user.value) {

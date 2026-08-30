@@ -1,5 +1,7 @@
 # EOMP — Project Structure, Implementation Standards & Daily Changelog
 
+> **Historical changelog:** this file is no longer the project status source of truth. Some phase completion and performance claims are superseded. See `docs/IMPLEMENTATION_STATUS.md`.
+
 > **Tài liệu chuẩn hóa kiến trúc dự án và nhật ký triển khai (Single Source of Truth)**  
 > Dành cho: **AI Assistant, Principal Engineers, Tech Leads, Full-stack Developers & QA Engineers**.  
 > Mục tiêu: Đảm bảo mọi lần can thiệp, phát triển tính năng mới của AI hoặc lập trình viên đều tuân thủ **1 cấu trúc nhất quán (Consistent Design & Architecture Contract)**.

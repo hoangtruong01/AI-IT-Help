@@ -7,6 +7,7 @@
     "dev": "nuxt dev",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "nuxt typecheck"
   },
@@ -27,12 +28,14 @@
     "eslint": "^9.27.0",
     "eslint-flat-config-utils": "2.0.1",
     "typescript": "^6.0.3",
-    "vue-tsc": "^3.3.9"
+    "vue-tsc": "^3.3.9",
+    "vitest": "^4.0.0"
   },
   "packageManager": "pnpm@10.34.5",
   "pnpm": {
     "overrides": {
-      "eslint-flat-config-utils": "2.0.1"
+      "eslint-flat-config-utils": "2.0.1",
+      "esbuild": "0.28.2"
     }
   }
 }

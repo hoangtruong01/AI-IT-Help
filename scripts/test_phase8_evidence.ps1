@@ -9,6 +9,7 @@ Write-Host ""
 
 $workspaceRoot = (Get-Item -Path "$PSScriptRoot\..").FullName
 $failedChecks = 0
+$skippedChecks = 0
 $startTime = Get-Date
 
 # -----------------------------------------------------------------------------
@@ -62,10 +63,13 @@ $sreTestOutput = & go test -v ./tests/e2e -run TestPhase8_SREResilienceAndDisast
 $sreExitCode = $LASTEXITCODE
 Pop-Location
 
-if ($sreExitCode -eq 0) {
+if ($sreExitCode -eq 0 -and $sreTestOutput -match "no real restore drill was executed") {
+    Write-Host "  [!] SRE unit checks passed, but DR restore evidence is missing (SKIP)." -ForegroundColor Yellow
+    $skippedChecks++
+} elseif ($sreExitCode -eq 0) {
     Write-Host "  [+] PostgreSQL Connection Pool parameters optimized across all 11 services." -ForegroundColor Green
     Write-Host "  [+] Graceful In-Memory Fallback ensures zero downtime during broker failover." -ForegroundColor Green
-    Write-Host "  [+] Disaster Recovery SLA verified: RPO < 5 mins, RTO < 15 mins." -ForegroundColor Green
+    Write-Host "  [+] Disaster Recovery evidence met the configured RPO/RTO thresholds." -ForegroundColor Green
 } else {
     Write-Host "  [-] SRE Resilience & DR verification failed!" -ForegroundColor Red
     Write-Host $sreTestOutput -ForegroundColor Red
@@ -114,9 +118,13 @@ if (Test-Path $devsecopsScript) {
 # -----------------------------------------------------------------------------
 Write-Host ""
 Write-Host "[6/6] Verifying Frontend Nuxt 4 SSR Production Bundle..." -ForegroundColor Yellow
-$outputDir = "$workspaceRoot\apps\web\.output"
-if (Test-Path $outputDir) {
-    Write-Host "  [+] Nuxt 4 SSR Nitro server bundle verified (.output/server & .output/public)." -ForegroundColor Green
+$webDir = "$workspaceRoot\apps\web"
+Push-Location $webDir
+& pnpm.cmd build 2>&1 | Out-Null
+$webBuildExitCode = $LASTEXITCODE
+Pop-Location
+if ($webBuildExitCode -eq 0) {
+    Write-Host "  [+] Nuxt 4 production build completed successfully." -ForegroundColor Green
 } else {
     Write-Host "  [-] Nuxt 4 .output directory not found! Run 'pnpm run build' in apps/web." -ForegroundColor Red
     $failedChecks++
@@ -128,10 +136,14 @@ if (Test-Path $outputDir) {
 $elapsed = (Get-Date) - $startTime
 Write-Host ""
 Write-Host "=================================================================" -ForegroundColor Cyan
-if ($failedChecks -eq 0) {
-    Write-Host "   🎉 SUCCESS: 100% PHASE 8 ENTERPRISE VALIDATION PASSED!        " -ForegroundColor Green
+if ($failedChecks -eq 0 -and $skippedChecks -eq 0) {
+    Write-Host "   SUCCESS: all executed Phase 8 checks passed.                 " -ForegroundColor Green
     Write-Host "   Execution Time: $($elapsed.TotalSeconds.ToString('F2')) seconds                           " -ForegroundColor Green
-    Write-Host "   Master Platform Status: 100% PRODUCTION CERTIFIED & READY    " -ForegroundColor Green
+    Write-Host "   This script does not by itself grant production acceptance.  " -ForegroundColor Green
+    Write-Host "=================================================================" -ForegroundColor Cyan
+    exit 0
+} elseif ($failedChecks -eq 0) {
+    Write-Host "   PASS WITH $skippedChecks SKIPPED CHECK(S); NOT PRODUCTION-CERTIFIED. " -ForegroundColor Yellow
     Write-Host "=================================================================" -ForegroundColor Cyan
     exit 0
 } else {

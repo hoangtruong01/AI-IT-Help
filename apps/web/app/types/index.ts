@@ -739,6 +739,7 @@ export interface CreateChangePayload {
 export interface UpdateChangeStatusPayload {
   status: string
   notes?: string
+  version: number
 }
 
 /** Submit CAB Vote Payload */
