@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/csv"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,8 +44,6 @@ func (s *reportingService) GetOverview(ctx context.Context, filter model.DateFil
 		ov.SLACompliancePct = 0.0
 		ov.AvgMTTRMinutes = 0.0
 		ov.AvgMTTDMinutes = 0.0
-		ov.FCRRatePct = 0.0
-		ov.CSATRating = 0.0
 	}
 
 	return ov, nil
@@ -77,7 +77,9 @@ func (s *reportingService) ExportReport(ctx context.Context, req model.ExportRep
 		limit = 10000 // Cap at 10k for memory safety
 	}
 
-	records, err := s.repo.GetRawRecords(ctx, limit)
+	records, err := s.repo.GetRawRecords(ctx, model.DateFilterQuery{
+		Range: req.Range, StartDate: req.StartDate, EndDate: req.EndDate,
+	}, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -123,37 +125,42 @@ func (s *reportingService) ExportReport(ctx context.Context, req model.ExportRep
 
 func generateCSVReport(title string, records []model.RawIncidentRecord) []byte {
 	var buf bytes.Buffer
-	buf.WriteString("EOMP Operations Management Platform - BI Analytics Report\n")
-	buf.WriteString(fmt.Sprintf("Report Title: %s\n", title))
-	buf.WriteString(fmt.Sprintf("Generated At: %s\n", time.Now().Format(time.RFC1123)))
-	buf.WriteString("====================================================================================\n\n")
-	buf.WriteString("Ticket Number,Title,Category,Priority,Status,Requester,Assignee,Department,MTTD (min),MTTR (min),SLA Status,Created At,Resolved At\n")
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"Ticket Number", "Title", "Category", "Priority", "Status", "Requester", "Assignee", "Department", "MTTD (min)", "MTTR (min)", "SLA Status", "Created At", "Resolved At"})
 
 	for _, r := range records {
 		resAtStr := "N/A"
 		if r.ResolvedAt != nil {
 			resAtStr = r.ResolvedAt.Format("2006-01-02 15:04:05")
 		}
-		buf.WriteString(fmt.Sprintf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\"\n",
-			r.TicketNumber,
-			strings.ReplaceAll(r.Title, "\"", "\"\""),
-			r.Category,
-			r.Priority,
-			r.Status,
-			r.RequesterName,
-			r.AssigneeName,
-			r.Department,
-			r.MTTDMinutes,
-			r.MTTRMinutes,
-			r.SLAStatus,
-			r.CreatedAt.Format("2006-01-02 15:04:05"),
-			resAtStr,
-		))
+		_ = w.Write([]string{
+			safeSpreadsheetCell(r.TicketNumber), safeSpreadsheetCell(r.Title), safeSpreadsheetCell(r.Category),
+			safeSpreadsheetCell(r.Priority), safeSpreadsheetCell(r.Status), safeSpreadsheetCell(r.RequesterName),
+			safeSpreadsheetCell(r.AssigneeName), safeSpreadsheetCell(r.Department), strconv.Itoa(r.MTTDMinutes),
+			strconv.Itoa(r.MTTRMinutes), safeSpreadsheetCell(r.SLAStatus), r.CreatedAt.Format("2006-01-02 15:04:05"), resAtStr,
+		})
 	}
+	w.Flush()
 	return buf.Bytes()
 }
 
+func safeSpreadsheetCell(value string) string {
+	if value != "" && strings.ContainsRune("=+-@", rune(value[0])) {
+		return "'" + value
+	}
+	return value
+}
+
 func escapePDFString(s string) string {
+	var ascii strings.Builder
+	for _, r := range s {
+		if r >= 32 && r <= 126 {
+			ascii.WriteRune(r)
+		} else {
+			ascii.WriteByte('?')
+		}
+	}
+	s = ascii.String()
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `(`, `\(`)
 	s = strings.ReplaceAll(s, `)`, `\)`)
@@ -161,29 +168,25 @@ func escapePDFString(s string) string {
 }
 
 func generatePDFDocument(title string, records []model.RawIncidentRecord) []byte {
-	var buf bytes.Buffer
-	// Generate well-formed PDF stream with header, metadata and tabular summary
-	buf.WriteString("%PDF-1.4\n")
-	buf.WriteString("%âãÏÓ\n")
-	buf.WriteString("1 0 obj\n<< /Title (EOMP BI Operations Report) /Creator (EOMP Reporting Engine) >>\nendobj\n")
-	buf.WriteString("2 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj\n")
-	buf.WriteString("3 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n")
-	buf.WriteString("4 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>\nendobj\n")
-
-	// Calculate dynamic KPIs from actual records
+	// Calculate dynamic KPIs from actual records.
 	totalRecords := len(records)
 	var avgMTTR, avgMTTD, slaCompliance float64
 	if totalRecords > 0 {
-		var withinSLA, sumMTTR, sumMTTD int
+		var resolved, withinSLA, sumMTTR, sumMTTD int
 		for _, r := range records {
-			if r.SLAStatus == "WITHIN_SLA" {
-				withinSLA++
+			if r.Status == "RESOLVED" || r.Status == "CLOSED" {
+				resolved++
+				sumMTTR += r.MTTRMinutes
+				if r.SLAStatus == "WITHIN_SLA" {
+					withinSLA++
+				}
 			}
-			sumMTTR += r.MTTRMinutes
 			sumMTTD += r.MTTDMinutes
 		}
-		slaCompliance = (float64(withinSLA) / float64(totalRecords)) * 100.0
-		avgMTTR = float64(sumMTTR) / float64(totalRecords)
+		if resolved > 0 {
+			slaCompliance = (float64(withinSLA) / float64(resolved)) * 100.0
+			avgMTTR = float64(sumMTTR) / float64(resolved)
+		}
 		avgMTTD = float64(sumMTTD) / float64(totalRecords)
 	}
 
@@ -222,11 +225,26 @@ func generatePDFDocument(title string, records []model.RawIncidentRecord) []byte
 
 	stream.WriteString("ET\n")
 
-	buf.WriteString(fmt.Sprintf("5 0 obj\n<< /Length %d >>\nstream\n", stream.Len()))
-	buf.Write(stream.Bytes())
-	buf.WriteString("\nendstream\nendobj\n")
-	buf.WriteString("xref\n0 6\n0000000000 65535 f \n0000000015 00000 n \n0000000104 00000 n \n0000000153 00000 n \n0000000210 00000 n \n0000000412 00000 n \n")
-	buf.WriteString("trailer\n<< /Size 6 /Root 2 0 R >>\nstartxref\n550\n%%EOF\n")
+	objects := []string{
+		fmt.Sprintf("<< /Title (%s) /Creator (EOMP Reporting Service) >>", escapePDFString(title)),
+		"<< /Type /Catalog /Pages 3 0 R >>",
+		"<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>",
+		fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", stream.Len(), stream.String()),
+	}
 
+	var buf bytes.Buffer
+	buf.WriteString("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")
+	offsets := make([]int, len(objects)+1)
+	for i, object := range objects {
+		offsets[i+1] = buf.Len()
+		fmt.Fprintf(&buf, "%d 0 obj\n%s\nendobj\n", i+1, object)
+	}
+	xrefOffset := buf.Len()
+	fmt.Fprintf(&buf, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for i := 1; i <= len(objects); i++ {
+		fmt.Fprintf(&buf, "%010d 00000 n \n", offsets[i])
+	}
+	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 2 0 R /Info 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xrefOffset)
 	return buf.Bytes()
 }

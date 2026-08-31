@@ -84,11 +84,9 @@ async function fetchData() {
   try {
     const [pRes, sRes, tRes] = await Promise.all([
       api.get<PaginatedResponse<Problem>>('/api/v1/problems', {
-        params: {
-          category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
-          status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
-          page_size: 50
-        }
+        category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
+        status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
+        page_size: 50
       }).catch(() => null),
       api.get<ProblemStats>('/api/v1/problems/stats').catch(() => null),
       api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page_size: 50 }).catch(() => null)

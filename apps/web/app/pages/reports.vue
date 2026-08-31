@@ -14,7 +14,7 @@ const api = useApi()
 const toast = useToast()
 
 // State
-const selectedPeriod = ref<'today' | '7d' | '30d' | 'quarter' | 'empty'>('30d')
+const selectedPeriod = ref<'today' | '7d' | '30d' | 'quarter'>('30d')
 const loading = ref(false)
 const isExportingPDF = ref(false)
 const isExportingCSV = ref(false)
@@ -23,19 +23,16 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 // Search & Sort for Agent Scorecard
 const agentSearch = ref('')
-const agentSortBy = ref<'resolved' | 'csat' | 'sla' | 'mttr'>('resolved')
+const agentSortBy = ref<'resolved' | 'sla' | 'mttr'>('resolved')
 
 // Data Stores
 const overview = ref<ExecutiveOverview>({
   avg_mttr_minutes: 0,
   avg_mttd_minutes: 0,
   sla_compliance_pct: 0,
-  fcr_rate_pct: 0,
-  csat_rating: 0,
   total_incidents: 0,
   total_resolved: 0,
   total_breached: 0,
-  mttr_improvement_pct: 0,
   period_label: 'No reporting data'
 })
 
@@ -60,12 +57,9 @@ async function fetchReportData() {
       avg_mttr_minutes: 0,
       avg_mttd_minutes: 0,
       sla_compliance_pct: 0,
-      fcr_rate_pct: 0,
-      csat_rating: 0,
       total_incidents: 0,
       total_resolved: 0,
       total_breached: 0,
-      mttr_improvement_pct: 0,
       period_label: 'Reporting service unavailable'
     }
 
@@ -82,7 +76,7 @@ async function fetchReportData() {
 }
 
 // Change Period Filter
-function selectPeriod(period: 'today' | '7d' | '30d' | 'quarter' | 'empty') {
+function selectPeriod(period: 'today' | '7d' | '30d' | 'quarter') {
   selectedPeriod.value = period
   fetchReportData()
 }
@@ -143,22 +137,18 @@ const filteredAgents = computed(() => {
 
   return list.sort((a, b) => {
     if (agentSortBy.value === 'resolved') return b.tickets_resolved - a.tickets_resolved
-    if (agentSortBy.value === 'csat') return b.csat_rating - a.csat_rating
     if (agentSortBy.value === 'sla') return b.sla_compliance_pct - a.sla_compliance_pct
     if (agentSortBy.value === 'mttr') return a.avg_mttr_minutes - b.avg_mttr_minutes
     return 0
   })
 })
 
-// Priority Breakdown percentages for Donut visual
-const priorityBreakdown = computed(() => {
-  return [
-    { label: 'Urgent', count: 48, pct: 8, color: 'bg-rose-500', text: 'text-rose-400' },
-    { label: 'High', count: 182, pct: 30, color: 'bg-amber-500', text: 'text-amber-400' },
-    { label: 'Medium', count: 260, pct: 43, color: 'bg-indigo-500', text: 'text-indigo-400' },
-    { label: 'Low', count: 116, pct: 19, color: 'bg-emerald-500', text: 'text-emerald-400' }
-  ]
-})
+const averageDailyIncidents = computed(() => trends.value.length
+  ? trends.value.reduce((sum, day) => sum + day.opened_count, 0) / trends.value.length
+  : 0)
+const averageTrendSLA = computed(() => trends.value.length
+  ? trends.value.reduce((sum, day) => sum + day.sla_compliance_pct, 0) / trends.value.length
+  : 0)
 
 // Maximum Daily count for Chart Normalization
 const maxTrendCount = computed(() => {
@@ -207,8 +197,7 @@ onUnmounted(() => {
               { id: 'today', label: 'Today' },
               { id: '7d', label: '7 Days' },
               { id: '30d', label: '30 Days' },
-              { id: 'quarter', label: 'Q3 2026' },
-              { id: 'empty', label: 'Empty Test' }
+              { id: 'quarter', label: 'Quarter' }
             ]"
             :key="p.id"
             :class="[
@@ -288,8 +277,8 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- 5 Executive KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <!-- KPIs backed by the reporting read model -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <!-- 1. MTTR -->
       <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-amber-500/40 transition-all">
         <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
@@ -310,7 +299,7 @@ onUnmounted(() => {
             name="i-lucide-trending-down"
             class="w-3.5 h-3.5"
           />
-          <span>{{ overview.mttr_improvement_pct > 0 ? `↓ ${overview.mttr_improvement_pct}% vs last period` : 'Optimal baseline' }}</span>
+          <span>Selected period average</span>
         </div>
       </div>
 
@@ -334,7 +323,7 @@ onUnmounted(() => {
             name="i-lucide-zap"
             class="w-3.5 h-3.5"
           />
-          <span>Realtime AI triage</span>
+          <span>Selected period average</span>
         </div>
       </div>
 
@@ -355,79 +344,16 @@ onUnmounted(() => {
         </div>
         <div class="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>{{ overview.total_resolved }} of {{ overview.total_incidents }} in SLA</span>
+          <span>{{ overview.total_resolved - overview.total_breached }} of {{ overview.total_resolved }} resolved in SLA</span>
         </div>
       </div>
 
-      <!-- 4. First Contact Resolution (FCR) -->
-      <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-indigo-500/40 transition-all">
-        <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
-          <span>First Contact Resolution</span>
-          <UIcon
-            name="i-lucide-check-check"
-            class="w-4 h-4 text-indigo-400"
-          />
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold text-white tracking-tight">
-            {{ overview.fcr_rate_pct > 0 ? overview.fcr_rate_pct.toFixed(1) : '0' }}%
-          </span>
-          <span class="text-xs text-slate-400 font-medium">L1 + AI Copilot</span>
-        </div>
-        <div class="mt-2 flex items-center gap-1.5 text-xs text-indigo-400 font-semibold">
-          <UIcon
-            name="i-lucide-sparkles"
-            class="w-3.5 h-3.5"
-          />
-          <span>↑ 5.2% automated</span>
-        </div>
-      </div>
-
-      <!-- 5. CSAT Customer Satisfaction -->
-      <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-lg relative overflow-hidden group hover:border-yellow-500/40 transition-all">
-        <div class="flex items-center justify-between text-slate-400 text-xs font-semibold">
-          <span>CSAT Satisfaction</span>
-          <UIcon
-            name="i-lucide-star"
-            class="w-4 h-4 text-yellow-400"
-          />
-        </div>
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold text-white tracking-tight">
-            {{ overview.csat_rating > 0 ? overview.csat_rating.toFixed(2) : '0.0' }}
-          </span>
-          <span class="text-xs text-slate-400 font-medium">/ 5.00</span>
-        </div>
-        <div class="mt-2 flex items-center gap-1 text-yellow-400 text-xs font-semibold">
-          <UIcon
-            name="i-lucide-star"
-            class="w-3.5 h-3.5 fill-yellow-400"
-          />
-          <UIcon
-            name="i-lucide-star"
-            class="w-3.5 h-3.5 fill-yellow-400"
-          />
-          <UIcon
-            name="i-lucide-star"
-            class="w-3.5 h-3.5 fill-yellow-400"
-          />
-          <UIcon
-            name="i-lucide-star"
-            class="w-3.5 h-3.5 fill-yellow-400"
-          />
-          <UIcon
-            name="i-lucide-star"
-            class="w-3.5 h-3.5 fill-yellow-400/50"
-          />
-          <span class="text-slate-400 text-[10px] ml-1">(420 ratings)</span>
-        </div>
-      </div>
     </div>
 
-    <!-- Charts Row 1: Daily Incident & Resolution Trend + Priority Distribution -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Daily incident and resolution trend -->
+    <div class="grid grid-cols-1 gap-6">
       <!-- 1. Daily Trend Bar/Line Visualization -->
-      <div class="lg:col-span-2 p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+      <div class="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between">
             <div>
@@ -490,59 +416,8 @@ onUnmounted(() => {
         </div>
 
         <div class="mt-4 flex items-center justify-between text-xs text-slate-400 pt-2">
-          <span>Overall Daily Average: <strong class="text-white">44 Incidents / Day</strong></span>
-          <span class="text-emerald-400 font-semibold">SLA Compliance Baseline: 97.2%</span>
-        </div>
-      </div>
-
-      <!-- 2. Priority Donut Breakdown -->
-      <div class="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/80 backdrop-blur-xl shadow-xl flex flex-col justify-between">
-        <div>
-          <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <UIcon
-              name="i-lucide-pie-chart"
-              class="w-5 h-5 text-indigo-400"
-            />
-            <span>Priority Distribution</span>
-          </h2>
-          <p class="text-xs text-slate-400 mt-0.5">
-            Incident severity classification
-          </p>
-
-          <!-- Donut Representation -->
-          <div class="my-6 flex items-center justify-center">
-            <div class="relative w-36 h-36 rounded-full border-8 border-slate-800 flex items-center justify-center shadow-inner">
-              <div class="text-center">
-                <span class="text-2xl font-extrabold text-white">{{ overview.total_incidents }}</span>
-                <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                  Total
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Priority Legend -->
-          <div class="space-y-2.5">
-            <div
-              v-for="p in priorityBreakdown"
-              :key="p.label"
-              class="flex items-center justify-between text-xs font-semibold"
-            >
-              <div class="flex items-center gap-2">
-                <span :class="['w-3 h-3 rounded-full', p.color]" />
-                <span class="text-slate-300">{{ p.label }} Priority</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="text-slate-400 font-mono">{{ p.count }}</span>
-                <span :class="['font-bold w-9 text-right', p.text]">{{ p.pct }}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-          <span>Urgent Resolution SLA: <strong>2 Hours</strong></span>
-          <span class="text-rose-400 font-bold">100% Breached Check</span>
+          <span>Daily Average: <strong class="text-white">{{ averageDailyIncidents.toFixed(1) }} Incidents / Day</strong></span>
+          <span class="text-emerald-400 font-semibold">Average SLA Compliance: {{ averageTrendSLA.toFixed(1) }}%</span>
         </div>
       </div>
     </div>
@@ -657,7 +532,7 @@ onUnmounted(() => {
             <span>IT Support Specialist Scorecard</span>
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Technician productivity, MTTR efficiency, CSAT satisfaction & SLA ratings
+            Technician productivity, MTTR efficiency, and SLA compliance
           </p>
         </div>
 
@@ -683,9 +558,6 @@ onUnmounted(() => {
           >
             <option value="resolved">
               Sort: Tickets Closed
-            </option>
-            <option value="csat">
-              Sort: CSAT Rating
             </option>
             <option value="sla">
               Sort: SLA Compliance
@@ -713,9 +585,6 @@ onUnmounted(() => {
               </th>
               <th class="py-3 px-4 text-center">
                 Avg MTTR
-              </th>
-              <th class="py-3 px-4 text-center">
-                CSAT Score
               </th>
               <th class="py-3 px-4 text-center">
                 SLA Compliance
@@ -772,17 +641,6 @@ onUnmounted(() => {
                 {{ ag.avg_mttr_minutes.toFixed(1) }}m
               </td>
 
-              <!-- CSAT Score -->
-              <td class="py-3.5 px-4 text-center">
-                <div class="inline-flex items-center gap-1 font-extrabold text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-md border border-yellow-500/20">
-                  <UIcon
-                    name="i-lucide-star"
-                    class="w-3 h-3 fill-yellow-400"
-                  />
-                  <span>{{ ag.csat_rating.toFixed(2) }}</span>
-                </div>
-              </td>
-
               <!-- SLA Compliance % -->
               <td class="py-3.5 px-4 text-center">
                 <span
@@ -798,7 +656,7 @@ onUnmounted(() => {
               <!-- Performance Badge -->
               <td class="py-3.5 px-4 text-right">
                 <span
-                  v-if="ag.sla_compliance_pct >= 98 && ag.csat_rating >= 4.9"
+                  v-if="ag.sla_compliance_pct >= 98"
                   class="px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 text-[10px] font-extrabold shadow-md"
                 >
                   Top Performer

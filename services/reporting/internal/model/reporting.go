@@ -4,16 +4,13 @@ import "time"
 
 // ExecutiveOverview represents the high-level KPI dashboard metrics.
 type ExecutiveOverview struct {
-	AvgMTTRMinutes     float64 `json:"avg_mttr_minutes"`
-	AvgMTTDMinutes     float64 `json:"avg_mttd_minutes"`
-	SLACompliancePct   float64 `json:"sla_compliance_pct"`
-	FCRRatePct         float64 `json:"fcr_rate_pct"` // First Contact Resolution
-	CSATRating         float64 `json:"csat_rating"`  // Customer Satisfaction (1.0 - 5.0)
-	TotalIncidents     int     `json:"total_incidents"`
-	TotalResolved      int     `json:"total_resolved"`
-	TotalBreached      int     `json:"total_breached"`
-	MTTRImprovementPct float64 `json:"mttr_improvement_pct"`
-	PeriodLabel        string  `json:"period_label"`
+	AvgMTTRMinutes   float64 `json:"avg_mttr_minutes"`
+	AvgMTTDMinutes   float64 `json:"avg_mttd_minutes"`
+	SLACompliancePct float64 `json:"sla_compliance_pct"`
+	TotalIncidents   int     `json:"total_incidents"`
+	TotalResolved    int     `json:"total_resolved"`
+	TotalBreached    int     `json:"total_breached"`
+	PeriodLabel      string  `json:"period_label"`
 }
 
 // IncidentTrend represents daily incident generation vs resolution.
@@ -56,7 +53,6 @@ type AgentScorecard struct {
 	TicketsAssigned  int     `json:"tickets_assigned"`
 	TicketsResolved  int     `json:"tickets_resolved"`
 	AvgMTTRMinutes   float64 `json:"avg_mttr_minutes"`
-	CSATRating       float64 `json:"csat_rating"`
 	SLACompliancePct float64 `json:"sla_compliance_pct"`
 }
 
@@ -87,10 +83,12 @@ type RawIncidentRecord struct {
 
 // ExportReportRequest defines request body for exporting reports.
 type ExportReportRequest struct {
-	Format    string `json:"format"` // pdf, csv, excel
-	Range     string `json:"range"`
-	Title     string `json:"title"`
-	LimitRows int    `json:"limit_rows,omitempty"`
+	Format    string     `json:"format"` // pdf, csv, excel
+	Range     string     `json:"range"`
+	StartDate *time.Time `json:"start_date,omitempty"`
+	EndDate   *time.Time `json:"end_date,omitempty"`
+	Title     string     `json:"title"`
+	LimitRows int        `json:"limit_rows,omitempty"`
 }
 
 // ExportReportResponse contains generated document content.

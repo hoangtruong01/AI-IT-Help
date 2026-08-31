@@ -11,11 +11,16 @@ import (
 	"eomp/services/auth/internal/model"
 )
 
+var ErrInvalidRefreshToken = errors.New("refresh token is no longer active")
+
 // UserRepository defines database operations for users and tokens
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
+	CreateWithAudit(ctx context.Context, user *model.User, audit model.SecurityAuditLog) error
 	Update(ctx context.Context, user *model.User) error
+	UpdateWithAudit(ctx context.Context, user *model.User, revokeTokens bool, audit model.SecurityAuditLog) error
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
+	UpdatePasswordAndRevoke(ctx context.Context, userID, passwordHash string, audit model.SecurityAuditLog) error
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByID(ctx context.Context, id string) (*model.User, error)
 	ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error)
@@ -54,6 +59,44 @@ func (r *postgresUserRepository) Create(ctx context.Context, user *model.User) e
 
 	if err != nil {
 		return fmt.Errorf("failed to insert user: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresUserRepository) CreateWithAudit(ctx context.Context, user *model.User, audit model.SecurityAuditLog) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin user creation transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	user.CreatedAt, user.UpdatedAt = now, now
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO users (email, password_hash, full_name, role, department_id, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+	`, user.Email, user.PasswordHash, user.FullName, user.Role, user.DepartmentID, user.IsActive, now, now).Scan(&user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to insert user: %w", err)
+	}
+	audit.TargetUserID = user.ID
+	if err := insertSecurityAudit(ctx, tx, audit); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+type auditExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func insertSecurityAudit(ctx context.Context, execer auditExecer, audit model.SecurityAuditLog) error {
+	_, err := execer.ExecContext(ctx, `
+		INSERT INTO security_audit_logs (actor_id, actor_email, action, target_user_id, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, audit.ActorID, audit.ActorEmail, audit.Action, audit.TargetUserID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to record security audit event: %w", err)
 	}
 	return nil
 }
@@ -230,6 +273,35 @@ func (r *postgresUserRepository) Update(ctx context.Context, user *model.User) e
 	return nil
 }
 
+func (r *postgresUserRepository) UpdateWithAudit(ctx context.Context, user *model.User, revokeTokens bool, audit model.SecurityAuditLog) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin user update transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	user.UpdatedAt = time.Now()
+	res, err := tx.ExecContext(ctx, `
+		UPDATE users SET full_name=$1, role=$2, department_id=$3, is_active=$4, updated_at=$5 WHERE id=$6
+	`, user.FullName, user.Role, user.DepartmentID, user.IsActive, user.UpdatedAt, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil || rows != 1 {
+		return errors.New("user not found")
+	}
+	if revokeTokens {
+		if _, err := tx.ExecContext(ctx, `UPDATE refresh_tokens SET revoked=TRUE WHERE user_id=$1`, user.ID); err != nil {
+			return fmt.Errorf("failed to revoke user refresh tokens: %w", err)
+		}
+	}
+	if err := insertSecurityAudit(ctx, tx, audit); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *postgresUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	query := `
 		UPDATE users
@@ -245,6 +317,30 @@ func (r *postgresUserRepository) UpdatePassword(ctx context.Context, userID, pas
 		return errors.New("user not found")
 	}
 	return nil
+}
+
+func (r *postgresUserRepository) UpdatePasswordAndRevoke(ctx context.Context, userID, passwordHash string, audit model.SecurityAuditLog) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin password transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=$1, updated_at=$2 WHERE id=$3`, passwordHash, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil || rows != 1 {
+		return errors.New("user not found")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE refresh_tokens SET revoked=TRUE WHERE user_id=$1`, userID); err != nil {
+		return fmt.Errorf("failed to revoke user refresh tokens: %w", err)
+	}
+	if err := insertSecurityAudit(ctx, tx, audit); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *postgresUserRepository) RevokeAllUserRefreshTokens(ctx context.Context, userID string) error {
@@ -267,14 +363,23 @@ func (r *postgresUserRepository) RotateRefreshTokenAtomic(ctx context.Context, o
 	}
 	defer tx.Rollback()
 
-	// 1. Revoke old token
+	// Consume exactly one active token owned by this user. The predicate makes
+	// concurrent/replayed refresh attempts fail before a replacement is issued.
 	revokeQuery := `
 		UPDATE refresh_tokens
 		SET revoked = TRUE
-		WHERE token_hash = $1
+		WHERE token_hash = $1 AND user_id = $2 AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP
 	`
-	if _, err := tx.ExecContext(ctx, revokeQuery, oldTokenHash); err != nil {
+	res, err := tx.ExecContext(ctx, revokeQuery, oldTokenHash, userID)
+	if err != nil {
 		return fmt.Errorf("failed to revoke old refresh token: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to verify refresh token consumption: %w", err)
+	}
+	if rows != 1 {
+		return ErrInvalidRefreshToken
 	}
 
 	// 2. Insert new token

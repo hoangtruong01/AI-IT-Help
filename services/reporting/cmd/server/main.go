@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/database"
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/packages/shared/pkg/logger"
 	"eomp/packages/shared/pkg/metrics"
 	"eomp/packages/shared/pkg/middleware"
@@ -54,12 +55,25 @@ func main() {
 
 	// 2. Instantiate Dependencies
 	repo := repository.NewRepository(db)
+	slaAggregator := service.NewSLAAggregator(db, log, 1*time.Hour)
+	bus := eventbus.NewResilientEventBus(cfg.RabbitMQURL, cfg.ServiceName)
+	for _, topic := range []string{eventbus.TopicTicketCreated, eventbus.TopicTicketStatusChanged, eventbus.TopicTicketAssigned} {
+		if err := bus.Subscribe(topic, func(ctx context.Context, event eventbus.Event) error {
+			if err := repo.ProjectTicketEvent(ctx, event); err != nil {
+				return err
+			}
+			slaAggregator.RollupOnce(ctx)
+			return nil
+		}); err != nil {
+			log.Error("failed to subscribe reporting ticket projector", slog.String("topic", topic), slog.Any("error", err))
+			os.Exit(1)
+		}
+	}
 	svc := service.NewService(repo)
 	reportingHandler := handler.NewReportingHandler(svc)
 	healthHandler := handler.NewHealthHandler(cfg)
 
 	// 2.1 Start Background SLA Rollup Aggregator Worker (Phase 6)
-	slaAggregator := service.NewSLAAggregator(db, log, 1*time.Hour)
 	slaAggregator.Start()
 	defer slaAggregator.Stop()
 

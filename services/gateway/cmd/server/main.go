@@ -154,7 +154,9 @@ func main() {
 
 	// Public auth routes — no authFilter needed
 	mux.Handle("POST /api/v1/auth/login", strictAuthLimiter(authProxy))
-	mux.Handle("POST /api/v1/auth/register", strictAuthLimiter(authProxy))
+	if cfg.Environment != "production" {
+		mux.Handle("POST /api/v1/auth/register", strictAuthLimiter(authProxy))
+	}
 	mux.Handle("POST /api/v1/auth/refresh", strictAuthLimiter(authProxy))
 	mux.Handle("POST /api/v1/auth/logout", strictAuthLimiter(authProxy))
 

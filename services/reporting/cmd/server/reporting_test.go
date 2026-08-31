@@ -1,20 +1,28 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"eomp/packages/shared/pkg/eventbus"
 	"eomp/services/reporting/internal/handler"
 	"eomp/services/reporting/internal/model"
 	"eomp/services/reporting/internal/service"
 )
 
 type fixtureReportingRepository struct{}
+
+func (fixtureReportingRepository) ProjectTicketEvent(context.Context, eventbus.Event) error {
+	return nil
+}
 
 func (fixtureReportingRepository) GetExecutiveOverview(context.Context, model.DateFilterQuery) (*model.ExecutiveOverview, error) {
 	return &model.ExecutiveOverview{}, nil
@@ -31,7 +39,7 @@ func (fixtureReportingRepository) GetDepartmentSLAMetrics(context.Context, model
 func (fixtureReportingRepository) GetAgentScorecards(context.Context, model.DateFilterQuery) ([]model.AgentScorecard, error) {
 	return []model.AgentScorecard{}, nil
 }
-func (fixtureReportingRepository) GetRawRecords(_ context.Context, limit int) ([]model.RawIncidentRecord, error) {
+func (fixtureReportingRepository) GetRawRecords(_ context.Context, _ model.DateFilterQuery, limit int) ([]model.RawIncidentRecord, error) {
 	records := make([]model.RawIncidentRecord, limit)
 	for i := range records {
 		records[i] = model.RawIncidentRecord{TicketNumber: "TST-1", Title: "Test incident", Status: "RESOLVED", CreatedAt: time.Unix(0, 0)}
@@ -78,6 +86,20 @@ func TestReporting_TestCase_9_1_ExportPerformance(t *testing.T) {
 	if len(res.ContentBase64) == 0 {
 		t.Errorf("expected non-empty base64 content")
 	}
+	pdf, err := base64.StdEncoding.DecodeString(res.ContentBase64)
+	if err != nil {
+		t.Fatalf("invalid PDF base64: %v", err)
+	}
+	marker := []byte("startxref\n")
+	markerAt := bytes.LastIndex(pdf, marker)
+	if markerAt < 0 {
+		t.Fatal("PDF is missing startxref")
+	}
+	xrefText := strings.SplitN(string(pdf[markerAt+len(marker):]), "\n", 2)[0]
+	xrefAt, err := strconv.Atoi(xrefText)
+	if err != nil || xrefAt < 0 || xrefAt >= len(pdf) || !bytes.HasPrefix(pdf[xrefAt:], []byte("xref\n")) {
+		t.Fatalf("PDF startxref does not point to the xref table: %q", xrefText)
+	}
 	if res.TotalRecords != 10000 {
 		t.Errorf("expected 10000 records processed, got %d", res.TotalRecords)
 	}
@@ -113,7 +135,7 @@ func TestReporting_TestCase_9_2_EmptyState_NoNaN(t *testing.T) {
 	h := setupTestApp()
 
 	// Query overview with empty range
-	req := httptest.NewRequest("GET", "/api/v1/reports/overview?range=empty", nil)
+	req := httptest.NewRequest("GET", "/api/v1/reports/overview?range=30d", nil)
 	rec := httptest.NewRecorder()
 
 	h.GetOverview(rec, req)

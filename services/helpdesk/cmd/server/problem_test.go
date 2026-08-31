@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/service"
 )
@@ -151,6 +152,9 @@ func (m *mockTicketRepoForProblem) FindTicketByID(ctx context.Context, id string
 	}
 	return nil, nil
 }
+func (m *mockTicketRepoForProblem) FindTicketByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error) {
+	return m.FindTicketByID(ctx, id)
+}
 func (m *mockTicketRepoForProblem) FindTicketByNumber(ctx context.Context, ticketNumber string) (*model.Ticket, error) {
 	for _, t := range m.tickets {
 		if t.TicketNumber == ticketNumber {
@@ -209,6 +213,9 @@ func (m *mockTicketRepoForProblem) ListTicketsByAssetID(ctx context.Context, ass
 		}
 	}
 	return list, nil
+}
+func (m *mockTicketRepoForProblem) ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
+	return m.ListTicketsByAssetID(ctx, assetID)
 }
 
 // Test Case 7.1: Aggregate 3 duplicate Incidents and verify Cascade Resolution when Problem is Resolved.

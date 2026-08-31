@@ -1,0 +1,8 @@
+ALTER TABLE raw_incident_records ADD COLUMN IF NOT EXISTS assignee_id UUID;
+ALTER TABLE raw_incident_records ADD COLUMN IF NOT EXISTS source_event_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS reporting_processed_events (
+    event_id VARCHAR(255) PRIMARY KEY,
+    event_type VARCHAR(100) NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

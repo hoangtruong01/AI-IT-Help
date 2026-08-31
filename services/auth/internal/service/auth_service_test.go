@@ -8,13 +8,15 @@ import (
 	"eomp/packages/shared/pkg/auth"
 	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/auth/internal/model"
+	"eomp/services/auth/internal/repository"
 	"eomp/services/auth/internal/service"
 )
 
 type mockUserRepo struct {
-	users     map[string]*model.User
-	tokens    map[string]*tokenRecord
-	auditLogs []model.LoginAuditLog
+	users         map[string]*model.User
+	tokens        map[string]*tokenRecord
+	auditLogs     []model.LoginAuditLog
+	lastListQuery model.UserListQuery
 }
 
 func TestAuthService_PublicRegistrationAlwaysCreatesEmployee(t *testing.T) {
@@ -29,6 +31,21 @@ func TestAuthService_PublicRegistrationAlwaysCreatesEmployee(t *testing.T) {
 	}
 	if resp.User.Role != model.RoleEmployee {
 		t.Fatalf("public registration assigned %q, want %q", resp.User.Role, model.RoleEmployee)
+	}
+}
+
+func TestAuthService_PublicRegistrationIgnoresDepartment(t *testing.T) {
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour))
+	departmentID := "00000000-0000-0000-0000-000000000001"
+	resp, err := authSvc.Register(context.Background(), &model.RegisterRequest{
+		Email: "public.user@example.com", Password: "StrongPass!123", FullName: "Public User", DepartmentID: &departmentID,
+	})
+	if err != nil {
+		t.Fatalf("registration failed: %v", err)
+	}
+	if resp.User.DepartmentID != nil {
+		t.Fatal("public registration must not accept department assignment")
 	}
 }
 
@@ -93,6 +110,10 @@ func (m *mockUserRepo) Create(ctx context.Context, user *model.User) error {
 	user.ID = "u-new-01"
 	m.users[user.Email] = user
 	return nil
+}
+
+func (m *mockUserRepo) CreateWithAudit(ctx context.Context, user *model.User, audit model.SecurityAuditLog) error {
+	return m.Create(ctx, user)
 }
 
 func (m *mockUserRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
@@ -163,6 +184,16 @@ func (m *mockUserRepo) Update(ctx context.Context, user *model.User) error {
 	return nil
 }
 
+func (m *mockUserRepo) UpdateWithAudit(ctx context.Context, user *model.User, revokeTokens bool, audit model.SecurityAuditLog) error {
+	if err := m.Update(ctx, user); err != nil {
+		return err
+	}
+	if revokeTokens {
+		return m.RevokeAllUserRefreshTokens(ctx, user.ID)
+	}
+	return nil
+}
+
 func (m *mockUserRepo) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	for _, u := range m.users {
 		if u.ID == userID {
@@ -171,6 +202,13 @@ func (m *mockUserRepo) UpdatePassword(ctx context.Context, userID, passwordHash 
 		}
 	}
 	return nil
+}
+
+func (m *mockUserRepo) UpdatePasswordAndRevoke(ctx context.Context, userID, passwordHash string, audit model.SecurityAuditLog) error {
+	if err := m.UpdatePassword(ctx, userID, passwordHash); err != nil {
+		return err
+	}
+	return m.RevokeAllUserRefreshTokens(ctx, userID)
 }
 
 func (m *mockUserRepo) RevokeAllUserRefreshTokens(ctx context.Context, userID string) error {
@@ -183,9 +221,11 @@ func (m *mockUserRepo) RevokeAllUserRefreshTokens(ctx context.Context, userID st
 }
 
 func (m *mockUserRepo) RotateRefreshTokenAtomic(ctx context.Context, oldTokenHash, userID, newTokenHash string, expiresAt time.Time) error {
-	if r, ok := m.tokens[oldTokenHash]; ok {
-		r.revoked = true
+	r, ok := m.tokens[oldTokenHash]
+	if !ok || r.revoked || r.userID != userID || !r.expiresAt.After(time.Now()) {
+		return repository.ErrInvalidRefreshToken
 	}
+	r.revoked = true
 	m.tokens[newTokenHash] = &tokenRecord{
 		userID:    userID,
 		tokenHash: newTokenHash,
@@ -196,6 +236,7 @@ func (m *mockUserRepo) RotateRefreshTokenAtomic(ctx context.Context, oldTokenHas
 }
 
 func (m *mockUserRepo) ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error) {
+	m.lastListQuery = query
 	var list []model.UserResponse
 	for _, u := range m.users {
 		list = append(list, u.ToResponse())
@@ -209,6 +250,20 @@ func (m *mockUserRepo) ListUsers(ctx context.Context, query model.UserListQuery)
 	}, nil
 }
 
+func TestAuthService_ManagerListIsForcedToOwnDepartment(t *testing.T) {
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour))
+	_, err := authSvc.ListUsers(context.Background(), model.UserListQuery{DepartmentID: "other-department"}, middleware.Actor{
+		ID: "manager-id", Email: "manager@example.com", Role: model.RoleManager, DepartmentID: "own-department",
+	})
+	if err != nil {
+		t.Fatalf("manager list failed: %v", err)
+	}
+	if repo.lastListQuery.DepartmentID != "own-department" {
+		t.Fatalf("manager scope was %q, want own-department", repo.lastListQuery.DepartmentID)
+	}
+}
+
 func TestAuthService_CreateUser_Admin(t *testing.T) {
 	ctx := context.Background()
 	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour)
@@ -216,11 +271,12 @@ func TestAuthService_CreateUser_Admin(t *testing.T) {
 	authSvc := service.NewAuthService(repo, jwtManager)
 
 	userResp, err := authSvc.CreateUser(ctx, &model.CreateUserRequest{
-		Email:    "agent.smith@eomp.local",
-		Password: "AgentSecret!1234",
-		FullName: "Agent Smith",
-		Role:     model.RoleAgent,
-	})
+		Email:        "agent.smith@eomp.local",
+		Password:     "AgentSecret!1234",
+		FullName:     "Agent Smith",
+		Role:         model.RoleAgent,
+		DepartmentID: stringPtr("00000000-0000-0000-0000-000000000001"),
+	}, middleware.Actor{ID: "u-admin-01", Email: "admin@eomp.local", Role: model.RoleAdmin})
 	if err != nil {
 		t.Fatalf("failed to create agent user: %v", err)
 	}
@@ -228,6 +284,8 @@ func TestAuthService_CreateUser_Admin(t *testing.T) {
 		t.Fatalf("expected role %s, got %s", model.RoleAgent, userResp.Role)
 	}
 }
+
+func stringPtr(value string) *string { return &value }
 
 func TestAuthService_UpdateUser_SelfPromotionForbidden(t *testing.T) {
 	ctx := context.Background()

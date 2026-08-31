@@ -1,7 +1,7 @@
 # 📋 EOMP — Task Tracker & Báo Cáo Nâng Cấp (Gate-based)
 
 > **Baseline Commit:** `997a3d3` | **Cập nhật:** 2026-08-31  
-> **Trạng thái:** Hoàn tất **Gate A** (Commit `c1ae962`) & **Gate B** (Commit `c6a9b59`)  
+> **Trạng thái:** **Gate A** đã implement nhưng còn owner/runtime acceptance; **Gate B đang PARTIAL sau re-audit**
 > **Mục tiêu:** Pilot có kiểm soát → chỉ khi Gate A–D pass 100%  
 > **Quy tắc:** Task chỉ đóng khi có đủ 4 bằng chứng: `Code evidence` + `Automated test` + `Runtime evidence` + `Owner acceptance`.
 
@@ -12,7 +12,7 @@
 | Gate | Mô tả phạm vi | Trọng số | Trạng thái | Số task |
 |---|---|:---:|:---:|:---:|
 | **Gate A** | **Chốt luật và khóa bề mặt tấn công** (Trust boundary, secrets, errors, matrix) | P0 | ✅ **DONE** (100%) | 5/5 |
-| **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | ✅ **DONE** (100%) | 5/5 |
+| **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟠 **PARTIAL — NOT CLOSED** | 0/5 verified |
 | **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | 🟡 **READY** | 0/3 |
 | **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **OPEN** | 0/3 |
 
@@ -112,8 +112,8 @@
 
 > ⚠️ **Điều kiện tiên quyết:** Gate A đã pass 100%.
 
-### ✅ B-01 — Authorization theo bản ghi (Row-Level / Scope-Based)
-- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `DONE`
+### 🟠 B-01 — Authorization theo bản ghi (Row-Level / Scope-Based)
+- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `PARTIAL — NOT VERIFIED`
 - **Files:**
   - [`packages/shared/pkg/middleware/auth.go`](file:///d:/IT_help/eomp/packages/shared/pkg/middleware/auth.go)
   - [`services/helpdesk/internal/handler/ticket.go`](file:///d:/IT_help/eomp/services/helpdesk/internal/handler/ticket.go)
@@ -126,15 +126,16 @@
     - `ROLE_AGENT`: `assignee_id = $N OR assignee_id IS NULL`
     - `ROLE_MANAGER`: `department_id = $N`
     - `ROLE_ADMIN`: Xem toàn bộ
-  - [x] `GetTicket`: Kiểm tra qua `actorCanAccessTicket`, trả `404 Not Found` (thay vì 403) khi ngoài scope (chống enumeration).
+  - [x] `GetTicket`: Scope được đưa vào SQL; ngoài scope trả `404 Not Found` để chống enumeration.
   - [x] `AddComment`, `ListComments`, `ListTimeline`: Kế thừa xác thực quyền từ ticket.
   - [x] `CreateTicket`: Employee luôn bị gán `requester_id = actor.ID`; Operators được tạo on-behalf.
-- [x] **Workflow Scope:** Instance visibility theo requester (`ROLE_EMPLOYEE` chỉ xem instance mình tạo, 404 cho truy cập trái phép).
+- [ ] Hoàn tất SQL scope cho Workflow, Asset, Employee và Knowledge theo toàn bộ ma trận A-01.
+- [ ] Chạy PostgreSQL integration matrix cho own/other department/assigned/unassigned của cả 4 role.
 
 ---
 
-### ✅ B-02 — User lifecycle tối thiểu cho pilot
-- **Priority:** P0 | **Effort:** 5–7 ngày | **Status:** `DONE`
+### 🟢 B-02 — User lifecycle tối thiểu cho pilot
+- **Priority:** P0 | **Effort:** 5–7 ngày | **Status:** `IMPLEMENTED — RUNTIME VERIFIED`
 - **Files:**
   - [`services/auth/internal/model/user.go`](file:///d:/IT_help/eomp/services/auth/internal/model/user.go)
   - [`services/auth/internal/handler/auth.go`](file:///d:/IT_help/eomp/services/auth/internal/handler/auth.go)
@@ -152,43 +153,53 @@
   - [x] `POST /api/v1/auth/change-password`: Xác thực mật khẩu cũ + kiểm tra độ mạnh mới; thu hồi session cũ.
   - [x] `POST /api/v1/auth/reset-password/{id}`: Admin reset password cho tài khoản khác.
   - [x] `RotateRefreshTokenAtomic`: Xoay vòng refresh token an toàn trong 1 transaction SQL.
-- [x] **Automated Tests:** 7/7 tests pass (**PASS 100%**).
+- [x] Security audit + account/password change + refresh-token revoke dùng cùng transaction.
+- [x] Public register bị tắt ở production và không được nhận department từ payload.
+- [x] PostgreSQL runtime: create/login/rotate/replay/reset/deactivate/audit pass; replay và token đã revoke trả `401`, inactive login trả `403`.
+- [x] PostgreSQL integration test cố tình làm audit insert lỗi xác nhận user/audit rollback cùng transaction; migration `004` upgrade thành công trên database có sẵn.
 
 ---
 
-### ✅ B-03 — Reporting read model và filter thật
-- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `DONE`
+### 🟡 B-03 — Reporting read model và filter thật
+- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `IMPLEMENTED — RUNTIME E2E VERIFIED`
 - **Files:**
   - [`services/reporting/internal/repository/reporting_repository.go`](file:///d:/IT_help/eomp/services/reporting/internal/repository/reporting_repository.go)
   - [`services/reporting/internal/service/reporting_service.go`](file:///d:/IT_help/eomp/services/reporting/internal/service/reporting_service.go)
-- [x] Áp dụng `range/start_date/end_date` vào SQL queries (`GetExecutiveOverview`, `GetIncidentTrends`).
+- [x] Áp dụng `range/start_date/end_date` vào mọi aggregate và raw export query.
+- [x] RabbitMQ projection idempotent từ ticket create/assign/status event; rollup khớp schema.
 - [x] **PDF Export Enhancement:**
   - [x] Tính toán chỉ số KPI động từ danh sách bản ghi thực tế.
   - [x] Escape ký tự đặc biệt PDF `(`, `)`, `\` chống vỡ layout.
   - [x] Xoá bỏ CSAT giả lập và các hằng số KPI hardcode `31.8 / 4.86`.
+- [x] PostgreSQL + RabbitMQ runtime: create/assign/resolve cập nhật raw projection, daily/category/department/agent KPI; queue về 0; filter/export pass.
+- [x] Runtime redelivery: publish hai lần cùng một event ID chỉ tạo một `reporting_processed_events` và một raw projection.
+- [ ] Thay generator PDF nội bộ bằng thư viện PDF được duyệt nếu đây là điều kiện bắt buộc của Gate B.
 
 ---
 
-### ✅ B-04 — Frontend API contract & chuẩn hóa tham số
-- **Priority:** P1 | **Effort:** 3–5 ngày | **Status:** `DONE`
+### 🟡 B-04 — Frontend API contract & chuẩn hóa tham số
+- **Priority:** P1 | **Effort:** 3–5 ngày | **Status:** `PARTIAL — LOCAL CHECKS PASS`
 - **Files:**
   - [`apps/web/app/composables/useApi.ts`](file:///d:/IT_help/eomp/apps/web/app/composables/useApi.ts)
-- [x] Chuẩn hóa `useApi.get(url, params)` — Tự động unwrap `{ params: { ... } }` nếu caller truyền lồng nhau, bảo đảm query string luôn chuẩn xác (`?range=30d`).
+- [x] Chuẩn hóa duy nhất `useApi.get(url, params)` và xóa toàn bộ caller `{ params: { ... } }`.
+- [x] Contract test kiểm tra URL/encoding và từ chối nested object; dashboard chỉ gọi endpoint hợp role.
+- [ ] Hiển thị và test riêng `empty`, `403`, `backend unavailable` trên từng page.
 
 ---
 
-### ✅ B-05 — Migration và seed sạch
-- **Priority:** P1 | **Effort:** 2–4 ngày | **Status:** `DONE`
+### 🟠 B-05 — Migration và seed sạch
+- **Priority:** P1 | **Effort:** 2–4 ngày | **Status:** `PARTIAL`
 - **Files:**
   - [`services/*/migrations/*.sql`](file:///d:/IT_help/eomp/services/)
-- [x] Rà soát và xác nhận baseline migrations không chứa demo credentials.
-- [x] Tài khoản demo mặc định đã được vô hiệu hóa qua migration `003_disable_insecure_demo_accounts.sql`.
+- [x] Reporting baseline không còn insert telemetry demo; giữ exact cleanup migration cho upgrade.
+- [ ] Gỡ operational demo INSERT khỏi baseline Asset/Helpdesk/Workflow/Knowledge/Notification.
+- [ ] Tạo seed command explicit, chỉ cho development/test, idempotent khi chạy hai lần.
 
 ---
 
 ## ⚡ Gate C — Session, Transport & Migration Safety
 
-> ⚠️ **Điều kiện tiên quyết:** Gate A & B đã hoàn tất.
+> ⚠️ **Điều kiện tiên quyết:** Không đóng Gate C dựa trên giả định Gate B đã pass; các mục còn mở của Gate B vẫn là blocker.
 
 ### 🟡 C-01 — Frontend session architecture & Cookie BFF
 - **Priority:** P1 (release blocker) | **Effort:** 4–6 ngày | **Status:** `PARTIAL`
@@ -266,7 +277,7 @@
 ## 🎯 Pilot Exit Criteria
 
 1. ✅ **Gate A:** 100% Passed.
-2. ✅ **Gate B:** 100% Passed.
+2. ⏳ **Gate B:** Partial; chưa đạt exit criteria.
 3. ⏳ **Gate C:** 100% Passed.
 4. ⏳ **Gate D:** 100% Passed.
 5. Không còn bất kỳ issue P0 nào mở.

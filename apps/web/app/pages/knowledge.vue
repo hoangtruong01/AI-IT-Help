@@ -91,10 +91,8 @@ async function loadData() {
 
     // 3. Fetch Articles
     const artRes = await api.get<PaginatedResponse<KnowledgeArticle>>('/api/v1/knowledge/articles', {
-      params: {
-        category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
-        page_size: 50
-      }
+      category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
+      page_size: 50
     }).catch(() => null)
     articles.value = artRes?.data ?? []
 
@@ -129,7 +127,7 @@ function onSearchInput() {
         results: KnowledgeSearchResult[]
       }>(
         '/api/v1/knowledge/search',
-        { params: { q: searchQuery.value.trim() } }
+        { q: searchQuery.value.trim() }
       )
       searchResults.value = res.results || []
     } catch {

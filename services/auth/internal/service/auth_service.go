@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	stderrors "errors"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -29,11 +30,11 @@ type AuthService interface {
 	GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error)
 
 	// User Lifecycle & Password Management (Gate B-02)
-	ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error)
-	CreateUser(ctx context.Context, req *model.CreateUserRequest) (*model.UserResponse, error)
+	ListUsers(ctx context.Context, query model.UserListQuery, actor middleware.Actor) (*model.UserListResponse, error)
+	CreateUser(ctx context.Context, req *model.CreateUserRequest, actor middleware.Actor) (*model.UserResponse, error)
 	UpdateUser(ctx context.Context, id string, req *model.UpdateUserRequest, actor middleware.Actor) (*model.UserResponse, error)
 	ChangePassword(ctx context.Context, userID string, req *model.ChangePasswordRequest) error
-	AdminResetPassword(ctx context.Context, targetUserID string, req *model.AdminResetPasswordRequest) error
+	AdminResetPassword(ctx context.Context, targetUserID string, req *model.AdminResetPasswordRequest, actor middleware.Actor) error
 }
 
 type authService struct {
@@ -140,6 +141,9 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 		return nil, errors.Internal(ctx, "auth hash password", err)
 	}
 
+	// Public registration is deliberately least-privileged. Department assignment
+	// is an administrative lifecycle operation, never trusted from this payload.
+	req.DepartmentID = nil
 	user := &model.User{
 		Email:        req.Email,
 		PasswordHash: hashedPassword,
@@ -315,6 +319,9 @@ func (s *authService) RefreshToken(ctx context.Context, req *model.RefreshTokenR
 
 	newRefreshHash := hashToken(newRefreshToken)
 	if err := s.repo.RotateRefreshTokenAtomic(ctx, refreshHash, user.ID, newRefreshHash, time.Now().Add(s.jwtManager.RefreshTTL())); err != nil {
+		if stderrors.Is(err, repository.ErrInvalidRefreshToken) {
+			return nil, errors.Unauthorized("invalid or expired refresh token")
+		}
 		return nil, errors.Internal(ctx, "auth rotate refresh token atomically", err)
 	}
 
@@ -348,11 +355,25 @@ func (s *authService) GetLoginHistory(ctx context.Context, email string, limit i
 	return s.repo.GetLoginHistory(ctx, email, limit)
 }
 
-func (s *authService) ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error) {
+func (s *authService) ListUsers(ctx context.Context, query model.UserListQuery, actor middleware.Actor) (*model.UserListResponse, error) {
+	if !actor.IsValid() {
+		return nil, errors.Unauthorized("valid user identity and role are required")
+	}
+	if actor.IsManager() {
+		if actor.DepartmentID == "" {
+			return nil, errors.Forbidden("manager department scope is required")
+		}
+		query.DepartmentID = actor.DepartmentID
+	} else if !actor.IsAdmin() {
+		return nil, errors.Forbidden("user directory access requires admin or manager role")
+	}
 	return s.repo.ListUsers(ctx, query)
 }
 
-func (s *authService) CreateUser(ctx context.Context, req *model.CreateUserRequest) (*model.UserResponse, error) {
+func (s *authService) CreateUser(ctx context.Context, req *model.CreateUserRequest, actor middleware.Actor) (*model.UserResponse, error) {
+	if !actor.IsValid() || !actor.IsAdmin() {
+		return nil, errors.Forbidden("user provisioning requires administrator role")
+	}
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	req.FullName = strings.TrimSpace(req.FullName)
 	if req.Email == "" || req.Password == "" || req.FullName == "" {
@@ -370,7 +391,10 @@ func (s *authService) CreateUser(ctx context.Context, req *model.CreateUserReque
 	switch req.Role {
 	case model.RoleAdmin, model.RoleManager, model.RoleAgent, model.RoleEmployee:
 	default:
-		req.Role = model.RoleEmployee
+		return nil, errors.BadRequest("invalid role specified")
+	}
+	if req.Role != model.RoleAdmin && (req.DepartmentID == nil || strings.TrimSpace(*req.DepartmentID) == "") {
+		return nil, errors.BadRequest("department_id is required for non-admin users")
 	}
 
 	existing, err := s.repo.FindByEmail(ctx, req.Email)
@@ -395,7 +419,10 @@ func (s *authService) CreateUser(ctx context.Context, req *model.CreateUserReque
 		IsActive:     true,
 	}
 
-	if err := s.repo.Create(ctx, user); err != nil {
+	actorID := actor.ID
+	if err := s.repo.CreateWithAudit(ctx, user, model.SecurityAuditLog{
+		ActorID: &actorID, ActorEmail: actor.Email, Action: "USER_CREATED",
+	}); err != nil {
 		return nil, errors.Internal(ctx, "auth create user record", err)
 	}
 
@@ -404,6 +431,9 @@ func (s *authService) CreateUser(ctx context.Context, req *model.CreateUserReque
 }
 
 func (s *authService) UpdateUser(ctx context.Context, id string, req *model.UpdateUserRequest, actor middleware.Actor) (*model.UserResponse, error) {
+	if !actor.IsValid() || !actor.IsAdmin() {
+		return nil, errors.Forbidden("user administration requires administrator role")
+	}
 	if id == "" {
 		return nil, errors.BadRequest("user id is required")
 	}
@@ -419,6 +449,9 @@ func (s *authService) UpdateUser(ctx context.Context, id string, req *model.Upda
 	// Self-promotion prevention: An actor cannot elevate or alter their own role
 	if actor.ID == id && req.Role != nil && *req.Role != user.Role {
 		return nil, errors.Forbidden("self-role modification is forbidden")
+	}
+	if actor.ID == id && req.IsActive != nil && !*req.IsActive {
+		return nil, errors.Forbidden("self-deactivation is forbidden")
 	}
 
 	if req.FullName != nil && strings.TrimSpace(*req.FullName) != "" {
@@ -441,13 +474,19 @@ func (s *authService) UpdateUser(ctx context.Context, id string, req *model.Upda
 	}
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive
-		// If user is deactivated, immediately revoke all their active sessions/refresh tokens
-		if !user.IsActive {
-			_ = s.repo.RevokeAllUserRefreshTokens(ctx, user.ID)
-		}
+	}
+	if user.Role != model.RoleAdmin && (user.DepartmentID == nil || strings.TrimSpace(*user.DepartmentID) == "") {
+		return nil, errors.BadRequest("department_id is required for non-admin users")
 	}
 
-	if err := s.repo.Update(ctx, user); err != nil {
+	actorID := actor.ID
+	action := "USER_UPDATED"
+	if !user.IsActive {
+		action = "USER_DEACTIVATED"
+	}
+	if err := s.repo.UpdateWithAudit(ctx, user, !user.IsActive, model.SecurityAuditLog{
+		ActorID: &actorID, ActorEmail: actor.Email, Action: action, TargetUserID: user.ID,
+	}); err != nil {
 		return nil, errors.Internal(ctx, "auth update user record", err)
 	}
 
@@ -484,16 +523,19 @@ func (s *authService) ChangePassword(ctx context.Context, userID string, req *mo
 		return errors.Internal(ctx, "auth hash new password", err)
 	}
 
-	if err := s.repo.UpdatePassword(ctx, userID, newHash); err != nil {
-		return errors.Internal(ctx, "auth update user password", err)
+	actorID := userID
+	if err := s.repo.UpdatePasswordAndRevoke(ctx, userID, newHash, model.SecurityAuditLog{
+		ActorID: &actorID, ActorEmail: user.Email, Action: "PASSWORD_CHANGED", TargetUserID: userID,
+	}); err != nil {
+		return errors.Internal(ctx, "auth update password and revoke sessions", err)
 	}
-
-	// Revoke all existing refresh tokens for security
-	_ = s.repo.RevokeAllUserRefreshTokens(ctx, userID)
 	return nil
 }
 
-func (s *authService) AdminResetPassword(ctx context.Context, targetUserID string, req *model.AdminResetPasswordRequest) error {
+func (s *authService) AdminResetPassword(ctx context.Context, targetUserID string, req *model.AdminResetPasswordRequest, actor middleware.Actor) error {
+	if !actor.IsValid() || !actor.IsAdmin() {
+		return errors.Forbidden("password reset requires administrator role")
+	}
 	if targetUserID == "" {
 		return errors.BadRequest("target user id is required")
 	}
@@ -514,11 +556,11 @@ func (s *authService) AdminResetPassword(ctx context.Context, targetUserID strin
 		return errors.Internal(ctx, "auth hash reset password", err)
 	}
 
-	if err := s.repo.UpdatePassword(ctx, targetUserID, newHash); err != nil {
-		return errors.Internal(ctx, "auth reset user password", err)
+	actorID := actor.ID
+	if err := s.repo.UpdatePasswordAndRevoke(ctx, targetUserID, newHash, model.SecurityAuditLog{
+		ActorID: &actorID, ActorEmail: actor.Email, Action: "PASSWORD_RESET_BY_ADMIN", TargetUserID: targetUserID,
+	}); err != nil {
+		return errors.Internal(ctx, "auth reset password and revoke sessions", err)
 	}
-
-	// Revoke all active sessions for the user whose password was reset
-	_ = s.repo.RevokeAllUserRefreshTokens(ctx, targetUserID)
 	return nil
 }

@@ -149,7 +149,7 @@ func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		DepartmentID: r.URL.Query().Get("department_id"),
 	}
 
-	resp, err := h.authService.ListUsers(r.Context(), query)
+	resp, err := h.authService.ListUsers(r.Context(), query, middleware.GetActor(r.Context()))
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
@@ -166,7 +166,7 @@ func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.authService.CreateUser(r.Context(), &req)
+	resp, err := h.authService.CreateUser(r.Context(), &req, middleware.GetActor(r.Context()))
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
@@ -241,7 +241,7 @@ func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.authService.AdminResetPassword(r.Context(), id, &req); err != nil {
+	if err := h.authService.AdminResetPassword(r.Context(), id, &req, middleware.GetActor(r.Context())); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}

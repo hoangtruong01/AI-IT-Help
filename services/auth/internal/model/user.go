@@ -61,6 +61,13 @@ type LoginAuditLog struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type SecurityAuditLog struct {
+	ActorID      *string
+	ActorEmail   string
+	Action       string
+	TargetUserID string
+}
+
 // Login audit status constants
 const (
 	LoginStatusSuccess = "SUCCESS"

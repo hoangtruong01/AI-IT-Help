@@ -85,27 +85,30 @@ func (a *SLAAggregator) RollupOnce(ctx context.Context) {
 	// 1. Rollup daily SLA metrics into sla_metrics_daily
 	dailySQL := `
 		INSERT INTO sla_metrics_daily (
-			metric_date, total_incidents, resolved_incidents, 
-			within_sla_count, breached_sla_count, avg_mttr_minutes, avg_mttd_minutes, created_at
+			metric_date, total_incidents, within_sla_count, breached_sla_count,
+			avg_mttr_minutes, avg_mttd_minutes, sla_compliance_pct, created_at
 		)
 		SELECT 
 			CURRENT_DATE,
 			COUNT(*),
-			COUNT(CASE WHEN status IN ('RESOLVED', 'CLOSED') THEN 1 END),
-			COUNT(CASE WHEN sla_status = 'WITHIN_SLA' THEN 1 END),
-			COUNT(CASE WHEN sla_status = 'BREACHED' THEN 1 END),
-			COALESCE(AVG(mttr_minutes), 0.0),
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'WITHIN_SLA'),
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'BREACHED'),
+			COALESCE(AVG(mttr_minutes) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')), 0.0),
 			COALESCE(AVG(mttd_minutes), 0.0),
+			CASE WHEN COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')) > 0
+				THEN 100.0 * COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'WITHIN_SLA')
+					/ COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED'))
+				ELSE 0.0 END,
 			CURRENT_TIMESTAMP
 		FROM raw_incident_records
 		WHERE DATE(created_at) = CURRENT_DATE
 		ON CONFLICT (metric_date) DO UPDATE SET
 			total_incidents = EXCLUDED.total_incidents,
-			resolved_incidents = EXCLUDED.resolved_incidents,
 			within_sla_count = EXCLUDED.within_sla_count,
 			breached_sla_count = EXCLUDED.breached_sla_count,
 			avg_mttr_minutes = EXCLUDED.avg_mttr_minutes,
-			avg_mttd_minutes = EXCLUDED.avg_mttd_minutes;
+			avg_mttd_minutes = EXCLUDED.avg_mttd_minutes,
+			sla_compliance_pct = EXCLUDED.sla_compliance_pct;
 	`
 
 	if _, err := a.db.ExecContext(ctx, dailySQL); err != nil {
@@ -117,32 +120,89 @@ func (a *SLAAggregator) RollupOnce(ctx context.Context) {
 	// 2. Rollup department SLA compliance
 	deptSQL := `
 		INSERT INTO department_sla_metrics (
-			department, total_tickets, within_sla, breached_sla, compliance_pct, updated_at
+			department_name, department_code, metric_date, total_tickets,
+			within_sla_count, breached_sla_count, sla_compliance_pct, avg_mttr_minutes, created_at
 		)
 		SELECT 
 			department,
+			LOWER(REGEXP_REPLACE(department, '[^a-zA-Z0-9]+', '-', 'g')),
+			CURRENT_DATE,
 			COUNT(*),
-			COUNT(CASE WHEN sla_status = 'WITHIN_SLA' THEN 1 END),
-			COUNT(CASE WHEN sla_status = 'BREACHED' THEN 1 END),
-			CASE 
-				WHEN COUNT(*) > 0 THEN (COUNT(CASE WHEN sla_status = 'WITHIN_SLA' THEN 1 END)::FLOAT / COUNT(*)::FLOAT) * 100.0
-				ELSE 100.0
-			END,
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'WITHIN_SLA'),
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'BREACHED'),
+			CASE WHEN COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')) > 0
+				THEN 100.0 * COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'WITHIN_SLA')
+					/ COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED'))
+				ELSE 0.0 END,
+			COALESCE(AVG(mttr_minutes) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')), 0.0),
 			CURRENT_TIMESTAMP
 		FROM raw_incident_records
+		WHERE DATE(created_at) = CURRENT_DATE
 		GROUP BY department
-		ON CONFLICT (department) DO UPDATE SET
+		ON CONFLICT (metric_date, department_code) DO UPDATE SET
+			department_name = EXCLUDED.department_name,
 			total_tickets = EXCLUDED.total_tickets,
-			within_sla = EXCLUDED.within_sla,
-			breached_sla = EXCLUDED.breached_sla,
-			compliance_pct = EXCLUDED.compliance_pct,
-			updated_at = CURRENT_TIMESTAMP;
+			within_sla_count = EXCLUDED.within_sla_count,
+			breached_sla_count = EXCLUDED.breached_sla_count,
+			sla_compliance_pct = EXCLUDED.sla_compliance_pct,
+			avg_mttr_minutes = EXCLUDED.avg_mttr_minutes;
 	`
 
 	if _, err := a.db.ExecContext(ctx, deptSQL); err != nil {
 		if a.logger != nil {
 			a.logger.Warn("SLA rollup failed on department metrics table", slog.Any("error", err))
 		}
+	}
+
+	categorySQL := `
+		INSERT INTO category_metrics(
+			category_name, category_code, icon, total_count, resolved_count,
+			avg_resolution_minutes, share_pct, period, metric_date, created_at
+		)
+		SELECT category,
+			LOWER(REGEXP_REPLACE(category, '[^a-zA-Z0-9]+', '-', 'g')),
+			'i-lucide-folder', COUNT(*),
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')),
+			COALESCE(AVG(mttr_minutes) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')), 0.0),
+			CASE WHEN SUM(COUNT(*)) OVER () > 0 THEN 100.0 * COUNT(*) / SUM(COUNT(*)) OVER () ELSE 0.0 END,
+			TO_CHAR(CURRENT_DATE, 'YYYY-MM'), CURRENT_DATE, CURRENT_TIMESTAMP
+		FROM raw_incident_records
+		WHERE DATE(created_at) = CURRENT_DATE
+		GROUP BY category
+		ON CONFLICT(metric_date, category_code) DO UPDATE SET
+			category_name=EXCLUDED.category_name, total_count=EXCLUDED.total_count,
+			resolved_count=EXCLUDED.resolved_count,
+			avg_resolution_minutes=EXCLUDED.avg_resolution_minutes,
+			share_pct=EXCLUDED.share_pct;
+	`
+	if _, err := a.db.ExecContext(ctx, categorySQL); err != nil && a.logger != nil {
+		a.logger.Warn("SLA rollup failed on category metrics table", slog.Any("error", err))
+	}
+
+	agentSQL := `
+		INSERT INTO agent_performance(
+			agent_id, agent_name, department, tickets_assigned, tickets_resolved,
+			avg_mttr_minutes, sla_compliance_pct, period, metric_date, created_at, updated_at
+		)
+		SELECT assignee_id, MAX(assignee_name), MAX(department), COUNT(*),
+			COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')),
+			COALESCE(AVG(mttr_minutes) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')), 0.0),
+			CASE WHEN COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED')) > 0
+				THEN 100.0 * COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED') AND sla_status = 'WITHIN_SLA')
+					/ COUNT(*) FILTER (WHERE status IN ('RESOLVED', 'CLOSED'))
+				ELSE 0.0 END,
+			TO_CHAR(CURRENT_DATE, 'YYYY-MM'), CURRENT_DATE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+		FROM raw_incident_records
+		WHERE DATE(created_at) = CURRENT_DATE AND assignee_id IS NOT NULL
+		GROUP BY assignee_id
+		ON CONFLICT(metric_date, agent_id) DO UPDATE SET
+			agent_name=EXCLUDED.agent_name, department=EXCLUDED.department,
+			tickets_assigned=EXCLUDED.tickets_assigned, tickets_resolved=EXCLUDED.tickets_resolved,
+			avg_mttr_minutes=EXCLUDED.avg_mttr_minutes,
+			sla_compliance_pct=EXCLUDED.sla_compliance_pct, updated_at=CURRENT_TIMESTAMP;
+	`
+	if _, err := a.db.ExecContext(ctx, agentSQL); err != nil && a.logger != nil {
+		a.logger.Warn("SLA rollup failed on agent metrics table", slog.Any("error", err))
 	}
 
 	if a.logger != nil {

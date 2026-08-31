@@ -12,6 +12,7 @@ import (
 const (
 	TopicTicketCreated       = "ticket.created"
 	TopicTicketStatusChanged = "ticket.status_changed"
+	TopicTicketAssigned      = "ticket.assigned"
 	TopicTicketSLAWarning    = "ticket.sla_warning"
 	TopicTicketSLABreached   = "ticket.sla_breached"
 	TopicApprovalRequested   = "approval.requested"
