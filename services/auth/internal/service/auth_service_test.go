@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"eomp/packages/shared/pkg/auth"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/auth/internal/model"
 	"eomp/services/auth/internal/service"
 )
@@ -155,6 +156,142 @@ func (m *mockUserRepo) GetLoginHistory(ctx context.Context, email string, limit 
 		}
 	}
 	return res, nil
+}
+
+func (m *mockUserRepo) Update(ctx context.Context, user *model.User) error {
+	m.users[user.Email] = user
+	return nil
+}
+
+func (m *mockUserRepo) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	for _, u := range m.users {
+		if u.ID == userID {
+			u.PasswordHash = passwordHash
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *mockUserRepo) RevokeAllUserRefreshTokens(ctx context.Context, userID string) error {
+	for _, tok := range m.tokens {
+		if tok.userID == userID {
+			tok.revoked = true
+		}
+	}
+	return nil
+}
+
+func (m *mockUserRepo) RotateRefreshTokenAtomic(ctx context.Context, oldTokenHash, userID, newTokenHash string, expiresAt time.Time) error {
+	if r, ok := m.tokens[oldTokenHash]; ok {
+		r.revoked = true
+	}
+	m.tokens[newTokenHash] = &tokenRecord{
+		userID:    userID,
+		tokenHash: newTokenHash,
+		expiresAt: expiresAt,
+		revoked:   false,
+	}
+	return nil
+}
+
+func (m *mockUserRepo) ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error) {
+	var list []model.UserResponse
+	for _, u := range m.users {
+		list = append(list, u.ToResponse())
+	}
+	return &model.UserListResponse{
+		Data:       list,
+		Total:      len(list),
+		Page:       1,
+		PageSize:   20,
+		TotalPages: 1,
+	}, nil
+}
+
+func TestAuthService_CreateUser_Admin(t *testing.T) {
+	ctx := context.Background()
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour)
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, jwtManager)
+
+	userResp, err := authSvc.CreateUser(ctx, &model.CreateUserRequest{
+		Email:    "agent.smith@eomp.local",
+		Password: "AgentSecret!1234",
+		FullName: "Agent Smith",
+		Role:     model.RoleAgent,
+	})
+	if err != nil {
+		t.Fatalf("failed to create agent user: %v", err)
+	}
+	if userResp.Role != model.RoleAgent {
+		t.Fatalf("expected role %s, got %s", model.RoleAgent, userResp.Role)
+	}
+}
+
+func TestAuthService_UpdateUser_SelfPromotionForbidden(t *testing.T) {
+	ctx := context.Background()
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour)
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, jwtManager)
+
+	// An agent tries to change their own role to Admin
+	newRole := model.RoleAdmin
+	actor := middleware.Actor{
+		ID:    "u-disabled-01",
+		Email: "disabled@eomp.local",
+		Role:  model.RoleEmployee,
+	}
+
+	_, err := authSvc.UpdateUser(ctx, "u-disabled-01", &model.UpdateUserRequest{
+		Role: &newRole,
+	}, actor)
+
+	if err == nil {
+		t.Fatal("expected self-role modification to be rejected with 403 Forbidden")
+	}
+}
+
+func TestAuthService_ChangePassword_RevokesSessions(t *testing.T) {
+	ctx := context.Background()
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour)
+	repo := newMockUserRepo()
+	authSvc := service.NewAuthService(repo, jwtManager)
+
+	// 1. Login
+	authResp, err := authSvc.Login(ctx, &model.LoginRequest{
+		Email:    "admin@eomp.local",
+		Password: "Admin@123456",
+	})
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	// 2. Change password
+	err = authSvc.ChangePassword(ctx, "u-admin-01", &model.ChangePasswordRequest{
+		OldPassword: "Admin@123456",
+		NewPassword: "NewStrongPass!123",
+	})
+	if err != nil {
+		t.Fatalf("change password failed: %v", err)
+	}
+
+	// 3. Old refresh token must be revoked
+	_, err = authSvc.RefreshToken(ctx, &model.RefreshTokenRequest{
+		RefreshToken: authResp.RefreshToken,
+	})
+	if err == nil {
+		t.Fatal("expected previous refresh token to be revoked after password change")
+	}
+
+	// 4. Login with new password must succeed
+	_, err = authSvc.Login(ctx, &model.LoginRequest{
+		Email:    "admin@eomp.local",
+		Password: "NewStrongPass!123",
+	})
+	if err != nil {
+		t.Fatalf("login with new password failed: %v", err)
+	}
 }
 
 func TestAuthService_LoginAuditAndLogoutRevocation(t *testing.T) {

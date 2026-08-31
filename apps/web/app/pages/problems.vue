@@ -91,7 +91,7 @@ async function fetchData() {
         }
       }).catch(() => null),
       api.get<ProblemStats>('/api/v1/problems/stats').catch(() => null),
-      api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { params: { page_size: 50 } }).catch(() => null)
+      api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page_size: 50 }).catch(() => null)
     ])
 
     if (pRes && pRes.data) {

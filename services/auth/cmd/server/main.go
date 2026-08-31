@@ -80,13 +80,19 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)
 
 	// Protected routes — always require Bearer token validation.
-	// When accessed via gateway, the gateway already validated the token
-	// and set X-User-* headers, but the auth service MUST re-validate
-	// to prevent header spoofing if service is accessed directly.
 	authMiddleware := middleware.Authenticate(jwtManager)
+	adminOnly := middleware.RequireRole("ROLE_ADMIN")
+	adminOrManager := middleware.RequireRole("ROLE_ADMIN", "ROLE_MANAGER")
 
 	mux.Handle("GET /api/v1/auth/me", authMiddleware(http.HandlerFunc(authHandler.GetMe)))
 	mux.Handle("GET /api/v1/auth/login-history", authMiddleware(http.HandlerFunc(authHandler.GetLoginHistory)))
+	mux.Handle("POST /api/v1/auth/change-password", authMiddleware(http.HandlerFunc(authHandler.ChangePassword)))
+	mux.Handle("POST /api/v1/auth/reset-password/{id}", authMiddleware(adminOnly(http.HandlerFunc(authHandler.AdminResetPassword))))
+
+	// User provisioning and administration (Gate B-02)
+	mux.Handle("GET /api/v1/users", authMiddleware(adminOrManager(http.HandlerFunc(authHandler.ListUsers))))
+	mux.Handle("POST /api/v1/users", authMiddleware(adminOnly(http.HandlerFunc(authHandler.CreateUser))))
+	mux.Handle("PATCH /api/v1/users/{id}", authMiddleware(adminOnly(http.HandlerFunc(authHandler.UpdateUser))))
 
 	// Apply global middleware stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(

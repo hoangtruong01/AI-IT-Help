@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/middleware"
@@ -132,4 +134,119 @@ func (h *AuthHandler) GetLoginHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, logs)
+}
+
+// ListUsers returns paginated users (Admin and Manager only)
+func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+
+	query := model.UserListQuery{
+		Page:         page,
+		PageSize:     pageSize,
+		Search:       r.URL.Query().Get("search"),
+		Role:         r.URL.Query().Get("role"),
+		DepartmentID: r.URL.Query().Get("department_id"),
+	}
+
+	resp, err := h.authService.ListUsers(r.Context(), query)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, resp)
+}
+
+// CreateUser handles admin user provisioning
+func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var req model.CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+		return
+	}
+
+	resp, err := h.authService.CreateUser(r.Context(), &req)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, resp)
+}
+
+// UpdateUser handles admin modifications to role/department/active status
+func (h *AuthHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) > 0 {
+			id = parts[len(parts)-1]
+		}
+	}
+
+	var req model.UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+		return
+	}
+
+	actor := middleware.GetActor(r.Context())
+	resp, err := h.authService.UpdateUser(r.Context(), id, &req, actor)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, resp)
+}
+
+// ChangePassword allows authenticated users to change their own password
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		errors.WriteHTTP(w, errors.Unauthorized("missing user identity"))
+		return
+	}
+
+	var req model.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+		return
+	}
+
+	if err := h.authService.ChangePassword(r.Context(), userID, &req); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, map[string]any{
+		"message": "password changed successfully; all previous sessions revoked",
+	})
+}
+
+// AdminResetPassword allows administrators to reset another user's password
+func (h *AuthHandler) AdminResetPassword(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) > 0 {
+			id = parts[len(parts)-1]
+		}
+	}
+
+	var req model.AdminResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+		return
+	}
+
+	if err := h.authService.AdminResetPassword(r.Context(), id, &req); err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, map[string]any{
+		"message": "user password reset successfully and sessions revoked",
+	})
 }

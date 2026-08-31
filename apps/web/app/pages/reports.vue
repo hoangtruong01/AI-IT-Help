@@ -49,11 +49,11 @@ async function fetchReportData() {
   loading.value = true
   try {
     const [ovRes, trRes, catRes, deptRes, agRes] = await Promise.all([
-      api.get<ExecutiveOverview>('/api/v1/reports/overview', { params: { range: selectedPeriod.value } }).catch(() => null),
-      api.get<IncidentTrend[]>('/api/v1/reports/trends', { params: { range: selectedPeriod.value } }).catch(() => null),
-      api.get<CategoryBreakdown[]>('/api/v1/reports/categories', { params: { range: selectedPeriod.value } }).catch(() => null),
-      api.get<DepartmentSLAMetric[]>('/api/v1/reports/departments-sla', { params: { range: selectedPeriod.value } }).catch(() => null),
-      api.get<AgentScorecard[]>('/api/v1/reports/agents', { params: { range: selectedPeriod.value } }).catch(() => null)
+      api.get<ExecutiveOverview>('/api/v1/reports/overview', { range: selectedPeriod.value }).catch(() => null),
+      api.get<IncidentTrend[]>('/api/v1/reports/trends', { range: selectedPeriod.value }).catch(() => null),
+      api.get<CategoryBreakdown[]>('/api/v1/reports/categories', { range: selectedPeriod.value }).catch(() => null),
+      api.get<DepartmentSLAMetric[]>('/api/v1/reports/departments-sla', { range: selectedPeriod.value }).catch(() => null),
+      api.get<AgentScorecard[]>('/api/v1/reports/agents', { range: selectedPeriod.value }).catch(() => null)
     ])
 
     overview.value = ovRes ?? {
