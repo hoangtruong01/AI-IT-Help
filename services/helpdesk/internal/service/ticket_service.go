@@ -46,7 +46,7 @@ func NewTicketService(repo repository.Repository, slaEngine SLAEngine, bus event
 func (s *ticketService) ListTickets(ctx context.Context, query model.TicketListQuery) (*model.TicketListResponse, error) {
 	resp, err := s.repo.ListTickets(ctx, query)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to list tickets: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk list tickets", err)
 	}
 
 	// Dynamic SLA evaluation for each returned ticket
@@ -64,7 +64,7 @@ func (s *ticketService) GetTicket(ctx context.Context, id string) (*model.Ticket
 
 	ticket, err := s.repo.FindTicketByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get ticket: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk get ticket", err)
 	}
 	if ticket == nil {
 		return nil, errors.NotFound("ticket not found")
@@ -89,7 +89,7 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 	// Generate ticket number
 	ticketNumber, err := s.repo.NextTicketNumber(ctx)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to generate ticket number")
+		return nil, errors.Internal(ctx, "helpdesk generate ticket number", err)
 	}
 
 	// Calculate SLA Deadlines
@@ -123,7 +123,7 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 	}
 
 	if err := s.repo.CreateTicket(ctx, ticket); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create ticket: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk create ticket", err)
 	}
 
 	// Record creation in timeline
@@ -192,7 +192,7 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		if appErr, ok := err.(*errors.AppError); ok {
 			return nil, appErr
 		}
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to update ticket status: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk update ticket status", err)
 	}
 
 	// Add timeline entry
@@ -251,7 +251,7 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 		if appErr, ok := err.(*errors.AppError); ok {
 			return nil, appErr
 		}
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to assign ticket: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk assign ticket", err)
 	}
 
 	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{
@@ -286,7 +286,7 @@ func (s *ticketService) AddComment(ctx context.Context, ticketID string, req *mo
 	}
 
 	if err := s.repo.AddComment(ctx, comment); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to add comment: %v", err))
+		return nil, errors.Internal(ctx, "helpdesk add comment", err)
 	}
 
 	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{

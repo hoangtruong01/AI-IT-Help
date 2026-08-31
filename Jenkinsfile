@@ -110,9 +110,9 @@ pipeline {
                         }
                     }
                 }
-                stage('Go Unit & Concurrency E2E Tests') {
+                stage('Go Unit & In-Memory Simulation Tests') {
                     steps {
-                        echo '=== Running Unit, Race Condition & E2E Tests ==='
+                        echo '=== Running Unit, Race Condition & In-Memory Simulation Tests ==='
                         sh '''
                             for dir in packages/shared services/* tests/e2e; do
                                 if [ -f "$dir/go.mod" ]; then
@@ -198,7 +198,7 @@ pipeline {
             cleanWs deleteDirs: true, notFailBuild: true
         }
         success {
-            echo "=== SUCCESS: Commit ${env.GIT_COMMIT_SHORT} passed all security gates, unit/E2E tests, and container builds! ==="
+            echo "=== SUCCESS: Commit ${env.GIT_COMMIT_SHORT} passed configured security gates, unit/simulation tests, and container builds; this is not deployed E2E or production acceptance. ==="
         }
         failure {
             echo '=== FAILURE: Security gate or test failed. Check pipeline logs for remediation details. ==='

@@ -78,6 +78,21 @@ func TestRequireEnv(t *testing.T) {
 	}
 }
 
+func TestValidateRequiredSecret(t *testing.T) {
+	if err := ValidateRequiredSecret("TEST_SECRET", "", 8); err == nil {
+		t.Fatal("expected an empty secret to be rejected")
+	}
+	if err := ValidateRequiredSecret("TEST_SECRET", "short", 8); err == nil {
+		t.Fatal("expected a short secret to be rejected")
+	}
+	if err := ValidateRequiredSecret("TEST_SECRET", "public-secret", 8, "public-secret"); err == nil {
+		t.Fatal("expected a known public secret to be rejected")
+	}
+	if err := ValidateRequiredSecret("TEST_SECRET", "test-only-secret", 8, "public-secret"); err != nil {
+		t.Fatalf("expected explicit test secret to pass: %v", err)
+	}
+}
+
 func TestRabbitMQURL_EscapesCredentials(t *testing.T) {
 	t.Setenv("RABBITMQ_URL", "")
 	t.Setenv("RABBITMQ_HOST", "rabbitmq-service")

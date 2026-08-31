@@ -43,7 +43,7 @@ type subscription struct {
 // NewRabbitMQEventBus connects to RabbitMQ and prepares standard topic exchanges.
 func NewRabbitMQEventBus(url string, serviceName string) (*RabbitMQEventBus, error) {
 	if url == "" {
-		url = "amqp://guest:guest@localhost:5672/"
+		return nil, fmt.Errorf("RabbitMQ URL is required")
 	}
 	if serviceName == "" {
 		serviceName = "eomp-service"
@@ -75,9 +75,6 @@ func newRabbitMQEventBus(url string, serviceName string) *RabbitMQEventBus {
 func NewResilientEventBus(url string, serviceName string) EventBus {
 	if serviceName == "" {
 		serviceName = "eomp-service"
-	}
-	if url == "" {
-		url = "amqp://guest:guest@localhost:5672/"
 	}
 
 	bus := newRabbitMQEventBus(url, serviceName)

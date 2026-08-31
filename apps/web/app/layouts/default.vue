@@ -13,97 +13,106 @@ const notifications = ref<Notification[]>([])
 const notifStats = ref<NotificationStats>({ total: 0, unread: 0, incidents: 0, approvals: 0 })
 const notifLoading = ref(false)
 
-const navigationGroups = [
-  {
-    title: 'Core Operations',
-    items: [
-      {
-        label: 'Dashboard',
-        icon: 'i-lucide-layout-dashboard',
-        to: '/',
-        badge: 'Live'
-      },
-      {
-        label: 'IT Help Desk',
-        icon: 'i-lucide-ticket',
-        to: '/helpdesk',
-        badge: '24'
-      },
-      {
-        label: 'Problem Management',
-        icon: 'i-lucide-alert-octagon',
-        to: '/problems',
-        badge: 'KEDB'
-      },
-      {
-        label: 'Change Advisory (CAB)',
-        icon: 'i-lucide-git-pull-request',
-        to: '/changes',
-        badge: 'RFC'
-      },
-      {
-        label: 'AI Ops Assistant',
-        icon: 'i-lucide-bot',
-        to: '/ai',
-        badge: 'Copilot'
-      }
-    ]
-  },
-  {
-    title: 'Resource Management',
-    items: [
-      {
-        label: 'Employees & Orgs',
-        icon: 'i-lucide-users',
-        to: '/employees'
-      },
-      {
-        label: 'IT Asset Inventory',
-        icon: 'i-lucide-laptop',
-        to: '/assets'
-      },
-      {
-        label: 'Workflow & Approvals',
-        icon: 'i-lucide-git-branch',
-        to: '/workflows',
-        badge: '7'
-      }
-    ]
-  },
-  {
-    title: 'Intelligence & Insights',
-    items: [
-      {
-        label: 'Observability & SRE',
-        icon: 'i-lucide-activity',
-        to: '/monitoring',
-        badge: 'RED'
-      },
-      {
-        label: 'Knowledge Base',
-        icon: 'i-lucide-book-open',
-        to: '/knowledge'
-      },
-      {
-        label: 'Reports & Analytics',
-        icon: 'i-lucide-bar-chart-3',
-        to: '/reports'
-      },
-      {
-        label: 'Audit & Compliance',
-        icon: 'i-lucide-shield-check',
-        to: '/audit'
-      }
-    ]
-  }
-]
+type NavigationItem = {
+  label: string
+  icon: string
+  to: string
+  roles?: string[]
+}
 
-const systemServices = [
-  { name: 'Gateway', port: 8080, status: 'online' },
-  { name: 'PostgreSQL', port: 5432, status: 'online' },
-  { name: 'RabbitMQ', port: 15672, status: 'online' },
-  { name: 'Redis', port: 6379, status: 'online' }
-]
+const navigationGroups = computed(() => {
+  const role = authStore.role
+  const groups: Array<{ title: string, items: NavigationItem[] }> = [
+    {
+      title: 'Core Operations',
+      items: [
+        {
+          label: 'Dashboard',
+          icon: 'i-lucide-layout-dashboard',
+          to: '/'
+        },
+        {
+          label: 'IT Help Desk',
+          icon: 'i-lucide-ticket',
+          to: '/helpdesk'
+        },
+        {
+          label: 'Problem Management',
+          icon: 'i-lucide-alert-octagon',
+          to: '/problems',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_AGENT']
+        },
+        {
+          label: 'Change Advisory (CAB)',
+          icon: 'i-lucide-git-pull-request',
+          to: '/changes',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER']
+        },
+        {
+          label: 'AI Ops Assistant',
+          icon: 'i-lucide-bot',
+          to: '/ai'
+        }
+      ]
+    },
+    {
+      title: 'Resource Management',
+      items: [
+        {
+          label: 'Employees & Orgs',
+          icon: 'i-lucide-users',
+          to: '/employees'
+        },
+        {
+          label: 'IT Asset Inventory',
+          icon: 'i-lucide-laptop',
+          to: '/assets',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_AGENT']
+        },
+        {
+          label: 'Workflow & Approvals',
+          icon: 'i-lucide-git-branch',
+          to: '/workflows'
+        }
+      ]
+    },
+    {
+      title: 'Intelligence & Insights',
+      items: [
+        {
+          label: 'Observability & SRE',
+          icon: 'i-lucide-activity',
+          to: '/monitoring',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER']
+        },
+        {
+          label: 'Knowledge Base',
+          icon: 'i-lucide-book-open',
+          to: '/knowledge'
+        },
+        {
+          label: 'Reports & Analytics',
+          icon: 'i-lucide-bar-chart-3',
+          to: '/reports',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER']
+        },
+        {
+          label: 'Audit & Compliance',
+          icon: 'i-lucide-shield-check',
+          to: '/audit',
+          roles: ['ROLE_ADMIN', 'ROLE_MANAGER']
+        }
+      ]
+    }
+  ]
+
+  return groups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => !item.roles || item.roles.includes(role))
+    }))
+    .filter(group => group.items.length > 0)
+})
 
 function toggleSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value
@@ -264,44 +273,7 @@ onMounted(() => {
               {{ item.label }}
             </span>
 
-            <span
-              v-if="isSidebarOpen && item.badge"
-              class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-              :class="item.badge === 'Live'
-                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 animate-pulse'
-                : item.badge === 'New'
-                  ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
-                  : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'"
-            >
-              {{ item.badge }}
-            </span>
           </NuxtLink>
-        </div>
-
-        <!-- Infrastructure Status Mini Box -->
-        <div
-          v-if="isSidebarOpen"
-          class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-inner"
-        >
-          <div class="flex items-center justify-between mb-2.5">
-            <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span class="w-2 h-2 rounded-full bg-emerald-500 absolute" />
-              <span class="ml-2">Infra Cluster</span>
-            </span>
-            <span class="text-[10px] font-mono text-emerald-400">100% HEALTHY</span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-            <div
-              v-for="svc in systemServices"
-              :key="svc.name"
-              class="flex items-center justify-between px-2 py-1 rounded bg-slate-950/60 border border-slate-800/50"
-            >
-              <span class="text-slate-400 font-mono">{{ svc.name }}</span>
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            </div>
-          </div>
         </div>
       </div>
 

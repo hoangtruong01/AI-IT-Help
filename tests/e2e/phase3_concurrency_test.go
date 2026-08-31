@@ -19,7 +19,7 @@ import (
 // =============================================================================
 
 func TestPhase3_E2E_ITSMConcurrencyAndGatewayLimits(t *testing.T) {
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 
 	t.Log("===> [PHASE 3 - Task 3.1 & 3.2] Testing Cross-Service Concurrency & Version CAS Control...")
 

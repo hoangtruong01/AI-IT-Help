@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Runs complete automated validation across Frontend, Backend Services (12 Modules),
-    Cross-Service E2E Lifecycle Integration Suite, Infrastructure Health Probes, Databases, and CI/CD Pipeline.
+    In-memory business-flow simulations, Infrastructure Health Probes, Databases, and CI/CD Pipeline.
 #>
 
 $ErrorActionPreference = "Continue"
@@ -80,17 +80,17 @@ if ($backendPass) {
     $qaResults["Backend_12_Services"] = "FAIL"
 }
 
-# 3. CROSS-SERVICE E2E LIFECYCLE QA
-Write-Host "`n[3/6] Cross-Service E2E Lifecycle QA (tests/e2e)..." -ForegroundColor Yellow
+# 3. IN-MEMORY BUSINESS-FLOW SIMULATION
+Write-Host "`n[3/6] In-Memory Business-Flow Simulation (legacy path: tests/e2e)..." -ForegroundColor Yellow
 Push-Location "$ProjectRoot\tests\e2e"
 try {
     go test -v ./... 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  [+] 7-Step Enterprise Cross-Service Lifecycle Flow: PASS" -ForegroundColor Green
-        $qaResults["Cross_Service_E2E"] = "PASS"
+        Write-Host "  [+] Unit/in-memory simulation suite: PASS (not deployed E2E)" -ForegroundColor Green
+        $qaResults["In_Memory_Simulation"] = "PASS"
     } else {
-        Write-Host "  [-] Cross-service E2E tests failed" -ForegroundColor Red
-        $qaResults["Cross_Service_E2E"] = "FAIL"
+        Write-Host "  [-] Unit/in-memory simulation tests failed" -ForegroundColor Red
+        $qaResults["In_Memory_Simulation"] = "FAIL"
     }
 } finally {
     Pop-Location

@@ -23,12 +23,12 @@ else
     echo "  [✓] All Go files formatted cleanly according to standard conventions."
 fi
 
-# 2. Go Unit, Concurrency & E2E Tests
+# 2. Go Unit, Concurrency & In-Memory Simulation Tests
 echo ""
-echo "[2/5] Running Go Unit, Concurrency & E2E Integration Test Suite..."
+echo "[2/5] Running Go Unit, Concurrency & In-Memory Simulation Test Suite..."
 cd "${WORKSPACE_ROOT}"
 if go test ./packages/shared/... ./services/ai/... ./services/asset/... ./services/audit/... ./services/auth/... ./services/employee/... ./services/gateway/... ./services/helpdesk/... ./services/knowledge/... ./services/notification/... ./services/reporting/... ./services/workflow/... ./tests/e2e/...; then
-    echo "  [✓] 100% Go test suites passed across all 13 modules (0 failures)."
+    echo "  [✓] All configured Go unit/simulation suites passed across 13 modules (not deployed E2E)."
 else
     echo "  [-] Go test suite failed!"
     FAILED_CHECKS=$((FAILED_CHECKS + 1))

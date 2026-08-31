@@ -1,6 +1,6 @@
 # EOMP — Kiến trúc và chiến lược dữ liệu
 
-Last audited: 2026-08-30
+Last audited: 2026-08-31
 
 EOMP áp dụng mô hình database-per-service. Mỗi service chỉ truy cập PostgreSQL database do mình sở hữu; trao đổi liên service đi qua HTTP API hoặc CloudEvents/RabbitMQ, không dùng cross-database join.
 
@@ -10,7 +10,7 @@ EOMP áp dụng mô hình database-per-service. Mỗi service chỉ truy cập P
 |---|---|---|---|
 | Auth | `auth_db` | `users`, `refresh_tokens`, `login_audit_logs` | bcrypt, token rotation và nhật ký đăng nhập |
 | Employee | `employee_db` | `departments`, `employees` | cây tổ chức; `employees.version` dùng optimistic locking |
-| Asset | `asset_db` | `assets`, `asset_assignments`, `configuration_items`, `ci_relationships` | vòng đời tài sản và CMDB; asset/CI có `version` |
+| Asset | `asset_db` | `assets`, `asset_assignments`, `configuration_items`, `ci_relationships` | vòng đời tài sản và CMDB; asset/CI có `version`; fixture inventory/topology được cleanup |
 | Helpdesk | `helpdesk_db` | `service_categories`, `service_catalog_items`, `tickets`, `ticket_comments`, `ticket_timeline`, `problems`, `problem_incident_links` | ticket/problem có `version`; số TK/PRB dùng sequence; dữ liệu nhân viên được giới hạn theo requester |
 | Workflow | `workflow_db` | `workflow_definitions`, `workflow_instances`, `workflow_steps`, `approval_requests`, `workflow_logs`, `change_requests`, `cab_reviews` | approval theo user/role; workflow/change có `version`; số WFI/CHG dùng sequence |
 | Notification | `notification_db` | `notifications`, `notification_templates`, `notification_reads` | trạng thái đọc theo từng recipient, kể cả notification broadcast |

@@ -74,6 +74,24 @@ func MustGetEnv(key string) string {
 	return val
 }
 
+// ValidateRequiredSecret validates a runtime secret without making security
+// behavior depend on APP_ENV. Tests should inject explicit test-only values.
+func ValidateRequiredSecret(key, value string, minLength int, forbiddenValues ...string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("security violation: %s environment variable is required but not set", key)
+	}
+	if minLength > 0 && len(value) < minLength {
+		return fmt.Errorf("security violation: %s must be at least %d characters, got %d", key, minLength, len(value))
+	}
+	for _, forbidden := range forbiddenValues {
+		if value == forbidden {
+			return fmt.Errorf("security violation: %s matches a known public value and must be rotated", key)
+		}
+	}
+	return nil
+}
+
 // RabbitMQURL returns an explicit RABBITMQ_URL when supplied, otherwise it
 // safely builds one from component variables and URL-escapes the credentials.
 func RabbitMQURL() string {
@@ -83,7 +101,7 @@ func RabbitMQURL() string {
 	host := GetEnv("RABBITMQ_HOST", "localhost")
 	port := GetEnvInt("RABBITMQ_PORT", 5672)
 	user := GetEnv("RABBITMQ_USER", "guest")
-	password := GetEnv("RABBITMQ_PASSWORD", "guest")
+	password := GetEnv("RABBITMQ_PASSWORD", "")
 	u := &url.URL{
 		Scheme: "amqp",
 		User:   url.UserPassword(user, password),

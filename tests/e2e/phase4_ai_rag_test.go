@@ -17,7 +17,7 @@ import (
 // =============================================================================
 
 func TestPhase4_E2E_AICopilotAndRAGValueFlow(t *testing.T) {
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 
 	t.Log("===> [PHASE 4 - Golden Flow Integration] Testing AI Copilot & Knowledge RAG Integration...")
 

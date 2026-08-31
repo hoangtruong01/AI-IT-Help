@@ -133,6 +133,7 @@ func main() {
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	adminManager := middleware.RequireRoles("ROLE_ADMIN", "ROLE_MANAGER")
+	operator := middleware.RequireRoles("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_AGENT")
 	operatorWrites := middleware.RequireRolesForMethods(
 		[]string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete},
 		"ROLE_ADMIN", "ROLE_MANAGER", "ROLE_AGENT",
@@ -150,7 +151,16 @@ func main() {
 
 	// Auth Service Routing with Strict Redis Brute-Force Rate Limiter (10 req/min/IP - Task 1.5 & Task 6.1)
 	strictAuthLimiter := middleware.StrictRedisAuthRateLimiter(redisClient, 10, 1*time.Minute, cfg.TrustedProxies, log)
-	mux.Handle("/api/v1/auth/", strictAuthLimiter(authProxy))
+
+	// Public auth routes — no authFilter needed
+	mux.Handle("POST /api/v1/auth/login", strictAuthLimiter(authProxy))
+	mux.Handle("POST /api/v1/auth/register", strictAuthLimiter(authProxy))
+	mux.Handle("POST /api/v1/auth/refresh", strictAuthLimiter(authProxy))
+	mux.Handle("POST /api/v1/auth/logout", strictAuthLimiter(authProxy))
+
+	// Protected auth routes — require valid JWT (A-02 fix: header spoofing prevention)
+	mux.Handle("GET /api/v1/auth/me", authFilter(authProxy))
+	mux.Handle("GET /api/v1/auth/login-history", authFilter(authProxy))
 
 	// Employee & Department Routing
 	mux.Handle("/api/v1/employees", authFilter(managerWrites(employeeProxy)))
@@ -159,9 +169,9 @@ func main() {
 	mux.Handle("/api/v1/departments/", authFilter(managerWrites(employeeProxy)))
 
 	// Asset & CMDB Routing
-	mux.Handle("/api/v1/assets", authFilter(operatorWrites(assetProxy)))
-	mux.Handle("/api/v1/assets/", authFilter(operatorWrites(assetProxy)))
-	mux.Handle("/api/v1/cmdb/", authFilter(operatorWrites(assetProxy)))
+	mux.Handle("/api/v1/assets", authFilter(operator(assetProxy)))
+	mux.Handle("/api/v1/assets/", authFilter(operator(assetProxy)))
+	mux.Handle("/api/v1/cmdb/", authFilter(operator(assetProxy)))
 
 	// Helpdesk & Service Catalog Routing
 	// Employees may create tickets and comments; operational ticket mutations are restricted.
@@ -170,11 +180,12 @@ func main() {
 	mux.Handle("/api/v1/tickets", authFilter(operatorWrites(helpdeskProxy)))
 	mux.Handle("/api/v1/tickets/", authFilter(operatorWrites(helpdeskProxy)))
 	mux.Handle("/api/v1/services/", authFilter(helpdeskProxy))
-	mux.Handle("/api/v1/problems", authFilter(operatorWrites(helpdeskProxy)))
-	mux.Handle("/api/v1/problems/", authFilter(operatorWrites(helpdeskProxy)))
+	mux.Handle("/api/v1/problems", authFilter(operator(helpdeskProxy)))
+	mux.Handle("/api/v1/problems/", authFilter(operator(helpdeskProxy)))
 
 	// Workflow Engine & Approvals & Changes Routing
 	mux.Handle("POST /api/v1/workflows/instances", authFilter(workflowProxy))
+	mux.Handle("GET /api/v1/workflows/stats", authFilter(adminManager(workflowProxy)))
 	mux.Handle("/api/v1/workflows", authFilter(managerWrites(workflowProxy)))
 	mux.Handle("/api/v1/workflows/", authFilter(managerWrites(workflowProxy)))
 	mux.Handle("/api/v1/approvals", authFilter(managerWrites(workflowProxy)))
@@ -204,13 +215,17 @@ func main() {
 	mux.Handle("/api/v1/audit", authFilter(adminManager(auditProxy)))
 	mux.Handle("/api/v1/audit/", authFilter(adminManager(auditProxy)))
 
-	// Apply Global Gateway Middleware Stack with Body Size Limit (5MB), Dynamic CORS, Distributed Redis Sliding Window Limiter (100 req/min), and RED Metrics
-	handlerStack := middleware.Recoverer(log)(
-		middleware.MaxBodySize(5 * 1024 * 1024)(
-			middleware.RedisSlidingWindowRateLimiter(redisClient, 100, 1*time.Minute, cfg.TrustedProxies, "global", log)(
-				metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
-					middleware.RequestLogger(log)(
-						middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),
+	// Apply Global Gateway Middleware Stack
+	// StripIdentityHeaders is the OUTERMOST layer — removes all X-User-*
+	// headers from client requests before any routing or auth processing.
+	handlerStack := gwMiddleware.StripIdentityHeaders(
+		middleware.Recoverer(log)(
+			middleware.MaxBodySize(5 * 1024 * 1024)(
+				middleware.RedisSlidingWindowRateLimiter(redisClient, 100, 1*time.Minute, cfg.TrustedProxies, "global", log)(
+					metrics.HTTPMetricsMiddleware(cfg.ServiceName)(
+						middleware.RequestLogger(log)(
+							middleware.DynamicCORS(cfg.CORSAllowedOrigins)(mux),
+						),
 					),
 				),
 			),

@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	appErrors "eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/requestctx"
 )
 
 type responseWriter struct {
@@ -30,6 +33,7 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 				reqID = hex.EncodeToString(b)
 			}
 			w.Header().Set("X-Request-ID", reqID)
+			r = r.WithContext(requestctx.WithRequestID(r.Context(), reqID))
 
 			rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 			next.ServeHTTP(rw, r)
@@ -53,8 +57,11 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					logger.Error("panic recovered", slog.Any("error", err))
-					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+					logger.Error("panic recovered",
+						slog.String("request_id", w.Header().Get("X-Request-ID")),
+						slog.Any("error", err),
+					)
+					appErrors.WriteHTTP(w, appErrors.InternalServerError("an internal error occurred"))
 				}
 			}()
 			next.ServeHTTP(w, r)

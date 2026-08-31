@@ -44,7 +44,15 @@ func main() {
 	dbHost := config.GetEnv("POSTGRES_HOST", "localhost")
 	dbPort := config.GetEnvInt("POSTGRES_PORT", 5432)
 	dbUser := config.GetEnv("POSTGRES_USER", "eomp")
-	dbPass := config.GetEnv("POSTGRES_PASSWORD", "eomp_dev_password")
+	dbPass, err := config.RequireEnv("POSTGRES_PASSWORD")
+	if err != nil {
+		log.Error("POSTGRES_PASSWORD is required for knowledge ingestion", slog.Any("error", err))
+		os.Exit(1)
+	}
+	if err := config.ValidateRequiredSecret("POSTGRES_PASSWORD", dbPass, 12, "eomp_dev_password"); err != nil {
+		log.Error("invalid knowledge database credential", slog.Any("error", err))
+		os.Exit(1)
+	}
 	dbName := config.GetEnv("KNOWLEDGE_DB_NAME", "knowledge_db")
 	sslMode := config.GetEnv("POSTGRES_SSLMODE", "disable")
 

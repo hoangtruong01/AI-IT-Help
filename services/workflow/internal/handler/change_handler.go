@@ -43,7 +43,7 @@ func (h *ChangeHandler) ListChanges(w http.ResponseWriter, r *http.Request) {
 
 	changes, total, err := h.svc.ListChanges(r.Context(), changeType, status, risk, page, pageSize)
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError("failed to list change requests"))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "workflow list change requests", err))
 		return
 	}
 
@@ -176,7 +176,7 @@ func (h *ChangeHandler) GetCalendar(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.svc.GetCalendar(r.Context(), start, end)
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError("failed to load change calendar"))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "workflow load change calendar", err))
 		return
 	}
 
@@ -187,7 +187,7 @@ func (h *ChangeHandler) GetCalendar(w http.ResponseWriter, r *http.Request) {
 func (h *ChangeHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.GetStats(r.Context())
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError("failed to load change stats"))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "workflow load change stats", err))
 		return
 	}
 	response.JSON(w, http.StatusOK, stats)

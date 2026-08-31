@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	stdErrors "errors"
-	"fmt"
 	"strings"
 
 	"eomp/packages/shared/pkg/errors"
@@ -43,7 +42,7 @@ func (s *employeeService) GetEmployee(ctx context.Context, id string) (*model.Em
 
 	emp, err := s.repo.FindEmployeeByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get employee: %v", err))
+		return nil, errors.Internal(ctx, "employee get", err)
 	}
 	if emp == nil {
 		return nil, errors.NotFound("employee not found")
@@ -61,7 +60,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req *model.CreateE
 
 	existing, err := s.repo.FindEmployeeByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to check existing employee: %v", err))
+		return nil, errors.Internal(ctx, "employee check existing", err)
 	}
 	if existing != nil {
 		return nil, errors.Conflict("employee with this email already exists")
@@ -91,7 +90,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req *model.CreateE
 	}
 
 	if err := s.repo.CreateEmployee(ctx, emp); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create employee: %v", err))
+		return nil, errors.Internal(ctx, "employee create", err)
 	}
 
 	return s.repo.FindEmployeeByID(ctx, emp.ID)
@@ -107,7 +106,7 @@ func (s *employeeService) UpdateEmployee(ctx context.Context, id string, req *mo
 
 	existing, err := s.repo.FindEmployeeByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to verify employee: %v", err))
+		return nil, errors.Internal(ctx, "employee verify before update", err)
 	}
 	if existing == nil {
 		return nil, errors.NotFound("employee not found")
@@ -121,7 +120,7 @@ func (s *employeeService) UpdateEmployee(ctx context.Context, id string, req *mo
 		if stdErrors.Is(err, repository.ErrVersionConflict) {
 			return nil, errors.Conflict("employee was modified by another request; reload and retry")
 		}
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to update employee: %v", err))
+		return nil, errors.Internal(ctx, "employee update", err)
 	}
 	if updated == nil {
 		return nil, errors.NotFound("employee not found")
@@ -140,7 +139,7 @@ func (s *employeeService) DeleteEmployee(ctx context.Context, id string, expecte
 
 	existing, err := s.repo.FindEmployeeByID(ctx, id)
 	if err != nil {
-		return errors.InternalServerError(fmt.Sprintf("failed to verify employee: %v", err))
+		return errors.Internal(ctx, "employee verify before delete", err)
 	}
 	if existing == nil {
 		return errors.NotFound("employee not found")
@@ -153,7 +152,7 @@ func (s *employeeService) DeleteEmployee(ctx context.Context, id string, expecte
 		if stdErrors.Is(err, repository.ErrVersionConflict) {
 			return errors.Conflict("employee was modified by another request; reload and retry")
 		}
-		return errors.InternalServerError(fmt.Sprintf("failed to delete employee: %v", err))
+		return errors.Internal(ctx, "employee delete", err)
 	}
 
 	return nil
@@ -176,7 +175,7 @@ func (s *employeeService) CreateDepartment(ctx context.Context, req *model.Creat
 	}
 
 	if err := s.repo.CreateDepartment(ctx, dept); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create department: %v", err))
+		return nil, errors.Internal(ctx, "department create", err)
 	}
 
 	return dept, nil

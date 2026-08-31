@@ -1,13 +1,8 @@
 package config
 
-import (
-	"errors"
-	"fmt"
+import "eomp/packages/shared/pkg/config"
 
-	"eomp/packages/shared/pkg/config"
-)
-
-// Config represents gateway service configuration
+// Config represents gateway service configuration.
 type Config struct {
 	ServiceName            string
 	Port                   int
@@ -32,7 +27,7 @@ type Config struct {
 	RedisDB                int
 }
 
-// Load reads gateway configuration from environment
+// Load reads gateway configuration from the environment.
 func Load() *Config {
 	defaultCORS := []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080"}
 	defaultProxies := []string{"127.0.0.1", "::1"}
@@ -42,7 +37,7 @@ func Load() *Config {
 		Port:                   config.GetEnvInt("PORT", 8080),
 		Environment:            config.GetEnv("APP_ENV", "development"),
 		Version:                "0.1.0",
-		JWTSecret:              config.GetEnv("JWT_SECRET", "eomp-enterprise-super-secret-jwt-key-2026"),
+		JWTSecret:              config.GetEnv("JWT_SECRET", ""),
 		CORSAllowedOrigins:     config.GetEnvSlice("CORS_ALLOWED_ORIGINS", defaultCORS),
 		TrustedProxies:         config.GetEnvSlice("TRUSTED_PROXIES", defaultProxies),
 		AuthServiceURL:         config.GetEnv("AUTH_SERVICE_URL", "http://localhost:8081"),
@@ -62,18 +57,12 @@ func Load() *Config {
 	}
 }
 
-// Validate performs fail-fast verification on gateway configuration.
+// Validate performs fail-fast verification in every runtime environment.
 func (c *Config) Validate() error {
-	if c.JWTSecret == "" {
-		return errors.New("security violation: JWT_SECRET must not be empty in gateway")
-	}
-	if len(c.JWTSecret) < 16 {
-		return fmt.Errorf("security violation: JWT_SECRET must be at least 16 characters long, got %d", len(c.JWTSecret))
-	}
-	if c.Environment == "production" {
-		if c.JWTSecret == "eomp-enterprise-super-secret-jwt-key-2026" {
-			return errors.New("security violation: default dev JWT_SECRET is strictly prohibited in production")
-		}
-	}
-	return nil
+	return config.ValidateRequiredSecret(
+		"JWT_SECRET",
+		c.JWTSecret,
+		32,
+		"eomp-enterprise-super-secret-jwt-key-2026",
+	)
 }

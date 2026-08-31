@@ -68,9 +68,11 @@ pnpm test
 
 ---
 
-## 3. Kiểm Thử Luồng Nghiệp Vụ Liên Service (Cross-Service E2E Lifecycle)
+## 3. Mô phỏng luồng nghiệp vụ liên service (in-memory simulation)
 
-Tệp kiểm thử [`tests/e2e/e2e_lifecycle_test.go`](file:///d:/IT_help/eomp/tests/e2e/e2e_lifecycle_test.go) bao phủ trọn vẹn kịch bản thực tế 7 bước:
+> Tên thư mục `tests/e2e` là tên legacy. Các test hiện tại dùng struct, mock và `httptest`; chúng không deploy service thật và không phải deployed E2E.
+
+Tệp kiểm thử `tests/e2e/e2e_lifecycle_test.go` mô phỏng kịch bản 7 bước:
 
 1. **`Auth Service`:** Cấp phát JWT Bearer Token với vai trò tương ứng (Employee, Manager, IT Agent).
 2. **`Helpdesk Service`:** Khởi tạo Incident Ticket từ Service Catalog (`TK-2026-8801`).
@@ -81,7 +83,7 @@ Tệp kiểm thử [`tests/e2e/e2e_lifecycle_test.go`](file:///d:/IT_help/eomp/t
 7. **`Audit Service`:** Xác thực chuỗi **HMAC-SHA256**, liên kết predecessor, endpoint integrity và che giấu trường nhạy cảm (`********`).
 
 ```bash
-# Chạy kiểm thử E2E
+# Chạy bộ unit/in-memory simulation
 go test -v ./tests/e2e/...
 ```
 
@@ -120,5 +122,6 @@ EOMP cung cấp CLI tự động hóa chạy toàn bộ 6 tầng kiểm định:
 [5/6] Security & RBAC 403/429 Chokepoint Gate ............. [PASS]
 [6/6] SRE Probes & Kubernetes Manifests Validation ........ [PASS]
 ------------------------------------------------------------------
-RESULT: 100% PASS — ĐẠT CHUẨN BÀN GIAO SẢN PHẨM PRODUCTION
+RESULT: 100% PASS (Unit & In-Memory Simulation Suite)
+LƯU Ý: Xem docs/IMPLEMENTATION_STATUS.md và Gate A-D cho Production Readiness Evidence
 ```

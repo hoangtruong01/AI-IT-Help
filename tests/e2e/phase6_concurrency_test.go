@@ -51,7 +51,7 @@ func (s *ConcurrencyEntityStore) AtomicCASUpdate(id, newStatus, newAssignee stri
 func TestPhase6_E2E_MultiUserConcurrencyAndOptimisticLocking(t *testing.T) {
 	t.Log("===> [PHASE 6 - Task 6.2] Executing Multi-User Concurrency Race Condition Test (50 Goroutines)...")
 
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 
 	// Authenticate Agents
 	agentToken, _, err := jwtManager.GenerateTokenPair("u-agent-01", "agent.concurrency@eomp.local", "ROLE_AGENT", "dept-it", "Agent Concurrency")
