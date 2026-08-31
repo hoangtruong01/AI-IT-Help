@@ -28,23 +28,28 @@ func (h *TicketHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 
+	actor := middleware.GetActor(r.Context())
 	query := model.TicketListQuery{
-		Page:        page,
-		PageSize:    pageSize,
-		Status:      r.URL.Query().Get("status"),
-		Priority:    r.URL.Query().Get("priority"),
-		Category:    r.URL.Query().Get("category"),
-		AssigneeID:  r.URL.Query().Get("assignee_id"),
-		RequesterID: r.URL.Query().Get("requester_id"),
-		Search:      r.URL.Query().Get("search"),
+		Page:              page,
+		PageSize:          pageSize,
+		Status:            r.URL.Query().Get("status"),
+		Priority:          r.URL.Query().Get("priority"),
+		Category:          r.URL.Query().Get("category"),
+		AssigneeID:        r.URL.Query().Get("assignee_id"),
+		RequesterID:       r.URL.Query().Get("requester_id"),
+		DepartmentID:      r.URL.Query().Get("department_id"),
+		Search:            r.URL.Query().Get("search"),
+		ActorRole:         actor.Role,
+		ActorID:           actor.ID,
+		ActorDepartmentID: actor.DepartmentID,
 	}
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		userID := middleware.GetUserID(r.Context())
-		if userID == "" {
+
+	if actor.IsEmployee() {
+		if actor.ID == "" {
 			errors.WriteHTTP(w, errors.Forbidden("employee identity is required"))
 			return
 		}
-		query.RequesterID = userID
+		query.RequesterID = actor.ID
 	}
 
 	resp, err := h.svc.ListTickets(r.Context(), query)
@@ -64,22 +69,33 @@ func (h *TicketHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	userEmail := middleware.GetUserEmail(r.Context())
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		if userID == "" || userEmail == "" {
+	actor := middleware.GetActor(r.Context())
+	if actor.IsEmployee() {
+		if actor.ID == "" || actor.Email == "" {
 			errors.WriteHTTP(w, errors.Forbidden("employee identity is required"))
 			return
 		}
-		req.RequesterID = userID
-		req.RequesterEmail = userEmail
-		req.RequesterName = userEmail
+		req.RequesterID = actor.ID
+		req.RequesterEmail = actor.Email
+		if actor.Name != "" {
+			req.RequesterName = actor.Name
+		} else {
+			req.RequesterName = actor.Email
+		}
 	} else {
+		// Operators (Agent, Manager, Admin) can create on-behalf or default to self
 		if req.RequesterID == "" {
-			req.RequesterID = userID
+			req.RequesterID = actor.ID
 		}
 		if req.RequesterEmail == "" {
-			req.RequesterEmail = userEmail
+			req.RequesterEmail = actor.Email
+		}
+		if req.RequesterName == "" {
+			if actor.Name != "" {
+				req.RequesterName = actor.Name
+			} else {
+				req.RequesterName = actor.Email
+			}
 		}
 	}
 
@@ -102,13 +118,9 @@ func (h *TicketHandler) GetTicket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ticket, err := h.svc.GetTicket(r.Context(), id)
+	ticket, err := h.authorizeTicketAccess(r, id)
 	if err != nil {
 		errors.WriteHTTP(w, err)
-		return
-	}
-	if !employeeCanAccessTicket(r, ticket) {
-		errors.WriteHTTP(w, errors.NotFound("ticket not found"))
 		return
 	}
 
@@ -192,7 +204,7 @@ func (h *TicketHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
 		return
 	}
-	if err := h.authorizeTicketAccess(r, id); err != nil {
+	if _, err := h.authorizeTicketAccess(r, id); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -231,7 +243,7 @@ func (h *TicketHandler) ListComments(w http.ResponseWriter, r *http.Request) {
 			id = parts[len(parts)-2]
 		}
 	}
-	if err := h.authorizeTicketAccess(r, id); err != nil {
+	if _, err := h.authorizeTicketAccess(r, id); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -263,7 +275,7 @@ func (h *TicketHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 			id = parts[len(parts)-2]
 		}
 	}
-	if err := h.authorizeTicketAccess(r, id); err != nil {
+	if _, err := h.authorizeTicketAccess(r, id); err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
@@ -332,21 +344,35 @@ func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Reques
 	response.JSON(w, http.StatusOK, tickets)
 }
 
-func employeeCanAccessTicket(r *http.Request, ticket *model.Ticket) bool {
-	return middleware.GetUserRole(r.Context()) != "ROLE_EMPLOYEE" ||
-		(middleware.GetUserID(r.Context()) != "" && ticket.RequesterID == middleware.GetUserID(r.Context()))
+func actorCanAccessTicket(actor middleware.Actor, ticket *model.Ticket) bool {
+	if actor.IsAdmin() || actor.Role == "" {
+		return true
+	}
+	if actor.IsEmployee() {
+		return ticket.RequesterID == actor.ID
+	}
+	if actor.IsAgent() {
+		// Agent can see assigned tickets or unassigned queue tickets
+		return ticket.AssigneeID == nil || *ticket.AssigneeID == "" || *ticket.AssigneeID == actor.ID
+	}
+	if actor.IsManager() {
+		// Manager can see tickets belonging to their department or unassigned department
+		if actor.DepartmentID == "" {
+			return true
+		}
+		return ticket.DepartmentID == nil || *ticket.DepartmentID == "" || *ticket.DepartmentID == actor.DepartmentID
+	}
+	return false
 }
 
-func (h *TicketHandler) authorizeTicketAccess(r *http.Request, id string) error {
-	if middleware.GetUserRole(r.Context()) != "ROLE_EMPLOYEE" {
-		return nil
-	}
+func (h *TicketHandler) authorizeTicketAccess(r *http.Request, id string) (*model.Ticket, error) {
 	ticket, err := h.svc.GetTicket(r.Context(), id)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if !employeeCanAccessTicket(r, ticket) {
-		return errors.NotFound("ticket not found")
+	actor := middleware.GetActor(r.Context())
+	if !actorCanAccessTicket(actor, ticket) {
+		return nil, errors.NotFound("ticket not found")
 	}
-	return nil
+	return ticket, nil
 }

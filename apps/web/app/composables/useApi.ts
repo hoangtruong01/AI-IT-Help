@@ -1,4 +1,6 @@
 import { useAuthStore } from '~/stores/auth'
+import type { ApiQuery } from '~/utils/api-query'
+import { withQuery } from '~/utils/api-query'
 
 /**
  * API client composable.
@@ -38,8 +40,8 @@ export function useApi() {
   }
 
   return {
-    get: <T>(url: string, params?: Record<string, unknown>) =>
-      request<T>(url, { method: 'GET', params }),
+    get: <T>(url: string, params?: ApiQuery) =>
+      request<T>(withQuery(url, params), { method: 'GET' }),
 
     post: <T>(url: string, body?: unknown) =>
       request<T>(url, { method: 'POST', body: body as Record<string, unknown> }),

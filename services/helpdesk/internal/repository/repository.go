@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appErrors "eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/model"
 )
 
@@ -17,6 +18,7 @@ import (
 type Repository interface {
 	ListTickets(ctx context.Context, query model.TicketListQuery) (*model.TicketListResponse, error)
 	FindTicketByID(ctx context.Context, id string) (*model.Ticket, error)
+	FindTicketByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error)
 	FindTicketByNumber(ctx context.Context, ticketNumber string) (*model.Ticket, error)
 	CreateTicket(ctx context.Context, ticket *model.Ticket) error
 	UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int) error
@@ -33,6 +35,7 @@ type Repository interface {
 	FindServiceCatalogItemByID(ctx context.Context, id string) (*model.ServiceCatalogItem, error)
 	NextTicketNumber(ctx context.Context) (string, error)
 	ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
+	ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error)
 }
 
 type postgresRepository struct {
@@ -83,13 +86,35 @@ func (r *postgresRepository) ListTickets(ctx context.Context, query model.Ticket
 		argIndex++
 	}
 
-	if query.AssigneeID != "" {
+	// Scope-based authorization filters (Gate B-01)
+	switch query.ActorRole {
+	case "ROLE_EMPLOYEE":
+		whereClauses = append(whereClauses, fmt.Sprintf("requester_id = $%d", argIndex))
+		args = append(args, query.ActorID)
+		argIndex++
+	case "ROLE_AGENT":
+		whereClauses = append(whereClauses, fmt.Sprintf("(assignee_id = $%d OR assignee_id IS NULL OR assignee_id = '')", argIndex))
+		args = append(args, query.ActorID)
+		argIndex++
+	case "ROLE_MANAGER":
+		whereClauses = append(whereClauses, fmt.Sprintf("department_id = $%d", argIndex))
+		args = append(args, query.ActorDepartmentID)
+		argIndex++
+	}
+
+	if query.DepartmentID != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("department_id = $%d", argIndex))
+		args = append(args, query.DepartmentID)
+		argIndex++
+	}
+
+	if query.AssigneeID != "" && query.ActorRole != "ROLE_EMPLOYEE" {
 		whereClauses = append(whereClauses, fmt.Sprintf("assignee_id = $%d", argIndex))
 		args = append(args, query.AssigneeID)
 		argIndex++
 	}
 
-	if query.RequesterID != "" {
+	if query.RequesterID != "" && query.ActorRole != "ROLE_EMPLOYEE" {
 		whereClauses = append(whereClauses, fmt.Sprintf("requester_id = $%d", argIndex))
 		args = append(args, query.RequesterID)
 		argIndex++
@@ -191,7 +216,34 @@ func (r *postgresRepository) ListTickets(ctx context.Context, query model.Ticket
 }
 
 func (r *postgresRepository) FindTicketByID(ctx context.Context, id string) (*model.Ticket, error) {
-	query := `
+	return r.findTicketByID(ctx, id, nil)
+}
+
+func (r *postgresRepository) FindTicketByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error) {
+	return r.findTicketByID(ctx, id, &actor)
+}
+
+func (r *postgresRepository) findTicketByID(ctx context.Context, id string, actor *middleware.Actor) (*model.Ticket, error) {
+	where := "id = $1"
+	args := []any{id}
+	if actor != nil {
+		switch {
+		case actor.IsAdmin():
+		case actor.IsEmployee() && actor.ID != "":
+			where += " AND requester_id = $2"
+			args = append(args, actor.ID)
+		case actor.IsAgent() && actor.ID != "":
+			where += " AND (assignee_id = $2 OR assignee_id IS NULL OR assignee_id = '')"
+			args = append(args, actor.ID)
+		case actor.IsManager() && actor.DepartmentID != "":
+			where += " AND department_id = $2"
+			args = append(args, actor.DepartmentID)
+		default:
+			return nil, nil
+		}
+	}
+
+	query := fmt.Sprintf(`
 		SELECT 
 			id, ticket_number, title, description, service_item_id, category, priority, status,
 			requester_id, requester_name, requester_email,
@@ -199,13 +251,13 @@ func (r *postgresRepository) FindTicketByID(ctx context.Context, id string) (*mo
 			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
 			sla_status, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM tickets
-		WHERE id = $1
-	`
+		WHERE %s
+	`, where)
 	var t model.Ticket
 	var assigneeID, assigneeName, deptID, ciID, serviceItemID sql.NullString
 	var respondedAt, resolvedAt, closedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&t.ID, &t.TicketNumber, &t.Title, &t.Description, &serviceItemID, &t.Category, &t.Priority, &t.Status,
 		&t.RequesterID, &t.RequesterName, &t.RequesterEmail,
 		&assigneeID, &assigneeName, &deptID, &ciID,
@@ -261,7 +313,31 @@ func (r *postgresRepository) FindTicketByNumber(ctx context.Context, ticketNumbe
 }
 
 func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error) {
-	query := `
+	return r.listTicketsByAssetID(ctx, assetID, nil)
+}
+
+func (r *postgresRepository) ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
+	return r.listTicketsByAssetID(ctx, assetID, &actor)
+}
+
+func (r *postgresRepository) listTicketsByAssetID(ctx context.Context, assetID string, actor *middleware.Actor) ([]model.Ticket, error) {
+	where := "affected_ci_id = $1"
+	args := []any{assetID}
+	if actor != nil {
+		switch {
+		case actor.IsAdmin():
+		case actor.IsAgent() && actor.ID != "":
+			where += " AND (assignee_id = $2 OR assignee_id IS NULL OR assignee_id = '')"
+			args = append(args, actor.ID)
+		case actor.IsManager() && actor.DepartmentID != "":
+			where += " AND department_id = $2"
+			args = append(args, actor.DepartmentID)
+		default:
+			return []model.Ticket{}, nil
+		}
+	}
+
+	query := fmt.Sprintf(`
 		SELECT 
 			id, ticket_number, title, description, service_item_id, category, priority, status,
 			requester_id, requester_name, requester_email,
@@ -269,10 +345,10 @@ func (r *postgresRepository) ListTicketsByAssetID(ctx context.Context, assetID s
 			sla_response_deadline, sla_resolution_deadline, responded_at, resolved_at, closed_at,
 			sla_status, COALESCE(version, 1) AS version, created_at, updated_at
 		FROM tickets
-		WHERE affected_ci_id = $1
+		WHERE %s
 		ORDER BY created_at DESC
-	`
-	rows, err := r.db.QueryContext(ctx, query, assetID)
+	`, where)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tickets by asset: %w", err)
 	}

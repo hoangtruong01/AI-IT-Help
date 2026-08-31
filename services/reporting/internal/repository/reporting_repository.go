@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"eomp/services/reporting/internal/model"
@@ -28,11 +29,32 @@ func NewRepository(db *sql.DB) Repository {
 	return &postgresRepository{db: db}
 }
 
+func getDateRange(filter model.DateFilterQuery) (time.Time, time.Time) {
+	now := time.Now()
+	if filter.StartDate != nil && filter.EndDate != nil {
+		return *filter.StartDate, *filter.EndDate
+	}
+	switch strings.ToLower(filter.Range) {
+	case "today":
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		return start, now
+	case "7d":
+		return now.AddDate(0, 0, -7), now
+	case "quarter":
+		return now.AddDate(0, -3, 0), now
+	case "30d", "":
+		fallthrough
+	default:
+		return now.AddDate(0, 0, -30), now
+	}
+}
+
 func (r *postgresRepository) GetExecutiveOverview(ctx context.Context, filter model.DateFilterQuery) (*model.ExecutiveOverview, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
+	startDate, endDate := getDateRange(filter)
 	query := `
 		SELECT 
 			COALESCE(AVG(avg_mttr_minutes), 0.0) as avg_mttr,
@@ -41,12 +63,13 @@ func (r *postgresRepository) GetExecutiveOverview(ctx context.Context, filter mo
 			COALESCE(SUM(within_sla_count), 0) as total_within_sla,
 			COALESCE(SUM(breached_sla_count), 0) as total_breached
 		FROM sla_metrics_daily
+		WHERE metric_date >= $1 AND metric_date <= $2
 	`
 
 	var avgMTTR, avgMTTD float64
 	var totalIncidents, withinSLA, breachedSLA int
 
-	err := r.db.QueryRowContext(ctx, query).Scan(&avgMTTR, &avgMTTD, &totalIncidents, &withinSLA, &breachedSLA)
+	err := r.db.QueryRowContext(ctx, query, startDate, endDate).Scan(&avgMTTR, &avgMTTD, &totalIncidents, &withinSLA, &breachedSLA)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("query executive overview: %w", err)
 	}
@@ -75,14 +98,16 @@ func (r *postgresRepository) GetIncidentTrends(ctx context.Context, filter model
 		return nil, fmt.Errorf("reporting database is unavailable")
 	}
 
+	startDate, endDate := getDateRange(filter)
 	query := `
 		SELECT metric_date, total_incidents, within_sla_count, sla_compliance_pct
 		FROM sla_metrics_daily
+		WHERE metric_date >= $1 AND metric_date <= $2
 		ORDER BY metric_date ASC
 		LIMIT 30
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, startDate, endDate)
 	if err != nil {
 		return nil, fmt.Errorf("query incident trends: %w", err)
 	}

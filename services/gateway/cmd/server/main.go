@@ -158,9 +158,18 @@ func main() {
 	mux.Handle("POST /api/v1/auth/refresh", strictAuthLimiter(authProxy))
 	mux.Handle("POST /api/v1/auth/logout", strictAuthLimiter(authProxy))
 
+	adminOnly := middleware.RequireRole("ROLE_ADMIN")
+
 	// Protected auth routes — require valid JWT (A-02 fix: header spoofing prevention)
 	mux.Handle("GET /api/v1/auth/me", authFilter(authProxy))
 	mux.Handle("GET /api/v1/auth/login-history", authFilter(authProxy))
+	mux.Handle("POST /api/v1/auth/change-password", authFilter(authProxy))
+	mux.Handle("/api/v1/auth/reset-password/", authFilter(adminOnly(authProxy)))
+
+	// User Administration Routing (Gate B-02)
+	mux.Handle("GET /api/v1/users", authFilter(adminManager(authProxy)))
+	mux.Handle("POST /api/v1/users", authFilter(adminOnly(authProxy)))
+	mux.Handle("/api/v1/users/", authFilter(adminOnly(authProxy)))
 
 	// Employee & Department Routing
 	mux.Handle("/api/v1/employees", authFilter(managerWrites(employeeProxy)))

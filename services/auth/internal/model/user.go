@@ -88,6 +88,52 @@ type AuthResponse struct {
 	User         UserResponse `json:"user"`
 }
 
+// CreateUserRequest contains payload for admin user creation
+type CreateUserRequest struct {
+	Email        string  `json:"email"`
+	Password     string  `json:"password"`
+	FullName     string  `json:"full_name"`
+	Role         string  `json:"role"`
+	DepartmentID *string `json:"department_id,omitempty"`
+}
+
+// UpdateUserRequest contains payload for updating user account details
+type UpdateUserRequest struct {
+	FullName     *string `json:"full_name,omitempty"`
+	Role         *string `json:"role,omitempty"`
+	DepartmentID *string `json:"department_id,omitempty"`
+	IsActive     *bool   `json:"is_active,omitempty"`
+}
+
+// ChangePasswordRequest contains payload for self-service password change
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+// AdminResetPasswordRequest contains payload for administrator password reset
+type AdminResetPasswordRequest struct {
+	NewPassword string `json:"new_password"`
+}
+
+// UserListQuery parameters
+type UserListQuery struct {
+	Page         int    `json:"page"`
+	PageSize     int    `json:"page_size"`
+	Search       string `json:"search"`
+	Role         string `json:"role"`
+	DepartmentID string `json:"department_id"`
+}
+
+// UserListResponse paginated envelope
+type UserListResponse struct {
+	Data       []UserResponse `json:"data"`
+	Total      int            `json:"total"`
+	Page       int            `json:"page"`
+	PageSize   int            `json:"page_size"`
+	TotalPages int            `json:"total_pages"`
+}
+
 // ToResponse converts User entity to sanitized UserResponse
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{

@@ -17,7 +17,41 @@ const (
 	UserRoleKey     contextKey = "user_role"
 	UserClaimsKey   contextKey = "user_claims"
 	DepartmentIDKey contextKey = "department_id"
+	UserNameKey     contextKey = "user_name"
 )
+
+// Actor represents the authenticated caller extracted from JWT or Gateway headers
+type Actor struct {
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	DepartmentID string `json:"department_id"`
+	Name         string `json:"name"`
+}
+
+func (a Actor) IsAdmin() bool {
+	return a.Role == "ROLE_ADMIN"
+}
+
+func (a Actor) IsManager() bool {
+	return a.Role == "ROLE_MANAGER"
+}
+
+func (a Actor) IsAgent() bool {
+	return a.Role == "ROLE_AGENT"
+}
+
+func (a Actor) IsEmployee() bool {
+	return a.Role == "ROLE_EMPLOYEE"
+}
+
+func (a Actor) HasKnownRole() bool {
+	return a.IsAdmin() || a.IsManager() || a.IsAgent() || a.IsEmployee()
+}
+
+func (a Actor) IsValid() bool {
+	return a.ID != "" && a.HasKnownRole()
+}
 
 // Authenticate verifies Bearer token and attaches UserClaims to Context
 func Authenticate(jwtManager *auth.JWTManager) func(http.Handler) http.Handler {
@@ -46,6 +80,7 @@ func Authenticate(jwtManager *auth.JWTManager) func(http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
 			ctx = context.WithValue(ctx, UserRoleKey, claims.Role)
 			ctx = context.WithValue(ctx, DepartmentIDKey, claims.DepartmentID)
+			ctx = context.WithValue(ctx, UserNameKey, claims.FullName)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -68,6 +103,9 @@ func ExtractGatewayHeaders() func(http.Handler) http.Handler {
 			}
 			if dept := r.Header.Get("X-User-Department"); dept != "" {
 				ctx = context.WithValue(ctx, DepartmentIDKey, dept)
+			}
+			if name := r.Header.Get("X-User-Name"); name != "" {
+				ctx = context.WithValue(ctx, UserNameKey, name)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -122,4 +160,28 @@ func GetUserEmail(ctx context.Context) string {
 		return val
 	}
 	return ""
+}
+
+func GetDepartmentID(ctx context.Context) string {
+	if val, ok := ctx.Value(DepartmentIDKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
+func GetUserName(ctx context.Context) string {
+	if val, ok := ctx.Value(UserNameKey).(string); ok {
+		return val
+	}
+	return ""
+}
+
+func GetActor(ctx context.Context) Actor {
+	return Actor{
+		ID:           GetUserID(ctx),
+		Email:        GetUserEmail(ctx),
+		Role:         GetUserRole(ctx),
+		DepartmentID: GetDepartmentID(ctx),
+		Name:         GetUserName(ctx),
+	}
 }

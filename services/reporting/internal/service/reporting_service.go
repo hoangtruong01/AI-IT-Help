@@ -153,6 +153,13 @@ func generateCSVReport(title string, records []model.RawIncidentRecord) []byte {
 	return buf.Bytes()
 }
 
+func escapePDFString(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `(`, `\(`)
+	s = strings.ReplaceAll(s, `)`, `\)`)
+	return s
+}
+
 func generatePDFDocument(title string, records []model.RawIncidentRecord) []byte {
 	var buf bytes.Buffer
 	// Generate well-formed PDF stream with header, metadata and tabular summary
@@ -163,16 +170,33 @@ func generatePDFDocument(title string, records []model.RawIncidentRecord) []byte
 	buf.WriteString("3 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n")
 	buf.WriteString("4 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>\nendobj\n")
 
+	// Calculate dynamic KPIs from actual records
+	totalRecords := len(records)
+	var avgMTTR, avgMTTD, slaCompliance float64
+	if totalRecords > 0 {
+		var withinSLA, sumMTTR, sumMTTD int
+		for _, r := range records {
+			if r.SLAStatus == "WITHIN_SLA" {
+				withinSLA++
+			}
+			sumMTTR += r.MTTRMinutes
+			sumMTTD += r.MTTDMinutes
+		}
+		slaCompliance = (float64(withinSLA) / float64(totalRecords)) * 100.0
+		avgMTTR = float64(sumMTTR) / float64(totalRecords)
+		avgMTTD = float64(sumMTTD) / float64(totalRecords)
+	}
+
 	var stream bytes.Buffer
 	stream.WriteString("BT\n")
 	stream.WriteString("/F1 18 Tf\n50 740 Td\n(EOMP Enterprise Operations Platform - BI Executive Summary) Tj\n")
-	stream.WriteString("/F2 11 Tf\n0 -25 Td\n(" + fmt.Sprintf("Report Title: %s", title) + ") Tj\n")
-	stream.WriteString("0 -16 Td\n(" + fmt.Sprintf("Generated: %s | Total Records: %d", time.Now().Format("2006-01-02 15:04:05"), len(records)) + ") Tj\n")
-	stream.WriteString("/F1 12 Tf\n0 -30 Td\n(Key Operational Indicators: MTTR: 31.8m | MTTD: 7.2m | SLA Compliance: 97.4% | CSAT: 4.86/5.0) Tj\n")
+	stream.WriteString("/F2 11 Tf\n0 -25 Td\n(" + escapePDFString(fmt.Sprintf("Report Title: %s", title)) + ") Tj\n")
+	stream.WriteString("0 -16 Td\n(" + escapePDFString(fmt.Sprintf("Generated: %s | Total Records: %d", time.Now().Format("2006-01-02 15:04:05"), totalRecords)) + ") Tj\n")
+	stream.WriteString("/F1 11 Tf\n0 -28 Td\n(" + escapePDFString(fmt.Sprintf("Key Metrics: Avg MTTR: %.1fm | Avg MTTD: %.1fm | SLA Compliance: %.1f%%", avgMTTR, avgMTTD, slaCompliance)) + ") Tj\n")
 	stream.WriteString("/F2 9 Tf\n0 -25 Td\n(Ticket ID    | Category                 | Priority | Status   | Assignee         | MTTR | SLA Status) Tj\n")
 	stream.WriteString("0 -12 Td\n(-----------------------------------------------------------------------------------------------------) Tj\n")
 
-	displayCount := len(records)
+	displayCount := totalRecords
 	if displayCount > 25 {
 		displayCount = 25
 	}
@@ -183,12 +207,17 @@ func generatePDFDocument(title string, records []model.RawIncidentRecord) []byte
 		if len(catTrunc) > 22 {
 			catTrunc = catTrunc[:22]
 		}
-		stream.WriteString(fmt.Sprintf("0 -14 Td\n(%-12s | %-24s | %-8s | %-8s | %-16s | %3dm | %-10s) Tj\n",
-			r.TicketNumber, catTrunc, r.Priority, r.Status, r.AssigneeName, r.MTTRMinutes, r.SLAStatus))
+		assigneeTrunc := r.AssigneeName
+		if len(assigneeTrunc) > 16 {
+			assigneeTrunc = assigneeTrunc[:16]
+		}
+		line := fmt.Sprintf("%-12s | %-24s | %-8s | %-8s | %-16s | %3dm | %-10s",
+			r.TicketNumber, catTrunc, r.Priority, r.Status, assigneeTrunc, r.MTTRMinutes, r.SLAStatus)
+		stream.WriteString(fmt.Sprintf("0 -14 Td\n(%s) Tj\n", escapePDFString(line)))
 	}
 
-	if len(records) > displayCount {
-		stream.WriteString(fmt.Sprintf("0 -18 Td\n(... and %d additional incident records processed in database query) Tj\n", len(records)-displayCount))
+	if totalRecords > displayCount {
+		stream.WriteString(fmt.Sprintf("0 -18 Td\n(... and %d additional incident records processed in database query) Tj\n", totalRecords-displayCount))
 	}
 
 	stream.WriteString("ET\n")

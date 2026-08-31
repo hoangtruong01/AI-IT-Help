@@ -13,6 +13,7 @@ definePageMeta({
 })
 
 const api = useApi()
+const authStore = useAuthStore()
 const toast = useToast()
 const isRefreshing = ref(false)
 
@@ -102,13 +103,18 @@ function serviceDotClass(status: string) {
 }
 
 async function loadDashboard() {
+  const role = authStore.role
+  const canOperate = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER' || role === 'ROLE_AGENT'
+  const canManagePeople = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER'
+  const isAdmin = role === 'ROLE_ADMIN'
+
   const [tickets, assets, employees, workflows, services, audits] = await Promise.all([
-    api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { params: { page: 1, page_size: 100 } }).catch(() => null),
-    api.get<AssetStats>('/api/v1/assets/stats').catch(() => null),
-    api.get<PaginatedResponse<unknown>>('/api/v1/employees', { params: { page: 1, page_size: 1 } }).catch(() => null),
-    api.get<WorkflowStats>('/api/v1/workflows/stats').catch(() => null),
-    api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null),
-    api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', { params: { page: 1, page_size: 3 } }).catch(() => null)
+    api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page: 1, page_size: 100 }).catch(() => null),
+    canOperate ? api.get<AssetStats>('/api/v1/assets/stats').catch(() => null) : Promise.resolve(null),
+    canManagePeople ? api.get<PaginatedResponse<unknown>>('/api/v1/employees', { page: 1, page_size: 1 }).catch(() => null) : Promise.resolve(null),
+    canOperate ? api.get<WorkflowStats>('/api/v1/workflows/stats').catch(() => null) : Promise.resolve(null),
+    isAdmin ? api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null) : Promise.resolve(null),
+    isAdmin ? api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', { page: 1, page_size: 3 }).catch(() => null) : Promise.resolve(null)
   ])
 
   ticketPage.value = tickets
@@ -117,12 +123,17 @@ async function loadDashboard() {
   workflowStats.value = workflows
   infraServices.value = services ?? []
   auditLogs.value = audits?.data ?? []
-  if ([tickets, assets, employees, workflows, services].some(result => result === null)) {
+  const attemptedResults = [tickets]
+  if (canOperate) attemptedResults.push(assets, workflows)
+  if (canManagePeople) attemptedResults.push(employees)
+  if (isAdmin) attemptedResults.push(services)
+  if (attemptedResults.some(result => result === null)) {
     toast.add({ title: 'Some dashboard data is unavailable', color: 'warning' })
   }
 }
 
 async function refreshInfrastructure() {
+  if (authStore.role !== 'ROLE_ADMIN') return
   isRefreshing.value = true
   try {
     infraServices.value = await api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services')

@@ -147,14 +147,18 @@ type TicketTimeline struct {
 
 // TicketListQuery parameters
 type TicketListQuery struct {
-	Page        int    `json:"page"`
-	PageSize    int    `json:"page_size"`
-	Status      string `json:"status"`
-	Priority    string `json:"priority"`
-	Category    string `json:"category"`
-	AssigneeID  string `json:"assignee_id"`
-	RequesterID string `json:"requester_id"`
-	Search      string `json:"search"`
+	Page              int    `json:"page"`
+	PageSize          int    `json:"page_size"`
+	Status            string `json:"status"`
+	Priority          string `json:"priority"`
+	Category          string `json:"category"`
+	AssigneeID        string `json:"assignee_id"`
+	RequesterID       string `json:"requester_id"`
+	DepartmentID      string `json:"department_id"`
+	Search            string `json:"search"`
+	ActorRole         string `json:"actor_role"`
+	ActorID           string `json:"actor_id"`
+	ActorDepartmentID string `json:"actor_department_id"`
 }
 
 // TicketListResponse paginated envelope

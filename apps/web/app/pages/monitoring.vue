@@ -115,7 +115,7 @@ async function openMetricsModal(srv: ServiceHealthStatus) {
   rawMetricsText.value = ''
 
   try {
-    const res = await api.get<string>('/metrics', { responseType: 'text' }).catch(() => null)
+    const res = await api.get<string>('/metrics').catch(() => null)
     if (res && typeof res === 'string') {
       rawMetricsText.value = res
     } else {

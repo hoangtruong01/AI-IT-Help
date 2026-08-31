@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"eomp/services/auth/internal/model"
@@ -13,10 +14,15 @@ import (
 // UserRepository defines database operations for users and tokens
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
+	Update(ctx context.Context, user *model.User) error
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByID(ctx context.Context, id string) (*model.User, error)
+	ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error)
 	SaveRefreshToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	RevokeAllUserRefreshTokens(ctx context.Context, userID string) error
+	RotateRefreshTokenAtomic(ctx context.Context, oldTokenHash, userID, newTokenHash string, expiresAt time.Time) error
 	ValidateRefreshToken(ctx context.Context, tokenHash string) (string, error)
 	RecordLoginAudit(ctx context.Context, log *model.LoginAuditLog) error
 	GetLoginHistory(ctx context.Context, email string, limit int) ([]model.LoginAuditLog, error)
@@ -204,4 +210,162 @@ func (r *postgresUserRepository) GetLoginHistory(ctx context.Context, email stri
 		logs = append(logs, l)
 	}
 	return logs, nil
+}
+
+func (r *postgresUserRepository) Update(ctx context.Context, user *model.User) error {
+	query := `
+		UPDATE users
+		SET full_name = $1, role = $2, department_id = $3, is_active = $4, updated_at = $5
+		WHERE id = $6
+	`
+	user.UpdatedAt = time.Now()
+	res, err := r.db.ExecContext(ctx, query, user.FullName, user.Role, user.DepartmentID, user.IsActive, user.UpdatedAt, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+func (r *postgresUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = $1, updated_at = $2
+		WHERE id = $3
+	`
+	res, err := r.db.ExecContext(ctx, query, passwordHash, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+func (r *postgresUserRepository) RevokeAllUserRefreshTokens(ctx context.Context, userID string) error {
+	query := `
+		UPDATE refresh_tokens
+		SET revoked = TRUE
+		WHERE user_id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke all refresh tokens for user: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresUserRepository) RotateRefreshTokenAtomic(ctx context.Context, oldTokenHash, userID, newTokenHash string, expiresAt time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 1. Revoke old token
+	revokeQuery := `
+		UPDATE refresh_tokens
+		SET revoked = TRUE
+		WHERE token_hash = $1
+	`
+	if _, err := tx.ExecContext(ctx, revokeQuery, oldTokenHash); err != nil {
+		return fmt.Errorf("failed to revoke old refresh token: %w", err)
+	}
+
+	// 2. Insert new token
+	insertQuery := `
+		INSERT INTO refresh_tokens (user_id, token_hash, expires_at, revoked, created_at)
+		VALUES ($1, $2, $3, FALSE, $4)
+	`
+	if _, err := tx.ExecContext(ctx, insertQuery, userID, newTokenHash, expiresAt, time.Now()); err != nil {
+		return fmt.Errorf("failed to save new refresh token: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresUserRepository) ListUsers(ctx context.Context, query model.UserListQuery) (*model.UserListResponse, error) {
+	if query.Page <= 0 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 || query.PageSize > 100 {
+		query.PageSize = 20
+	}
+
+	whereClauses := []string{"1=1"}
+	var args []any
+	argIdx := 1
+
+	if query.Role != "" && query.Role != "All" {
+		whereClauses = append(whereClauses, fmt.Sprintf("role = $%d", argIdx))
+		args = append(args, query.Role)
+		argIdx++
+	}
+
+	if query.DepartmentID != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("department_id = $%d", argIdx))
+		args = append(args, query.DepartmentID)
+		argIdx++
+	}
+
+	if query.Search != "" {
+		pattern := "%" + strings.ToLower(query.Search) + "%"
+		whereClauses = append(whereClauses, fmt.Sprintf("(LOWER(email) LIKE $%d OR LOWER(full_name) LIKE $%d)", argIdx, argIdx))
+		args = append(args, pattern)
+		argIdx++
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereSQL)
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	offset := (query.Page - 1) * query.PageSize
+	dataQuery := fmt.Sprintf(`
+		SELECT id, email, full_name, role, department_id, is_active, created_at
+		FROM users
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, argIdx, argIdx+1)
+	args = append(args, query.PageSize, offset)
+
+	rows, err := r.db.QueryContext(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	users := []model.UserResponse{}
+	for rows.Next() {
+		var u model.UserResponse
+		var deptID sql.NullString
+		err := rows.Scan(
+			&u.ID, &u.Email, &u.FullName, &u.Role, &deptID, &u.IsActive, &u.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		if deptID.Valid {
+			u.DepartmentID = &deptID.String
+		}
+		users = append(users, u)
+	}
+
+	totalPages := (total + query.PageSize - 1) / query.PageSize
+	return &model.UserListResponse{
+		Data:       users,
+		Total:      total,
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		TotalPages: totalPages,
+	}, nil
 }
