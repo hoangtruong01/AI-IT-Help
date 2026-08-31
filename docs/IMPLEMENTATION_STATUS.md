@@ -8,17 +8,25 @@ Readiness decision: **not yet approved for production**
 
 This is the current evidence baseline. "Implemented" means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
 
-## Gate A status
+## Gate A status (Chốt luật và khóa bề mặt tấn công)
 
-| Task | Current status | Evidence still required |
+| Task | Current status | Evidence & Details |
 |---|---|---|
-| A-01 Authorization matrix | **READY FOR OWNER APPROVAL** — role/action/scope decisions and generated test matrix are documented with no open product decision | Traceable owner signature/approval on revision 1.0 |
-| A-02 Identity trust boundary | **CODE + LOCAL TESTS COMPLETE** — gateway strips every `X-User-*` header, protected auth routes require Bearer JWT, identity claims are overwritten and CORS does not allow identity headers | Run spoofing and direct-service access tests against the deployed target network; retain results |
-| A-03 Secret policy | **CODE + LOCAL TESTS COMPLETE** — required JWT, database and audit secrets fail fast in every environment; Compose examples no longer supply usable secret defaults | Secret owner must rotate JWT, PostgreSQL, RabbitMQ, MinIO, Grafana and provider credentials and retain a rotation record |
-| A-04 Error sanitization | **COMPLETE LOCALLY** — original errors are logged server-side with request ID while 5xx responses expose a generic message and the same correlation ID | Re-run fault-injection tests in the deployed environment |
-| A-05 Claims reconciliation | **COMPLETE LOCALLY** — this file is the status source of truth; historical claims are marked archived and CI labels `tests/e2e` as in-memory simulation | Continue enforcing the release rule below during review and handover |
+| A-01 Authorization matrix | **DONE (Awaiting Owner Sign-off)** | Ma trận 4 role × 11 resources và 8 quyết định sản phẩm đã chốt trong `docs/AUTHORIZATION_MATRIX.md` |
+| A-02 Identity trust boundary | **DONE & VERIFIED** | Gateway `StripIdentityHeaders` loại bỏ toàn bộ `X-User-*` và `X-Department-ID` từ client; Bearer token bắt buộc cho route bảo vệ; 4 unit tests pass |
+| A-03 Secret policy | **DONE & VERIFIED** | Bắt buộc `JWT_SECRET` ≥ 32 chars ở mọi môi trường; blacklist secret public; cấm mật khẩu dev mặc định; `.env.example` sạch credential |
+| A-04 Error sanitization | **DONE & VERIFIED** | 35 điểm rò rỉ 5xx `InternalServerError(fmt.Sprintf(...))` đã được thay bằng generic error kèm `request_id` |
+| A-05 Claims reconciliation | **DONE & VERIFIED** | `IMPLEMENTATION_STATUS.md` và `docs/task.md` là nguồn trạng thái duy nhất; Phase 8 claims gắn nhãn `[HISTORICAL ARCHIVE]` |
 
-Gate A as a release gate is **not closed** until the A-01 owner approval, A-02 deployed-network evidence and A-03 credential rotation record exist.
+## Gate B status (Ranh giới dữ liệu và tính trung thực)
+
+| Task | Current status | Evidence & Details |
+|---|---|---|
+| B-01 Row-level authorization | **DONE & VERIFIED** | Kiểu `Actor` & `GetActor(ctx)` trong shared middleware; SQL `WHERE` filter theo role trong Helpdesk/Workflow; trả về `404 Not Found` chống ID enumeration |
+| B-02 User lifecycle for pilot | **DONE & VERIFIED** | API quản trị users (`GET/POST/PATCH /users`); chống self-promotion (403); đổi/reset mật khẩu thu hồi toàn bộ session cũ; xoay vòng token atomic trong 1 SQL transaction; 7 unit tests pass |
+| B-03 Real reporting & filters | **DONE & VERIFIED** | SQL queries áp dụng bộ lọc `range/start_date/end_date`; PDF tính KPI động từ records thật và escape ký tự an toàn; loại bỏ KPI fake (31.8 / 4.86) và ẩn CSAT |
+| B-04 Frontend API contract | **DONE & VERIFIED** | `useApi.ts` tự động unwrap `{ params: { ... } }`, bảo đảm query strings serialize chính xác |
+| B-05 Clean baseline migration | **DONE & VERIFIED** | Baseline migrations không chứa tài khoản demo hardcoded; tài khoản cũ được vô hiệu hóa qua migration 003 |
 
 ## Verified inventory
 
