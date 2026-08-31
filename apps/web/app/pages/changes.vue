@@ -84,12 +84,10 @@ async function fetchData() {
   try {
     const [cRes, sRes, calRes] = await Promise.all([
       api.get<PaginatedResponse<ChangeRequest>>('/api/v1/changes', {
-        params: {
-          type: selectedType.value === 'All' ? undefined : selectedType.value,
-          status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
-          risk: selectedRisk.value === 'All' ? undefined : selectedRisk.value,
-          page_size: 50
-        }
+        type: selectedType.value === 'All' ? undefined : selectedType.value,
+        status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
+        risk: selectedRisk.value === 'All' ? undefined : selectedRisk.value,
+        page_size: 50
       }).catch(() => null),
       api.get<ChangeStats>('/api/v1/changes/stats').catch(() => null),
       api.get<ChangeCalendarItem[]>('/api/v1/changes/calendar').catch(() => null)

@@ -46,14 +46,12 @@ async function fetchAuditData() {
   try {
     const [listRes, statsRes, secRes] = await Promise.all([
       api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', {
-        params: {
-          event_type: selectedEventType.value === 'ALL' ? undefined : selectedEventType.value,
-          status: selectedStatus.value === 'ALL' ? undefined : selectedStatus.value,
-          service: selectedService.value === 'ALL' ? undefined : selectedService.value,
-          search: search.value || undefined,
-          page: currentPage.value,
-          page_size: pageSize.value
-        }
+        event_type: selectedEventType.value === 'ALL' ? undefined : selectedEventType.value,
+        status: selectedStatus.value === 'ALL' ? undefined : selectedStatus.value,
+        service: selectedService.value === 'ALL' ? undefined : selectedService.value,
+        search: search.value || undefined,
+        page: currentPage.value,
+        page_size: pageSize.value
       }).catch(() => null),
       api.get<AuditStats>('/api/v1/audit/stats').catch(() => null),
       api.get<SecurityEvent[]>('/api/v1/audit/security-events').catch(() => null)

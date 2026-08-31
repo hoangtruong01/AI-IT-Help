@@ -15,6 +15,7 @@ type Config struct {
 	DBName         string
 	DBSSLMode      string
 	MigrationsPath string
+	RabbitMQURL    string
 }
 
 // Load reads configuration from the environment with sensible defaults.
@@ -31,6 +32,7 @@ func Load() *Config {
 		DBName:         config.GetEnv("REPORTING_DB_NAME", "reporting_db"),
 		DBSSLMode:      config.GetEnv("POSTGRES_SSLMODE", "disable"),
 		MigrationsPath: config.GetEnv("REPORTING_MIGRATIONS_PATH", "migrations"),
+		RabbitMQURL:    config.RabbitMQURL(),
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/eventbus"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/repository"
 )
@@ -15,6 +16,7 @@ import (
 type TicketService interface {
 	ListTickets(ctx context.Context, query model.TicketListQuery) (*model.TicketListResponse, error)
 	GetTicket(ctx context.Context, id string) (*model.Ticket, error)
+	GetTicketForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error)
 	CreateTicket(ctx context.Context, req *model.CreateTicketRequest) (*model.Ticket, error)
 	UpdateStatus(ctx context.Context, id string, req *model.UpdateTicketStatusRequest, actorID, actorName string) (*model.Ticket, error)
 	AssignTicket(ctx context.Context, id string, req *model.AssignTicketRequest, actorID, actorName string) (*model.Ticket, error)
@@ -26,6 +28,7 @@ type TicketService interface {
 	ListServiceCategories(ctx context.Context) ([]model.ServiceCategory, error)
 	ListServiceCatalogItems(ctx context.Context) ([]model.ServiceCatalogItem, error)
 	GetTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
+	GetTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error)
 }
 
 type ticketService struct {
@@ -44,6 +47,18 @@ func NewTicketService(repo repository.Repository, slaEngine SLAEngine, bus event
 }
 
 func (s *ticketService) ListTickets(ctx context.Context, query model.TicketListQuery) (*model.TicketListResponse, error) {
+	if query.ActorID == "" {
+		return nil, errors.Unauthorized("missing user identity")
+	}
+	switch query.ActorRole {
+	case "ROLE_ADMIN", "ROLE_AGENT", "ROLE_EMPLOYEE":
+	case "ROLE_MANAGER":
+		if query.ActorDepartmentID == "" {
+			return nil, errors.Forbidden("manager department scope is required")
+		}
+	default:
+		return nil, errors.Forbidden("unknown user role")
+	}
 	resp, err := s.repo.ListTickets(ctx, query)
 	if err != nil {
 		return nil, errors.Internal(ctx, "helpdesk list tickets", err)
@@ -70,6 +85,28 @@ func (s *ticketService) GetTicket(ctx context.Context, id string) (*model.Ticket
 		return nil, errors.NotFound("ticket not found")
 	}
 
+	ticket.SLAStatus = s.slaEngine.EvaluateSLAStatus(ticket)
+	return ticket, nil
+}
+
+func (s *ticketService) GetTicketForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error) {
+	if id == "" {
+		return nil, errors.BadRequest("ticket id is required")
+	}
+	if !actor.IsValid() {
+		return nil, errors.Unauthorized("valid user identity and role are required")
+	}
+	if actor.IsManager() && actor.DepartmentID == "" {
+		return nil, errors.Forbidden("manager department scope is required")
+	}
+
+	ticket, err := s.repo.FindTicketByIDForActor(ctx, id, actor)
+	if err != nil {
+		return nil, errors.Internal(ctx, "helpdesk get scoped ticket", err)
+	}
+	if ticket == nil {
+		return nil, errors.NotFound("ticket not found")
+	}
 	ticket.SLAStatus = s.slaEngine.EvaluateSLAStatus(ticket)
 	return ticket, nil
 }
@@ -140,18 +177,7 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 		_ = s.bus.Publish(ctx, eventbus.Event{
 			Source: "helpdesk",
 			Type:   eventbus.TopicTicketCreated,
-			Data: map[string]any{
-				"ticket_id":      ticket.ID,
-				"ticket_number":  ticket.TicketNumber,
-				"title":          ticket.Title,
-				"category":       ticket.Category,
-				"priority":       ticket.Priority,
-				"status":         ticket.Status,
-				"reporter_id":    ticket.RequesterID,
-				"reporter_name":  ticket.RequesterName,
-				"reporter_email": ticket.RequesterEmail,
-				"affected_ci_id": ticket.AffectedCIID,
-			},
+			Data:   ticketEventData(ticket),
 		})
 	}
 
@@ -206,24 +232,44 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		Notes:     &req.Notes,
 	})
 
-	// Publish ticket.status_changed event via EventBus
+	updated, err := s.GetTicket(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish a complete snapshot so downstream read models do not need access
+	// to the helpdesk database.
 	if s.bus != nil {
 		_ = s.bus.Publish(ctx, eventbus.Event{
 			Source: "helpdesk",
 			Type:   eventbus.TopicTicketStatusChanged,
-			Data: map[string]any{
-				"ticket_id":     id,
-				"ticket_number": ticket.TicketNumber,
-				"old_status":    oldStatus,
-				"new_status":    newStatus,
-				"actor_id":      actorID,
-				"actor_name":    actorName,
-				"notes":         req.Notes,
-			},
+			Data:   ticketEventData(updated),
 		})
 	}
 
-	return s.GetTicket(ctx, id)
+	return updated, nil
+}
+
+func ticketEventData(ticket *model.Ticket) map[string]any {
+	assigneeID, assigneeName, departmentID := "", "", ""
+	if ticket.AssigneeID != nil {
+		assigneeID = *ticket.AssigneeID
+	}
+	if ticket.AssigneeName != nil {
+		assigneeName = *ticket.AssigneeName
+	}
+	if ticket.DepartmentID != nil {
+		departmentID = *ticket.DepartmentID
+	}
+	return map[string]any{
+		"ticket_id": ticket.ID, "ticket_number": ticket.TicketNumber,
+		"title": ticket.Title, "category": ticket.Category, "priority": ticket.Priority,
+		"status": ticket.Status, "requester_name": ticket.RequesterName,
+		"assignee_id": assigneeID, "assignee_name": assigneeName,
+		"department_id": departmentID, "sla_status": ticket.SLAStatus,
+		"created_at": ticket.CreatedAt, "responded_at": ticket.RespondedAt,
+		"resolved_at": ticket.ResolvedAt,
+	}
 }
 
 func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.AssignTicketRequest, actorID, actorName string) (*model.Ticket, error) {
@@ -263,7 +309,16 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 		NewValue:  &req.AssigneeName,
 	})
 
-	return s.GetTicket(ctx, id)
+	updated, err := s.GetTicket(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.bus != nil {
+		_ = s.bus.Publish(ctx, eventbus.Event{
+			Source: "helpdesk", Type: eventbus.TopicTicketAssigned, Data: ticketEventData(updated),
+		})
+	}
+	return updated, nil
 }
 
 func (s *ticketService) AddComment(ctx context.Context, ticketID string, req *model.AddCommentRequest, authorID, authorName, authorRole string) (*model.TicketComment, error) {
@@ -320,4 +375,17 @@ func (s *ticketService) GetTicketsByAssetID(ctx context.Context, assetID string)
 		return nil, errors.BadRequest("asset id is required")
 	}
 	return s.repo.ListTicketsByAssetID(ctx, assetID)
+}
+
+func (s *ticketService) GetTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
+	if assetID == "" {
+		return nil, errors.BadRequest("asset id is required")
+	}
+	if !actor.IsValid() || actor.IsEmployee() {
+		return nil, errors.Forbidden("asset-linked ticket lookup requires an operator role")
+	}
+	if actor.IsManager() && actor.DepartmentID == "" {
+		return nil, errors.Forbidden("manager department scope is required")
+	}
+	return s.repo.ListTicketsByAssetIDForActor(ctx, assetID, actor)
 }

@@ -841,12 +841,9 @@ export interface ExecutiveOverview {
   avg_mttr_minutes: number
   avg_mttd_minutes: number
   sla_compliance_pct: number
-  fcr_rate_pct: number
-  csat_rating: number
   total_incidents: number
   total_resolved: number
   total_breached: number
-  mttr_improvement_pct: number
   period_label: string
 }
 
@@ -890,7 +887,6 @@ export interface AgentScorecard {
   tickets_assigned: number
   tickets_resolved: number
   avg_mttr_minutes: number
-  csat_rating: number
   sla_compliance_pct: number
 }
 

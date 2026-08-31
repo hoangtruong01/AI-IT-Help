@@ -74,7 +74,9 @@ func main() {
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Public auth routes
-	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
+	if cfg.Environment != "production" {
+		mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
+	}
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", authHandler.RefreshToken)
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)

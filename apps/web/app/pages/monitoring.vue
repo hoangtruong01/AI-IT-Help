@@ -56,11 +56,9 @@ async function fetchData() {
       api.get<ClusterOverview>('/api/v1/monitoring/overview').catch(() => null),
       api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null),
       api.get<LogEntry[]>('/api/v1/monitoring/logs', {
-        params: {
-          service: selectedLogService.value === 'all' ? undefined : selectedLogService.value,
-          level: selectedLogLevel.value === 'all' ? undefined : selectedLogLevel.value,
-          limit: 50
-        }
+        service: selectedLogService.value === 'all' ? undefined : selectedLogService.value,
+        level: selectedLogLevel.value === 'all' ? undefined : selectedLogLevel.value,
+        limit: 50
       }).catch(() => null)
     ])
 

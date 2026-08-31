@@ -29,6 +29,10 @@ func (h *TicketHandler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 
 	actor := middleware.GetActor(r.Context())
+	if !actor.IsValid() {
+		errors.WriteHTTP(w, errors.Unauthorized("valid user identity and role are required"))
+		return
+	}
 	query := model.TicketListQuery{
 		Page:              page,
 		PageSize:          pageSize,
@@ -70,6 +74,17 @@ func (h *TicketHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.GetActor(r.Context())
+	if !actor.IsValid() {
+		errors.WriteHTTP(w, errors.Unauthorized("valid user identity and role are required"))
+		return
+	}
+	if actor.IsManager() {
+		if actor.DepartmentID == "" {
+			errors.WriteHTTP(w, errors.Forbidden("manager department scope is required"))
+			return
+		}
+		req.DepartmentID = &actor.DepartmentID
+	}
 	if actor.IsEmployee() {
 		if actor.ID == "" || actor.Email == "" {
 			errors.WriteHTTP(w, errors.Forbidden("employee identity is required"))
@@ -142,14 +157,25 @@ func (h *TicketHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
 		return
 	}
-
-	actorID := middleware.GetUserID(r.Context())
-	if actorID == "" {
-		actorID = "system"
+	actor := middleware.GetActor(r.Context())
+	ticketBefore, err := h.authorizeTicketAccess(r, id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
 	}
-	actorName := middleware.GetUserEmail(r.Context())
+	if actor.IsEmployee() {
+		errors.WriteHTTP(w, errors.Forbidden("employees cannot update ticket status"))
+		return
+	}
+	if actor.IsAgent() && (ticketBefore.AssigneeID == nil || *ticketBefore.AssigneeID != actor.ID) {
+		errors.WriteHTTP(w, errors.NotFound("ticket not found"))
+		return
+	}
+
+	actorID := actor.ID
+	actorName := actor.Name
 	if actorName == "" {
-		actorName = "Operator"
+		actorName = actor.Email
 	}
 
 	ticket, err := h.svc.UpdateStatus(r.Context(), id, &req, actorID, actorName)
@@ -176,9 +202,28 @@ func (h *TicketHandler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 		errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
 		return
 	}
+	actor := middleware.GetActor(r.Context())
+	current, err := h.authorizeTicketAccess(r, id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+	if actor.IsEmployee() {
+		errors.WriteHTTP(w, errors.Forbidden("employees cannot assign tickets"))
+		return
+	}
+	if actor.IsAgent() {
+		if req.AssigneeID != actor.ID || (current.AssigneeID != nil && *current.AssigneeID != "" && *current.AssigneeID != actor.ID) {
+			errors.WriteHTTP(w, errors.Forbidden("agents may only self-assign tickets from their queue"))
+			return
+		}
+	}
 
-	actorID := middleware.GetUserID(r.Context())
-	actorName := middleware.GetUserEmail(r.Context())
+	actorID := actor.ID
+	actorName := actor.Name
+	if actorName == "" {
+		actorName = actor.Email
+	}
 
 	ticket, err := h.svc.AssignTicket(r.Context(), id, &req, actorID, actorName)
 	if err != nil {
@@ -212,18 +257,13 @@ func (h *TicketHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		req.IsInternal = false
 	}
 
-	authorID := middleware.GetUserID(r.Context())
-	if authorID == "" {
-		authorID = "system"
-	}
-	authorName := middleware.GetUserEmail(r.Context())
+	actor := middleware.GetActor(r.Context())
+	authorID := actor.ID
+	authorName := actor.Name
 	if authorName == "" {
-		authorName = "Support Agent"
+		authorName = actor.Email
 	}
-	authorRole := middleware.GetUserRole(r.Context())
-	if authorRole == "" {
-		authorRole = "ROLE_AGENT"
-	}
+	authorRole := actor.Role
 
 	comment, err := h.svc.AddComment(r.Context(), id, &req, authorID, authorName, authorRole)
 	if err != nil {
@@ -318,10 +358,7 @@ func (h *TicketHandler) ListServiceCatalogItems(w http.ResponseWriter, r *http.R
 
 // ListTicketsByAsset returns tickets associated with an asset ID
 func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Request) {
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		errors.WriteHTTP(w, errors.Forbidden("asset-linked ticket lookup requires an operator role"))
-		return
-	}
+	actor := middleware.GetActor(r.Context())
 	assetID := r.PathValue("assetId")
 	if assetID == "" {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -335,7 +372,7 @@ func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tickets, err := h.svc.GetTicketsByAssetID(r.Context(), assetID)
+	tickets, err := h.svc.GetTicketsByAssetIDForActor(r.Context(), assetID, actor)
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
@@ -344,35 +381,7 @@ func (h *TicketHandler) ListTicketsByAsset(w http.ResponseWriter, r *http.Reques
 	response.JSON(w, http.StatusOK, tickets)
 }
 
-func actorCanAccessTicket(actor middleware.Actor, ticket *model.Ticket) bool {
-	if actor.IsAdmin() || actor.Role == "" {
-		return true
-	}
-	if actor.IsEmployee() {
-		return ticket.RequesterID == actor.ID
-	}
-	if actor.IsAgent() {
-		// Agent can see assigned tickets or unassigned queue tickets
-		return ticket.AssigneeID == nil || *ticket.AssigneeID == "" || *ticket.AssigneeID == actor.ID
-	}
-	if actor.IsManager() {
-		// Manager can see tickets belonging to their department or unassigned department
-		if actor.DepartmentID == "" {
-			return true
-		}
-		return ticket.DepartmentID == nil || *ticket.DepartmentID == "" || *ticket.DepartmentID == actor.DepartmentID
-	}
-	return false
-}
-
 func (h *TicketHandler) authorizeTicketAccess(r *http.Request, id string) (*model.Ticket, error) {
-	ticket, err := h.svc.GetTicket(r.Context(), id)
-	if err != nil {
-		return nil, err
-	}
 	actor := middleware.GetActor(r.Context())
-	if !actorCanAccessTicket(actor, ticket) {
-		return nil, errors.NotFound("ticket not found")
-	}
-	return ticket, nil
+	return h.svc.GetTicketForActor(r.Context(), id, actor)
 }

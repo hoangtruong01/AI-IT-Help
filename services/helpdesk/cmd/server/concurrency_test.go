@@ -11,6 +11,7 @@ import (
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/eventbus"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/helpdesk/internal/model"
 	"eomp/services/helpdesk/internal/service"
 )
@@ -49,6 +50,10 @@ func (r *concurrentMockTicketRepo) FindTicketByID(ctx context.Context, id string
 		return &copy, nil
 	}
 	return nil, nil
+}
+
+func (r *concurrentMockTicketRepo) FindTicketByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Ticket, error) {
+	return r.FindTicketByID(ctx, id)
 }
 
 func (r *concurrentMockTicketRepo) FindTicketByNumber(ctx context.Context, ticketNumber string) (*model.Ticket, error) {
@@ -157,6 +162,9 @@ func (r *concurrentMockTicketRepo) NextTicketNumber(ctx context.Context) (string
 }
 func (r *concurrentMockTicketRepo) ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error) {
 	return nil, nil
+}
+func (r *concurrentMockTicketRepo) ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
+	return r.ListTicketsByAssetID(ctx, assetID)
 }
 
 // TEST: ITIL v4 State Machine

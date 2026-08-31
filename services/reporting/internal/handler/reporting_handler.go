@@ -3,7 +3,10 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
 
+	"eomp/packages/shared/pkg/errors"
 	"eomp/packages/shared/pkg/response"
 	"eomp/services/reporting/internal/model"
 	"eomp/services/reporting/internal/service"
@@ -14,6 +17,44 @@ type ReportingHandler struct {
 	svc service.Service
 }
 
+func dateFilterFromRequest(r *http.Request) (model.DateFilterQuery, error) {
+	rangeVal := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("range")))
+	if rangeVal == "" {
+		rangeVal = "30d"
+	}
+	filter := model.DateFilterQuery{Range: rangeVal}
+	if rangeVal != "custom" {
+		switch rangeVal {
+		case "today", "7d", "30d", "quarter":
+			return filter, nil
+		default:
+			return filter, errors.BadRequest("range must be one of today, 7d, 30d, quarter, or custom")
+		}
+	}
+	start, err := time.Parse("2006-01-02", r.URL.Query().Get("start_date"))
+	if err != nil {
+		return filter, errors.BadRequest("custom range requires start_date in YYYY-MM-DD format")
+	}
+	end, err := time.Parse("2006-01-02", r.URL.Query().Get("end_date"))
+	if err != nil {
+		return filter, errors.BadRequest("custom range requires end_date in YYYY-MM-DD format")
+	}
+	end = end.Add(24*time.Hour - time.Nanosecond)
+	if start.After(end) {
+		return filter, errors.BadRequest("start_date must not be after end_date")
+	}
+	filter.StartDate, filter.EndDate = &start, &end
+	return filter, nil
+}
+
+func writeReportingError(w http.ResponseWriter, r *http.Request, operation string, err error) {
+	if _, ok := err.(*errors.AppError); ok {
+		errors.WriteHTTP(w, err)
+		return
+	}
+	errors.WriteHTTP(w, errors.Internal(r.Context(), operation, err))
+}
+
 // NewReportingHandler creates a new ReportingHandler.
 func NewReportingHandler(svc service.Service) *ReportingHandler {
 	return &ReportingHandler{svc: svc}
@@ -21,15 +62,14 @@ func NewReportingHandler(svc service.Service) *ReportingHandler {
 
 // GetOverview handles GET /api/v1/reports/overview
 func (h *ReportingHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
-	rangeVal := r.URL.Query().Get("range")
-	if rangeVal == "" {
-		rangeVal = "30d"
+	filter, err := dateFilterFromRequest(r)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
 	}
-
-	filter := model.DateFilterQuery{Range: rangeVal}
 	overview, err := h.svc.GetOverview(r.Context(), filter)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting overview", err)
 		return
 	}
 
@@ -38,15 +78,14 @@ func (h *ReportingHandler) GetOverview(w http.ResponseWriter, r *http.Request) {
 
 // GetTrends handles GET /api/v1/reports/trends
 func (h *ReportingHandler) GetTrends(w http.ResponseWriter, r *http.Request) {
-	rangeVal := r.URL.Query().Get("range")
-	if rangeVal == "" {
-		rangeVal = "30d"
+	filter, err := dateFilterFromRequest(r)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
 	}
-
-	filter := model.DateFilterQuery{Range: rangeVal}
 	trends, err := h.svc.GetTrends(r.Context(), filter)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting trends", err)
 		return
 	}
 
@@ -55,12 +94,15 @@ func (h *ReportingHandler) GetTrends(w http.ResponseWriter, r *http.Request) {
 
 // GetCategories handles GET /api/v1/reports/categories
 func (h *ReportingHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
-	rangeVal := r.URL.Query().Get("range")
-	filter := model.DateFilterQuery{Range: rangeVal}
+	filter, err := dateFilterFromRequest(r)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 
 	categories, err := h.svc.GetCategories(r.Context(), filter)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting categories", err)
 		return
 	}
 
@@ -69,12 +111,15 @@ func (h *ReportingHandler) GetCategories(w http.ResponseWriter, r *http.Request)
 
 // GetDepartmentsSLA handles GET /api/v1/reports/departments-sla
 func (h *ReportingHandler) GetDepartmentsSLA(w http.ResponseWriter, r *http.Request) {
-	rangeVal := r.URL.Query().Get("range")
-	filter := model.DateFilterQuery{Range: rangeVal}
+	filter, err := dateFilterFromRequest(r)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 
 	depts, err := h.svc.GetDepartmentsSLA(r.Context(), filter)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting department SLA", err)
 		return
 	}
 
@@ -83,12 +128,15 @@ func (h *ReportingHandler) GetDepartmentsSLA(w http.ResponseWriter, r *http.Requ
 
 // GetAgents handles GET /api/v1/reports/agents
 func (h *ReportingHandler) GetAgents(w http.ResponseWriter, r *http.Request) {
-	rangeVal := r.URL.Query().Get("range")
-	filter := model.DateFilterQuery{Range: rangeVal}
+	filter, err := dateFilterFromRequest(r)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
 
 	agents, err := h.svc.GetAgents(r.Context(), filter)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting agents", err)
 		return
 	}
 
@@ -99,8 +147,11 @@ func (h *ReportingHandler) GetAgents(w http.ResponseWriter, r *http.Request) {
 func (h *ReportingHandler) ExportReport(w http.ResponseWriter, r *http.Request) {
 	var req model.ExportReportRequest
 
-	if r.Header.Get("Content-Type") == "application/json" && r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") && r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			errors.WriteHTTP(w, errors.BadRequest("invalid json request body"))
+			return
+		}
 	}
 
 	if req.Format == "" {
@@ -112,10 +163,23 @@ func (h *ReportingHandler) ExportReport(w http.ResponseWriter, r *http.Request) 
 	if req.Range == "" {
 		req.Range = r.URL.Query().Get("range")
 	}
+	if req.Range == "" {
+		req.Range = "30d"
+	}
+	switch strings.ToLower(req.Format) {
+	case "pdf", "csv", "excel", "xlsx":
+	default:
+		errors.WriteHTTP(w, errors.BadRequest("format must be pdf or csv"))
+		return
+	}
+	if req.Range == "custom" && (req.StartDate == nil || req.EndDate == nil || req.StartDate.After(*req.EndDate)) {
+		errors.WriteHTTP(w, errors.BadRequest("custom export range requires valid start_date and end_date"))
+		return
+	}
 
 	doc, err := h.svc.ExportReport(r.Context(), req)
 	if err != nil {
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeReportingError(w, r, "reporting export", err)
 		return
 	}
 

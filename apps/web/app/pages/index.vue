@@ -23,6 +23,9 @@ const employeeTotal = ref<number | null>(null)
 const workflowStats = ref<WorkflowStats | null>(null)
 const infraServices = ref<ServiceHealthStatus[]>([])
 const auditLogs = ref<AuditLog[]>([])
+const dashboardErrors = reactive<Record<string, 'forbidden' | 'unavailable' | null>>({
+  tickets: null, assets: null, employees: null, workflows: null, services: null, audits: null
+})
 
 const activeTab = ref('all')
 
@@ -103,18 +106,33 @@ function serviceDotClass(status: string) {
 }
 
 async function loadDashboard() {
+  if (!authStore.user && authStore.token) {
+    await authStore.fetchCurrentUser()
+  }
+  if (!authStore.user) return
+
   const role = authStore.role
   const canOperate = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER' || role === 'ROLE_AGENT'
   const canManagePeople = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER'
-  const isAdmin = role === 'ROLE_ADMIN'
+
+  const load = async <T>(key: string, request: () => Promise<T>): Promise<T | null> => {
+    dashboardErrors[key] = null
+    try {
+      return await request()
+    } catch (error: unknown) {
+      const status = (error as { statusCode?: number }).statusCode
+      dashboardErrors[key] = status === 403 ? 'forbidden' : 'unavailable'
+      return null
+    }
+  }
 
   const [tickets, assets, employees, workflows, services, audits] = await Promise.all([
-    api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page: 1, page_size: 100 }).catch(() => null),
-    canOperate ? api.get<AssetStats>('/api/v1/assets/stats').catch(() => null) : Promise.resolve(null),
-    canManagePeople ? api.get<PaginatedResponse<unknown>>('/api/v1/employees', { page: 1, page_size: 1 }).catch(() => null) : Promise.resolve(null),
-    canOperate ? api.get<WorkflowStats>('/api/v1/workflows/stats').catch(() => null) : Promise.resolve(null),
-    isAdmin ? api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null) : Promise.resolve(null),
-    isAdmin ? api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', { page: 1, page_size: 3 }).catch(() => null) : Promise.resolve(null)
+    load('tickets', () => api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page: 1, page_size: 100 })),
+    canOperate ? load('assets', () => api.get<AssetStats>('/api/v1/assets/stats')) : Promise.resolve(null),
+    canManagePeople ? load('employees', () => api.get<PaginatedResponse<unknown>>('/api/v1/employees', { page: 1, page_size: 1 })) : Promise.resolve(null),
+    canOperate ? load('workflows', () => api.get<WorkflowStats>('/api/v1/workflows/stats')) : Promise.resolve(null),
+    canManagePeople ? load('services', () => api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services')) : Promise.resolve(null),
+    canManagePeople ? load('audits', () => api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', { page: 1, page_size: 3 })) : Promise.resolve(null)
   ])
 
   ticketPage.value = tickets
@@ -123,17 +141,17 @@ async function loadDashboard() {
   workflowStats.value = workflows
   infraServices.value = services ?? []
   auditLogs.value = audits?.data ?? []
-  const attemptedResults = [tickets]
+  const attemptedResults: unknown[] = [tickets]
   if (canOperate) attemptedResults.push(assets, workflows)
   if (canManagePeople) attemptedResults.push(employees)
-  if (isAdmin) attemptedResults.push(services)
+  if (canManagePeople) attemptedResults.push(services, audits)
   if (attemptedResults.some(result => result === null)) {
     toast.add({ title: 'Some dashboard data is unavailable', color: 'warning' })
   }
 }
 
 async function refreshInfrastructure() {
-  if (authStore.role !== 'ROLE_ADMIN') return
+  if (authStore.role !== 'ROLE_ADMIN' && authStore.role !== 'ROLE_MANAGER') return
   isRefreshing.value = true
   try {
     infraServices.value = await api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services')

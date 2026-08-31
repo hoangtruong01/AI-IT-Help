@@ -78,7 +78,7 @@ async function fetchEmployees() {
   loading.value = true
   error.value = null
   try {
-    const params: Record<string, unknown> = {
+    const params: Record<string, string | number | boolean | undefined> = {
       page: 1,
       page_size: 50
     }

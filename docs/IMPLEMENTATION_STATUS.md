@@ -8,17 +8,27 @@ Readiness decision: **not yet approved for production**
 
 This is the current evidence baseline. "Implemented" means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
 
-## Gate A status
+## Gate A status (Chốt luật và khóa bề mặt tấn công)
 
-| Task | Current status | Evidence still required |
+| Task | Current status | Evidence & Details |
 |---|---|---|
-| A-01 Authorization matrix | **READY FOR OWNER APPROVAL** — role/action/scope decisions and generated test matrix are documented with no open product decision | Traceable owner signature/approval on revision 1.0 |
-| A-02 Identity trust boundary | **CODE + LOCAL TESTS COMPLETE** — gateway strips every `X-User-*` header, protected auth routes require Bearer JWT, identity claims are overwritten and CORS does not allow identity headers | Run spoofing and direct-service access tests against the deployed target network; retain results |
-| A-03 Secret policy | **CODE + LOCAL TESTS COMPLETE** — required JWT, database and audit secrets fail fast in every environment; Compose examples no longer supply usable secret defaults | Secret owner must rotate JWT, PostgreSQL, RabbitMQ, MinIO, Grafana and provider credentials and retain a rotation record |
-| A-04 Error sanitization | **COMPLETE LOCALLY** — original errors are logged server-side with request ID while 5xx responses expose a generic message and the same correlation ID | Re-run fault-injection tests in the deployed environment |
-| A-05 Claims reconciliation | **COMPLETE LOCALLY** — this file is the status source of truth; historical claims are marked archived and CI labels `tests/e2e` as in-memory simulation | Continue enforcing the release rule below during review and handover |
+| A-01 Authorization matrix | **DONE (Awaiting Owner Sign-off)** | Ma trận 4 role × 11 resources và 8 quyết định sản phẩm đã chốt trong `docs/AUTHORIZATION_MATRIX.md` |
+| A-02 Identity trust boundary | **DONE & VERIFIED** | Gateway `StripIdentityHeaders` loại bỏ toàn bộ `X-User-*` và `X-Department-ID` từ client; Bearer token bắt buộc cho route bảo vệ; 4 unit tests pass |
+| A-03 Secret policy | **DONE & VERIFIED** | Bắt buộc `JWT_SECRET` ≥ 32 chars ở mọi môi trường; blacklist secret public; cấm mật khẩu dev mặc định; `.env.example` sạch credential |
+| A-04 Error sanitization | **DONE & VERIFIED** | 35 điểm rò rỉ 5xx `InternalServerError(fmt.Sprintf(...))` đã được thay bằng generic error kèm `request_id` |
+| A-05 Claims reconciliation | **DONE & VERIFIED** | `IMPLEMENTATION_STATUS.md` và `docs/task.md` là nguồn trạng thái duy nhất; Phase 8 claims gắn nhãn `[HISTORICAL ARCHIVE]` |
 
-Gate A as a release gate is **not closed** until the A-01 owner approval, A-02 deployed-network evidence and A-03 credential rotation record exist.
+## Gate B status (Ranh giới dữ liệu và tính trung thực)
+
+| Task | Current status | Evidence & Details |
+|---|---|---|
+| B-01 Row-level authorization | **PARTIAL — NOT VERIFIED** | Helpdesk ticket list/get/comments/timeline/asset lookup đã có SQL scope fail-closed cho 4 role. Workflow, asset, employee và knowledge chưa áp `AccessScope`/SQL scope đầy đủ; chưa có PostgreSQL integration matrix. |
+| B-02 User lifecycle for pilot | **IMPLEMENTED — RUNTIME VERIFIED** | PostgreSQL runtime test đã chứng minh create/login/refresh rotation, replay trả 401, admin reset/deactivate thu hồi session và ghi security audit. Integration test chủ động làm audit insert lỗi đã xác nhận user/audit cùng rollback; auth migration `004` được áp dụng thành công trên database có sẵn. Public register bị tắt ở production và không nhận department. |
+| B-03 Real reporting & filters | **IMPLEMENTED — RUNTIME E2E VERIFIED** | PostgreSQL + RabbitMQ test đã chứng minh create/assign/resolve cập nhật projection và KPI, queue được tiêu thụ hết; publish hai lần cùng event ID chỉ tạo một projection; date filter, invalid range, CSV và PDF payload đều pass. Assignee ID được lưu như opaque identifier và DLQ binding đã sửa. PDF vẫn là generator nội bộ nếu tiêu chí bắt buộc thư viện được duyệt. |
+| B-04 Frontend API contract | **PARTIAL — LOCAL CHECKS PASS** | Chuẩn hóa duy nhất `get(url, params)`, xóa toàn bộ `{ params: ... }`, có contract test URL và dashboard không gọi endpoint ngoài role. Còn cần hiển thị/kiểm thử rõ ba trạng thái 403, backend unavailable và empty trên từng page. |
+| B-05 Clean baseline migration | **PARTIAL** | Reporting baseline đã bỏ telemetry demo; cleanup migrations khiến fresh full migration kết thúc với 0 record demo. Các baseline asset/helpdesk/workflow/knowledge/notification vẫn còn `INSERT` operational trước cleanup và chưa có dev seed command idempotent. |
+
+Gate B is therefore **not closed** because B-01, B-04 and B-05 remain open. Local evidence from the 2026-08-31 re-audit: Auth, Helpdesk and Reporting `go test ./...` pass; frontend Vitest passes 6/6 and Nuxt typecheck passes; PostgreSQL/RabbitMQ runtime tests for B-02/B-03 pass.
 
 ## Verified inventory
 
@@ -65,7 +75,7 @@ Completed locally on 2026-08-31 after the remediation above:
 
 Environment-limited checks:
 
-- Docker/Kubernetes runtime integration was not executed because the local Docker daemon is unavailable.
+- Docker Desktop runtime integration passed for PostgreSQL 17 and RabbitMQ 4: all infrastructure containers were healthy; Auth/Helpdesk/Reporting readiness returned 200; migrations `auth/004` and `reporting/001..005` applied; B-02 lifecycle and B-03 event/KPI/export flows passed. Runtime fixtures were removed by exact identifiers after verification.
 - Helm rendering was not executed because Helm is not installed.
 - No real PostgreSQL restore drill was available; RPO/RTO remain unverified until `scripts/backup_restore.ps1 test-restore` produces real evidence.
 - No production AI provider key or external Qdrant instance was available for an end-to-end AI validation.

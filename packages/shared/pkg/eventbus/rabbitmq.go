@@ -137,7 +137,16 @@ func (b *RabbitMQEventBus) connect() error {
 		false, // no-wait
 		nil,
 	)
-	_ = ch.QueueBind(DefaultDLQQueue, "#", b.dlxExchange, false, nil)
+	// The DLX is a direct exchange, so "#" is a literal routing key rather
+	// than a wildcard. Bind every supported domain topic explicitly; otherwise
+	// rejected messages are silently dropped instead of reaching the DLQ.
+	for _, routingKey := range standardEventTopics() {
+		if err := ch.QueueBind(DefaultDLQQueue, routingKey, b.dlxExchange, false, nil); err != nil {
+			_ = ch.Close()
+			_ = conn.Close()
+			return fmt.Errorf("failed binding dead-letter queue for %s: %w", routingKey, err)
+		}
+	}
 
 	// Declare main topic exchange
 	if err := ch.ExchangeDeclare(
@@ -159,6 +168,25 @@ func (b *RabbitMQEventBus) connect() error {
 	b.isConnected = true
 
 	return nil
+}
+
+func standardEventTopics() []string {
+	return []string{
+		TopicTicketCreated,
+		TopicTicketStatusChanged,
+		TopicTicketAssigned,
+		TopicTicketSLAWarning,
+		TopicTicketSLABreached,
+		TopicApprovalRequested,
+		TopicApprovalDecided,
+		TopicWorkflowStarted,
+		TopicWorkflowCompleted,
+		TopicCABVoteSubmitted,
+		TopicAssetAssigned,
+		TopicAssetReturned,
+		TopicSecurityAlert,
+		"general.event",
+	}
 }
 
 func (b *RabbitMQEventBus) reconnectSupervisor() {
