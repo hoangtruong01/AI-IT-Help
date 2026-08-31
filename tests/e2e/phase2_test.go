@@ -9,7 +9,7 @@ import (
 
 // TestPhase2_EnterpriseIdentityAndAssetTraceabilityLifecycle tests Phase 2 end-to-end capabilities
 func TestPhase2_EnterpriseIdentityAndAssetTraceabilityLifecycle(t *testing.T) {
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 
 	t.Log("===> [PHASE 2 - Task 2.1 & 2.2] Testing Auth Logout Lifecycle & Login Security Audit...")
 

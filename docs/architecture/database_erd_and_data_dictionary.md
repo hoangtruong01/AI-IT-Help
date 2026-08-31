@@ -1,6 +1,6 @@
 # EOMP Master Database ERD & Data Dictionary
 
-Last audited: 2026-08-30
+Last audited: 2026-08-31
 
 Tài liệu này phản ánh 9 PostgreSQL database và các bảng hiện có trong migration của repository. Quan hệ trong sơ đồ là quan hệ nội bộ từng database; các đường nghiệp vụ liên service không phải foreign key.
 

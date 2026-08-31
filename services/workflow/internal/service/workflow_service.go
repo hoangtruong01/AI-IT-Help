@@ -47,7 +47,7 @@ func (s *workflowService) GetDefinition(ctx context.Context, id string) (*model.
 	}
 	def, err := s.repo.FindDefinitionByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get definition: %v", err))
+		return nil, errors.Internal(ctx, "workflow get definition", err)
 	}
 	if def == nil {
 		return nil, errors.NotFound("workflow definition not found")
@@ -65,7 +65,7 @@ func (s *workflowService) GetInstance(ctx context.Context, id string) (*model.Wo
 	}
 	inst, err := s.repo.FindInstanceByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get instance: %v", err))
+		return nil, errors.Internal(ctx, "workflow list definitions", err)
 	}
 	if inst == nil {
 		return nil, errors.NotFound("workflow instance not found")
@@ -85,12 +85,12 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 
 	approvalStep, err := firstApprovalStep(def.StepsConfig)
 	if err != nil {
-		return nil, errors.InternalServerError("workflow definition has no valid approval step")
+		return nil, errors.Internal(ctx, "workflow parse approval step", err)
 	}
 
 	instNumber, err := s.repo.NextInstanceNumber(ctx)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to generate instance number")
+		return nil, errors.Internal(ctx, "workflow generate instance number", err)
 	}
 
 	inst := &model.WorkflowInstance{
@@ -128,7 +128,7 @@ func (s *workflowService) StartWorkflow(ctx context.Context, req *model.CreateIn
 		Message:   fmt.Sprintf("Started workflow instance %s for '%s'. Dispatched approval request to %s.", inst.InstanceNumber, inst.Title, approvalStep.Name),
 	}
 	if err := s.repo.CreateInstanceWithApprovalAndLog(ctx, inst, approval, workflowLog); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to start workflow: %v", err))
+		return nil, errors.Internal(ctx, "workflow start instance", err)
 	}
 
 	// Publish approval.requested event via EventBus
@@ -174,8 +174,11 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 	}
 
 	instance, err := s.repo.FindInstanceByID(ctx, approval.InstanceID)
-	if err != nil || instance == nil {
-		return errors.InternalServerError("workflow instance for approval was not found")
+	if err != nil {
+		return errors.Internal(ctx, "workflow find approval instance", err)
+	}
+	if instance == nil {
+		return errors.Internal(ctx, "workflow find approval instance", fmt.Errorf("instance %s was not found", approval.InstanceID))
 	}
 
 	now := time.Now()
@@ -200,7 +203,7 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		if err == repository.ErrApprovalConflict {
 			return errors.Conflict("approval was already decided or workflow changed; reload and retry")
 		}
-		return errors.InternalServerError("failed to atomically apply approval decision")
+		return errors.Internal(ctx, "workflow apply approval decision", err)
 	}
 
 	// Log decision

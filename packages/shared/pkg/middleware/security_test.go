@@ -1,11 +1,34 @@
 package middleware
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"eomp/packages/shared/pkg/requestctx"
 )
+
+func TestRequestLoggerAddsRequestIDToContextAndResponse(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := RequestLogger(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := requestctx.RequestID(r.Context()); got != "client-request-id" {
+			t.Fatalf("expected request ID in context, got %q", got)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("X-Request-ID", "client-request-id")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Request-ID"); got != "client-request-id" {
+		t.Fatalf("expected response request ID, got %q", got)
+	}
+}
 
 // Test Case 10.1: Strict RBAC enforcement.
 func TestRBAC_RequireRoles(t *testing.T) {

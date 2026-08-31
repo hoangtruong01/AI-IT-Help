@@ -18,7 +18,7 @@ type mockUserRepo struct {
 
 func TestAuthService_PublicRegistrationAlwaysCreatesEmployee(t *testing.T) {
 	repo := newMockUserRepo()
-	authSvc := service.NewAuthService(repo, auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour))
 
 	resp, err := authSvc.Register(context.Background(), &model.RegisterRequest{
 		Email: "new.user@example.com", Password: "StrongPass!123", FullName: "New User",
@@ -32,7 +32,7 @@ func TestAuthService_PublicRegistrationAlwaysCreatesEmployee(t *testing.T) {
 }
 
 func TestAuthService_RejectsWeakRegistrationPassword(t *testing.T) {
-	authSvc := service.NewAuthService(newMockUserRepo(), auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+	authSvc := service.NewAuthService(newMockUserRepo(), auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour))
 	_, err := authSvc.Register(context.Background(), &model.RegisterRequest{
 		Email: "new.user@example.com", Password: "password", FullName: "New User",
 	})
@@ -44,7 +44,7 @@ func TestAuthService_RejectsWeakRegistrationPassword(t *testing.T) {
 func TestAuthService_BootstrapAdminDoesNotPromoteExistingAccount(t *testing.T) {
 	repo := newMockUserRepo()
 	repo.users["employee@example.com"] = &model.User{ID: "u-employee", Email: "employee@example.com", Role: model.RoleEmployee, IsActive: true}
-	authSvc := service.NewAuthService(repo, auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", time.Hour, 24*time.Hour))
+	authSvc := service.NewAuthService(repo, auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", time.Hour, 24*time.Hour))
 
 	err := authSvc.BootstrapAdmin(context.Background(), "employee@example.com", "StrongPass!123", "Employee")
 	if err == nil {
@@ -159,7 +159,7 @@ func (m *mockUserRepo) GetLoginHistory(ctx context.Context, email string, limit 
 
 func TestAuthService_LoginAuditAndLogoutRevocation(t *testing.T) {
 	ctx := context.Background()
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 	repo := newMockUserRepo()
 	authSvc := service.NewAuthService(repo, jwtManager)
 

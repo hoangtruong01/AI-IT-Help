@@ -13,7 +13,7 @@ import (
 
 // TestE2E_CompleteEnterpriseOperationsLifecycle executes the 7-step enterprise cross-service lifecycle.
 func TestE2E_CompleteEnterpriseOperationsLifecycle(t *testing.T) {
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 24*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 24*time.Hour, 7*24*time.Hour)
 
 	// =========================================================================
 	// STEP 1: Auth & Identity Verification (services/auth)

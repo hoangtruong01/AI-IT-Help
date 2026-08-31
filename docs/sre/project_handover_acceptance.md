@@ -1,7 +1,7 @@
 # Project handover and production acceptance
 
 Status: **pending**
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 This document is an acceptance checklist, not a certificate. No default user credentials are distributed with the platform.
 

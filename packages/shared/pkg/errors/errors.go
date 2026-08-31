@@ -1,9 +1,13 @@
 package errors
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+
+	"eomp/packages/shared/pkg/requestctx"
 )
 
 // Common domain error codes
@@ -79,26 +83,62 @@ func PayloadTooLarge(message string) *AppError {
 	return New(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, message)
 }
 
-// InternalServerError helper
+// InternalServerError helper — use ONLY for safe, generic messages visible to clients.
+// Do NOT pass raw error strings from database/driver/runtime.
 func InternalServerError(message string) *AppError {
 	return New(http.StatusInternalServerError, CodeInternalServerError, message)
 }
 
-// WriteHTTP sends structured JSON error response to http.ResponseWriter
+// Internal records the original server-side error with its correlation ID and
+// returns a generic error that is safe to expose to clients.
+func Internal(ctx context.Context, operation string, cause error) *AppError {
+	attrs := []any{
+		slog.String("operation", operation),
+		slog.Any("error", cause),
+	}
+	if requestID := requestctx.RequestID(ctx); requestID != "" {
+		attrs = append(attrs, slog.String("request_id", requestID))
+	}
+	slog.ErrorContext(ctx, "internal service error", attrs...)
+	return InternalServerError("an internal error occurred")
+}
+
+// WriteHTTP sends structured JSON error response to http.ResponseWriter.
+// For 5xx errors, includes the X-Request-ID as request_id in the response
+// so that clients can reference it when contacting support.
 func WriteHTTP(w http.ResponseWriter, err error) {
 	appErr, ok := err.(*AppError)
 	if !ok {
-		appErr = InternalServerError(err.Error())
+		slog.Error("unhandled HTTP error",
+			slog.String("request_id", w.Header().Get("X-Request-ID")),
+			slog.Any("error", err),
+		)
+		appErr = InternalServerError("an unexpected error occurred")
+	}
+	if appErr.StatusCode >= 500 {
+		appErr = InternalServerError("an internal error occurred")
+	}
+
+	// Build response payload
+	errPayload := map[string]any{
+		"code":        appErr.Code,
+		"message":     appErr.Message,
+		"status_code": appErr.StatusCode,
+	}
+	if appErr.StatusCode < 500 && appErr.Details != nil {
+		errPayload["details"] = appErr.Details
+	}
+
+	// Include request_id for 5xx errors to help with log correlation
+	if appErr.StatusCode >= 500 {
+		if reqID := w.Header().Get("X-Request-ID"); reqID != "" {
+			errPayload["request_id"] = reqID
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(appErr.StatusCode)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"error": map[string]any{
-			"code":        appErr.Code,
-			"message":     appErr.Message,
-			"status_code": appErr.StatusCode,
-			"details":     appErr.Details,
-		},
+		"error": errPayload,
 	})
 }

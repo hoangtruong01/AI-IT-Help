@@ -30,11 +30,11 @@ paths:
     post: {tags: [Workflow], operationId: decideApproval, summary: Atomically decide an assigned user or role-pool approval and advance its workflow, requestBody: {$ref: '#/components/requestBodies/ApprovalDecision'}, responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}}
 
   /api/v1/assets:
-    get: {tags: [Assets], operationId: listAssets, summary: List assets, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Assets], operationId: listAssets, summary: List assets (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
     post: {tags: [Assets], operationId: createAsset, summary: Create an asset, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
   /api/v1/assets/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    get: {tags: [Assets], operationId: getAsset, summary: Get an asset, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Assets], operationId: getAsset, summary: Get an asset (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
   /api/v1/assets/{id}/assign:
     parameters: [{$ref: '#/components/parameters/Id'}]
     post: {tags: [Assets], operationId: assignAsset, summary: Assign an asset using optimistic locking, requestBody: {$ref: '#/components/requestBodies/VersionedBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
@@ -54,7 +54,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Assets], operationId: getEmployeeAssetHistory, summary: Get employee asset history, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/assets/stats:
-    get: {tags: [Assets], operationId: getAssetStats, summary: Get asset statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Assets], operationId: getAssetStats, summary: Get asset statistics (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
   /api/v1/audit/integrity:
     get: {tags: [Audit], operationId: verifyAuditIntegrity, summary: Verify the ordered HMAC audit chain, responses: {'200': {$ref: '#/components/responses/Success'}, '409': {$ref: '#/components/responses/Conflict'}}}
@@ -100,7 +100,7 @@ paths:
     get: {tags: [Changes], operationId: getChangeStats, summary: Get change statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
   /api/v1/cmdb/ci:
-    get: {tags: [CMDB], operationId: listConfigurationItems, summary: List configuration items, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [CMDB], operationId: listConfigurationItems, summary: List configuration items (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
     post: {tags: [CMDB], operationId: createConfigurationItem, summary: Create a configuration item, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
   /api/v1/cmdb/ci/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
@@ -112,7 +112,7 @@ paths:
     get: {tags: [CMDB], operationId: listCMDBRelationships, summary: List CMDB relationships, responses: {'200': {$ref: '#/components/responses/Success'}}}
     post: {tags: [CMDB], operationId: createCMDBRelationship, summary: Create a CMDB relationship, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
   /api/v1/cmdb/topology:
-    get: {tags: [CMDB], operationId: getCMDBTopology, summary: Get the CMDB topology, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [CMDB], operationId: getCMDBTopology, summary: Get the CMDB topology (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
   /api/v1/departments:
     get: {tags: [Employees], operationId: listDepartments, summary: List departments, responses: {'200': {$ref: '#/components/responses/Success'}}}
@@ -173,11 +173,11 @@ paths:
     get: {tags: [Notifications], operationId: getNotificationStats, summary: Get notification statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
   /api/v1/problems:
-    get: {tags: [Problems], operationId: listProblems, summary: List problems, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Problems], operationId: listProblems, summary: List problems (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
     post: {tags: [Problems], operationId: createProblem, summary: Create a problem, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
   /api/v1/problems/{id}:
     parameters: [{$ref: '#/components/parameters/Id'}]
-    get: {tags: [Problems], operationId: getProblem, summary: Get a problem and linked incidents, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Problems], operationId: getProblem, summary: Get a problem and linked incidents (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
   /api/v1/problems/{id}/link-incident:
     parameters: [{$ref: '#/components/parameters/Id'}]
     post: {tags: [Problems], operationId: linkProblemIncident, summary: Link an incident to a problem, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}}}
@@ -191,7 +191,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/TicketId'}]
     delete: {tags: [Problems], operationId: unlinkProblemIncident, summary: Unlink an incident from a problem, responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/problems/stats:
-    get: {tags: [Problems], operationId: getProblemStats, summary: Get problem statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Problems], operationId: getProblemStats, summary: Get problem statistics (operator roles), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
   /api/v1/reports/agents:
     get: {tags: [Reports], operationId: getAgentReport, summary: Get agent performance, responses: {'200': {$ref: '#/components/responses/Success'}}}
@@ -248,7 +248,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/Id'}]
     get: {tags: [Workflow], operationId: listWorkflowLogs, summary: List workflow execution logs (employees are requester-scoped), responses: {'200': {$ref: '#/components/responses/Success'}}}
   /api/v1/workflows/stats:
-    get: {tags: [Workflow], operationId: getWorkflowStats, summary: Get workflow statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
+    get: {tags: [Workflow], operationId: getWorkflowStats, summary: Get aggregate workflow statistics (manager or admin), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
 components:
   securitySchemes:

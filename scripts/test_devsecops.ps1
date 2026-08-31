@@ -26,14 +26,14 @@ if ($unformatted) {
 # Check 2: Go Unit, Integration & Concurrency Test Execution
 # -----------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[2/5] Running Go Unit, Concurrency and E2E Integration Test Suite..." -ForegroundColor Yellow
+Write-Host "[2/5] Running Go Unit, Concurrency and In-Memory Simulation Test Suite..." -ForegroundColor Yellow
 Push-Location $workspaceRoot
 $testOutput = & go test ./packages/shared/... ./services/ai/... ./services/asset/... ./services/audit/... ./services/auth/... ./services/employee/... ./services/gateway/... ./services/helpdesk/... ./services/knowledge/... ./services/notification/... ./services/reporting/... ./services/workflow/... ./tests/e2e/... 2>&1
 $testExitCode = $LASTEXITCODE
 Pop-Location
 
 if ($testExitCode -eq 0) {
-    Write-Host "  [+] 100% Go test suites passed across all 13 modules (0 failures)." -ForegroundColor Green
+    Write-Host "  [+] All configured Go unit/simulation suites passed across 13 modules (not deployed E2E)." -ForegroundColor Green
 } else {
     Write-Host "  [-] Go test suite failed:" -ForegroundColor Red
     Write-Host $testOutput -ForegroundColor Red

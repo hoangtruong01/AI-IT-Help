@@ -35,7 +35,7 @@ func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.Chat(r.Context(), &req)
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError(err.Error()))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "AI chat", err))
 		return
 	}
 
@@ -63,7 +63,7 @@ func (h *AIHandler) AnalyzeTicket(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.AnalyzeTicket(r.Context(), req.Title, req.Description)
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError(err.Error()))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "AI analyze ticket", err))
 		return
 	}
 

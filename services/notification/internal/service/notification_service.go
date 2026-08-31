@@ -42,7 +42,7 @@ func (s *notificationService) GetNotification(ctx context.Context, id string) (*
 	}
 	n, err := s.repo.FindNotificationByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get notification: %v", err))
+		return nil, errors.Internal(ctx, "notification list", err)
 	}
 	if n == nil {
 		return nil, errors.NotFound("notification not found")
@@ -84,7 +84,7 @@ func (s *notificationService) SendNotification(ctx context.Context, req *model.C
 	}
 
 	if err := s.repo.CreateNotification(ctx, n); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create notification: %v", err))
+		return nil, errors.Internal(ctx, "notification create", err)
 	}
 
 	return s.repo.FindNotificationByID(ctx, n.ID)
@@ -101,7 +101,7 @@ func (s *notificationService) MarkAsRead(ctx context.Context, id, recipientID, r
 		if stdErrors.Is(err, sql.ErrNoRows) {
 			return errors.NotFound("notification not found")
 		}
-		return errors.InternalServerError(fmt.Sprintf("failed to mark notification as read: %v", err))
+		return errors.Internal(ctx, "notification mark read", err)
 	}
 	return nil
 }

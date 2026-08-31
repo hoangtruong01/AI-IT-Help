@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"eomp/packages/shared/pkg/errors"
 	"eomp/services/asset/internal/model"
@@ -39,7 +38,7 @@ func (s *cmdbService) GetCI(ctx context.Context, id string) (*model.Configuratio
 	}
 	ci, err := s.repo.FindCIByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get CI: %v", err))
+		return nil, errors.Internal(ctx, "cmdb get configuration item", err)
 	}
 	if ci == nil {
 		return nil, errors.NotFound("configuration item not found")
@@ -70,7 +69,7 @@ func (s *cmdbService) CreateCI(ctx context.Context, req *model.CreateCIRequest) 
 	}
 
 	if err := s.repo.CreateCI(ctx, ci); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create CI: %v", err))
+		return nil, errors.Internal(ctx, "cmdb create configuration item", err)
 	}
 
 	return s.repo.FindCIByID(ctx, ci.ID)
@@ -97,7 +96,7 @@ func (s *cmdbService) UpdateCIStatus(ctx context.Context, id, status string, exp
 		if err == repository.ErrVersionConflict {
 			return errors.Conflict("configuration item was modified by another request")
 		}
-		return errors.InternalServerError(fmt.Sprintf("failed to update CI status: %v", err))
+		return errors.Internal(ctx, "cmdb update configuration item", err)
 	}
 	return nil
 }

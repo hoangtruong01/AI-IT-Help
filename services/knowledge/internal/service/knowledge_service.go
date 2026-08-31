@@ -65,7 +65,7 @@ func (s *knowledgeService) CreateCategory(ctx context.Context, req *model.Create
 	}
 
 	if err := s.repo.CreateCategory(ctx, cat); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create category: %v", err))
+		return nil, errors.Internal(ctx, "knowledge create category", err)
 	}
 	return cat, nil
 }
@@ -80,7 +80,7 @@ func (s *knowledgeService) GetArticleByID(ctx context.Context, id string) (*mode
 	}
 	art, err := s.repo.FindArticleByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(err.Error())
+		return nil, errors.Internal(ctx, "knowledge find article by ID", err)
 	}
 	if art == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Article %s not found", id))
@@ -98,7 +98,7 @@ func (s *knowledgeService) GetArticleBySlug(ctx context.Context, slug string) (*
 	}
 	art, err := s.repo.FindArticleBySlug(ctx, slug)
 	if err != nil {
-		return nil, errors.InternalServerError(err.Error())
+		return nil, errors.Internal(ctx, "knowledge find article by slug", err)
 	}
 	if art == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Article '%s' not found", slug))
@@ -170,7 +170,7 @@ func (s *knowledgeService) CreateArticle(ctx context.Context, req *model.CreateA
 	}
 
 	if err := s.repo.CreateArticle(ctx, art); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create article: %v", err))
+		return nil, errors.Internal(ctx, "knowledge create article", err)
 	}
 
 	return art, nil
@@ -189,7 +189,7 @@ func (s *knowledgeService) UpdateArticle(ctx context.Context, id string, req *mo
 
 	art, err := s.repo.FindArticleByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(err.Error())
+		return nil, errors.Internal(ctx, "knowledge find article for update", err)
 	}
 	if art == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Article %s not found", id))
@@ -221,7 +221,7 @@ func (s *knowledgeService) UpdateArticle(ctx context.Context, id string, req *mo
 		if stdErrors.Is(err, repository.ErrVersionConflict) {
 			return nil, errors.Conflict("article was modified by another request; reload and retry")
 		}
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to update article: %v", err))
+		return nil, errors.Internal(ctx, "knowledge update article", err)
 	}
 
 	return art, nil
@@ -236,7 +236,7 @@ func (s *knowledgeService) DeleteArticle(ctx context.Context, id string, expecte
 	}
 	art, err := s.repo.FindArticleByID(ctx, id)
 	if err != nil {
-		return errors.InternalServerError(err.Error())
+		return errors.Internal(ctx, "knowledge find article for delete", err)
 	}
 	if art == nil {
 		return errors.NotFound(fmt.Sprintf("Article %s not found", id))
@@ -248,7 +248,7 @@ func (s *knowledgeService) DeleteArticle(ctx context.Context, id string, expecte
 		if stdErrors.Is(err, repository.ErrVersionConflict) {
 			return errors.Conflict("article was modified by another request; reload and retry")
 		}
-		return errors.InternalServerError(fmt.Sprintf("failed to delete article: %v", err))
+		return errors.Internal(ctx, "knowledge delete article", err)
 	}
 	return nil
 }
@@ -260,7 +260,7 @@ func (s *knowledgeService) ListRunbooks(ctx context.Context, category, search st
 func (s *knowledgeService) GetRunbookByID(ctx context.Context, id string) (*model.KnowledgeRunbook, error) {
 	rb, err := s.repo.FindRunbookByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(err.Error())
+		return nil, errors.Internal(ctx, "knowledge find runbook by ID", err)
 	}
 	if rb == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Runbook %s not found", id))
@@ -271,7 +271,7 @@ func (s *knowledgeService) GetRunbookByID(ctx context.Context, id string) (*mode
 func (s *knowledgeService) GetRunbookByCode(ctx context.Context, code string) (*model.KnowledgeRunbook, error) {
 	rb, err := s.repo.FindRunbookByCode(ctx, code)
 	if err != nil {
-		return nil, errors.InternalServerError(err.Error())
+		return nil, errors.Internal(ctx, "knowledge find runbook by code", err)
 	}
 	if rb == nil {
 		return nil, errors.NotFound(fmt.Sprintf("Runbook with code '%s' not found", code))
@@ -311,7 +311,7 @@ func (s *knowledgeService) CreateRunbook(ctx context.Context, req *model.CreateR
 	}
 
 	if err := s.repo.CreateRunbook(ctx, rb); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create runbook: %v", err))
+		return nil, errors.Internal(ctx, "knowledge create runbook", err)
 	}
 
 	return rb, nil

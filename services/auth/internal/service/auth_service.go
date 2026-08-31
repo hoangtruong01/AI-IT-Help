@@ -116,7 +116,7 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 	// Check if email already registered
 	existing, err := s.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to check existing user: %v", err))
+		return nil, errors.Internal(ctx, "auth check existing user", err)
 	}
 	if existing != nil {
 		return nil, errors.Conflict("user with this email already exists")
@@ -125,7 +125,7 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 	// Hash password
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to hash password")
+		return nil, errors.Internal(ctx, "auth hash password", err)
 	}
 
 	user := &model.User{
@@ -138,7 +138,7 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 	}
 
 	if err := s.repo.Create(ctx, user); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create user: %v", err))
+		return nil, errors.Internal(ctx, "auth create user", err)
 	}
 
 	// Generate tokens
@@ -148,13 +148,13 @@ func (s *authService) Register(ctx context.Context, req *model.RegisterRequest) 
 	}
 	accessToken, refreshToken, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, deptID, user.FullName)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to generate token pair")
+		return nil, errors.Internal(ctx, "auth generate registration token pair", err)
 	}
 
 	// Store refresh token
 	refreshHash := hashToken(refreshToken)
 	if err := s.repo.SaveRefreshToken(ctx, user.ID, refreshHash, time.Now().Add(s.jwtManager.RefreshTTL())); err != nil {
-		return nil, errors.InternalServerError("failed to persist refresh token")
+		return nil, errors.Internal(ctx, "auth persist registration refresh token", err)
 	}
 
 	return &model.AuthResponse{
@@ -183,7 +183,7 @@ func (s *authService) LoginWithAudit(ctx context.Context, req *model.LoginReques
 
 	user, err := s.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("database error: %v", err))
+		return nil, errors.Internal(ctx, "auth find user for login", err)
 	}
 
 	if user == nil {
@@ -239,12 +239,12 @@ func (s *authService) LoginWithAudit(ctx context.Context, req *model.LoginReques
 	}
 	accessToken, refreshToken, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, deptID, user.FullName)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to generate token pair")
+		return nil, errors.Internal(ctx, "auth generate login token pair", err)
 	}
 
 	refreshHash := hashToken(refreshToken)
 	if err := s.repo.SaveRefreshToken(ctx, user.ID, refreshHash, time.Now().Add(s.jwtManager.RefreshTTL())); err != nil {
-		return nil, errors.InternalServerError("failed to persist refresh token")
+		return nil, errors.Internal(ctx, "auth persist login refresh token", err)
 	}
 
 	return &model.AuthResponse{
@@ -263,7 +263,7 @@ func (s *authService) Logout(ctx context.Context, req *model.LogoutRequest) erro
 
 	refreshHash := hashToken(req.RefreshToken)
 	if err := s.repo.RevokeRefreshToken(ctx, refreshHash); err != nil {
-		return errors.InternalServerError(fmt.Sprintf("failed to revoke refresh token: %v", err))
+		return errors.Internal(ctx, "auth revoke refresh token", err)
 	}
 	return nil
 }
@@ -298,15 +298,15 @@ func (s *authService) RefreshToken(ctx context.Context, req *model.RefreshTokenR
 	}
 	newAccessToken, newRefreshToken, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, deptID, user.FullName)
 	if err != nil {
-		return nil, errors.InternalServerError("failed to generate new token pair")
+		return nil, errors.Internal(ctx, "auth generate rotated token pair", err)
 	}
 
 	newRefreshHash := hashToken(newRefreshToken)
 	if err := s.repo.SaveRefreshToken(ctx, user.ID, newRefreshHash, time.Now().Add(s.jwtManager.RefreshTTL())); err != nil {
-		return nil, errors.InternalServerError("failed to persist rotated refresh token")
+		return nil, errors.Internal(ctx, "auth persist rotated refresh token", err)
 	}
 	if err := s.repo.RevokeRefreshToken(ctx, refreshHash); err != nil {
-		return nil, errors.InternalServerError("failed to revoke previous refresh token")
+		return nil, errors.Internal(ctx, "auth revoke previous refresh token", err)
 	}
 
 	return &model.AuthResponse{
@@ -325,7 +325,7 @@ func (s *authService) GetMe(ctx context.Context, userID string) (*model.UserResp
 
 	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to get user: %v", err))
+		return nil, errors.Internal(ctx, "auth get current user", err)
 	}
 	if user == nil {
 		return nil, errors.NotFound("user not found")

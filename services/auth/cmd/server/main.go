@@ -79,28 +79,14 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/refresh", authHandler.RefreshToken)
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)
 
-	// Protected routes (accepts either direct Bearer token or Gateway injected headers)
+	// Protected routes — always require Bearer token validation.
+	// When accessed via gateway, the gateway already validated the token
+	// and set X-User-* headers, but the auth service MUST re-validate
+	// to prevent header spoofing if service is accessed directly.
 	authMiddleware := middleware.Authenticate(jwtManager)
-	gatewayMiddleware := middleware.ExtractGatewayHeaders()
 
-	meHandler := http.HandlerFunc(authHandler.GetMe)
-	mux.Handle("GET /api/v1/auth/me", gatewayMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If direct call with Bearer token, validate with authMiddleware
-		if middleware.GetUserID(r.Context()) == "" && r.Header.Get("Authorization") != "" {
-			authMiddleware(meHandler).ServeHTTP(w, r)
-			return
-		}
-		meHandler.ServeHTTP(w, r)
-	})))
-
-	loginHistoryHandler := http.HandlerFunc(authHandler.GetLoginHistory)
-	mux.Handle("GET /api/v1/auth/login-history", gatewayMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if middleware.GetUserID(r.Context()) == "" && r.Header.Get("Authorization") != "" {
-			authMiddleware(loginHistoryHandler).ServeHTTP(w, r)
-			return
-		}
-		loginHistoryHandler.ServeHTTP(w, r)
-	})))
+	mux.Handle("GET /api/v1/auth/me", authMiddleware(http.HandlerFunc(authHandler.GetMe)))
+	mux.Handle("GET /api/v1/auth/login-history", authMiddleware(http.HandlerFunc(authHandler.GetLoginHistory)))
 
 	// Apply global middleware stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(

@@ -1,10 +1,6 @@
 package config
 
-import (
-	"errors"
-
-	"eomp/packages/shared/pkg/config"
-)
+import "eomp/packages/shared/pkg/config"
 
 // Config represents asset service configuration
 type Config struct {
@@ -33,7 +29,7 @@ func Load() *Config {
 		DBHost:             config.GetEnv("POSTGRES_HOST", "localhost"),
 		DBPort:             config.GetEnvInt("POSTGRES_PORT", 5432),
 		DBUser:             config.GetEnv("POSTGRES_USER", "eomp"),
-		DBPassword:         config.GetEnv("POSTGRES_PASSWORD", "eomp_dev_password"),
+		DBPassword:         config.GetEnv("POSTGRES_PASSWORD", ""),
 		DBName:             config.GetEnv("ASSET_DB_NAME", "asset_db"),
 		DBSSLMode:          config.GetEnv("POSTGRES_SSLMODE", "disable"),
 		MigrationsPath:     config.GetEnv("ASSET_MIGRATIONS_PATH", "migrations"),
@@ -44,10 +40,5 @@ func Load() *Config {
 
 // Validate performs fail-fast configuration checks.
 func (c *Config) Validate() error {
-	if c.Environment == "production" {
-		if c.DBPassword == "eomp_dev_password" || c.DBPassword == "" {
-			return errors.New("security violation: default dev DB_PASSWORD is prohibited in production")
-		}
-	}
-	return nil
+	return config.ValidateRequiredSecret("POSTGRES_PASSWORD", c.DBPassword, 12, "eomp_dev_password")
 }

@@ -58,7 +58,7 @@ func (s *assetService) GetAsset(ctx context.Context, id string) (*model.Asset, e
 	}
 	asset, err := s.repo.FindAssetByID(ctx, id)
 	if err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to query asset: %v", err))
+		return nil, errors.Internal(ctx, "asset get", err)
 	}
 	if asset == nil {
 		return nil, errors.NotFound("asset not found")
@@ -96,7 +96,7 @@ func (s *assetService) CreateAsset(ctx context.Context, req *model.CreateAssetRe
 	}
 
 	if err := s.repo.CreateAsset(ctx, asset); err != nil {
-		return nil, errors.InternalServerError(fmt.Sprintf("failed to create asset: %v", err))
+		return nil, errors.Internal(ctx, "asset create", err)
 	}
 
 	return asset, nil

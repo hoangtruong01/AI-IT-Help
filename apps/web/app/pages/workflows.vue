@@ -5,9 +5,10 @@ definePageMeta({ layout: 'default' })
 
 const api = useApi()
 const authStore = useAuthStore()
+const canApprove = computed(() => ['ROLE_ADMIN', 'ROLE_MANAGER'].includes(authStore.role))
 
 // State
-const activeTab = ref<'approvals' | 'instances' | 'definitions'>('approvals')
+const activeTab = ref<'approvals' | 'instances' | 'definitions'>('instances')
 const stats = ref<WorkflowStats>({
   total_definitions: 0,
   active_instances: 0,
@@ -40,7 +41,7 @@ const launchError = ref<string | null>(null)
 const newInstance = reactive<CreateWorkflowInstancePayload>({
   definition_id: '',
   entity_type: 'SERVICE_REQUEST',
-  entity_id: 'REQ-1001',
+  entity_id: '',
   title: '',
   requester_id: '',
   requester_name: '',
@@ -100,7 +101,7 @@ async function fetchDefinitions() {
 function openDecisionModal(app: ApprovalRequest, type: 'APPROVED' | 'REJECTED') {
   selectedApproval.value = app
   decisionType.value = type
-  decisionNotes.value = type === 'APPROVED' ? 'Approved based on standard policy criteria.' : 'Rejected due to budget constraints or policy mismatch.'
+  decisionNotes.value = ''
   isDecisionModalOpen.value = true
 }
 
@@ -160,7 +161,11 @@ async function handleLaunchWorkflow() {
       definition_id: '',
       title: ''
     })
-    await Promise.all([fetchInstances(), fetchApprovals(), fetchStats()])
+    const refreshes: Array<Promise<void>> = [fetchInstances()]
+    if (canApprove.value) {
+      refreshes.push(fetchApprovals(), fetchStats())
+    }
+    await Promise.all(refreshes)
   } catch (err: unknown) {
     const errObj = err as { data?: { error?: { message?: string } }, message?: string }
     launchError.value = errObj?.data?.error?.message || errObj?.message || 'Failed to start workflow instance.'
@@ -170,8 +175,17 @@ async function handleLaunchWorkflow() {
 }
 
 watch(approvalStatusFilter, () => {
-  fetchApprovals()
+  if (canApprove.value) fetchApprovals()
 })
+
+watch(canApprove, (allowed) => {
+  if (allowed) {
+    fetchStats()
+    fetchApprovals()
+  } else if (activeTab.value === 'approvals') {
+    activeTab.value = 'instances'
+  }
+}, { immediate: true })
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 watch(instanceSearch, () => {
@@ -182,8 +196,6 @@ watch(instanceSearch, () => {
 })
 
 onMounted(() => {
-  fetchStats()
-  fetchApprovals()
   fetchInstances()
   fetchDefinitions()
 })
@@ -219,7 +231,10 @@ onMounted(() => {
     </div>
 
     <!-- Live KPI Metrics Cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div
+      v-if="canApprove"
+      class="grid grid-cols-2 sm:grid-cols-4 gap-3"
+    >
       <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
         <p class="text-slate-500 text-[11px] font-semibold uppercase tracking-wider">
           Pending Approvals
@@ -257,6 +272,7 @@ onMounted(() => {
     <!-- Tabs Navigation -->
     <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
       <button
+        v-if="canApprove"
         class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
         :class="activeTab === 'approvals' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-white'"
         @click="activeTab = 'approvals'"

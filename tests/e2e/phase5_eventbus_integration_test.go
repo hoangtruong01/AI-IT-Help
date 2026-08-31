@@ -52,7 +52,7 @@ func TestPhase5_E2E_EventDrivenArchitectureFlow(t *testing.T) {
 	t.Log("===> [PHASE 5 - Golden Flow Integration] Testing RabbitMQ/AMQP Resilient EventBus & Cross-Service Workflows...")
 
 	ctx := context.Background()
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 
 	// 1. Authenticate Admin / Agent
 	token, _, err := jwtManager.GenerateTokenPair("u-admin-01", "admin@eomp.local", "ROLE_ADMIN", "dept-it", "Admin User")

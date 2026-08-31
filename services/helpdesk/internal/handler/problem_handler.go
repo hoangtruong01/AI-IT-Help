@@ -37,7 +37,7 @@ func (h *ProblemHandler) ListProblems(w http.ResponseWriter, r *http.Request) {
 
 	problems, total, err := h.svc.ListProblems(r.Context(), category, status, page, pageSize)
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError("failed to list problems"))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "helpdesk list problems", err))
 		return
 	}
 
@@ -190,7 +190,7 @@ func (h *ProblemHandler) UnlinkIncident(w http.ResponseWriter, r *http.Request) 
 func (h *ProblemHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.GetStats(r.Context())
 	if err != nil {
-		errors.WriteHTTP(w, errors.InternalServerError("failed to load problem statistics"))
+		errors.WriteHTTP(w, errors.Internal(r.Context(), "helpdesk load problem statistics", err))
 		return
 	}
 	response.JSON(w, http.StatusOK, stats)

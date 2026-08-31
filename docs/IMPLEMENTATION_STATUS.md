@@ -1,12 +1,24 @@
 # EOMP implementation status
 
-Last audited: 2026-08-30
+Last audited: 2026-08-31
 
 Code version: `0.1.0`
 
 Readiness decision: **not yet approved for production**
 
 This is the current evidence baseline. "Implemented" means the code exists and the listed local checks pass; it does not replace deployment, security-owner or disaster-recovery acceptance.
+
+## Gate A status
+
+| Task | Current status | Evidence still required |
+|---|---|---|
+| A-01 Authorization matrix | **READY FOR OWNER APPROVAL** — role/action/scope decisions and generated test matrix are documented with no open product decision | Traceable owner signature/approval on revision 1.0 |
+| A-02 Identity trust boundary | **CODE + LOCAL TESTS COMPLETE** — gateway strips every `X-User-*` header, protected auth routes require Bearer JWT, identity claims are overwritten and CORS does not allow identity headers | Run spoofing and direct-service access tests against the deployed target network; retain results |
+| A-03 Secret policy | **CODE + LOCAL TESTS COMPLETE** — required JWT, database and audit secrets fail fast in every environment; Compose examples no longer supply usable secret defaults | Secret owner must rotate JWT, PostgreSQL, RabbitMQ, MinIO, Grafana and provider credentials and retain a rotation record |
+| A-04 Error sanitization | **COMPLETE LOCALLY** — original errors are logged server-side with request ID while 5xx responses expose a generic message and the same correlation ID | Re-run fault-injection tests in the deployed environment |
+| A-05 Claims reconciliation | **COMPLETE LOCALLY** — this file is the status source of truth; historical claims are marked archived and CI labels `tests/e2e` as in-memory simulation | Continue enforcing the release rule below during review and handover |
+
+Gate A as a release gate is **not closed** until the A-01 owner approval, A-02 deployed-network evidence and A-03 credential rotation record exist.
 
 ## Verified inventory
 
@@ -16,7 +28,7 @@ This is the current evidence baseline. "Implemented" means the code exists and t
 - 102 registered `/api/v1` operations. All 102 are present in the OpenAPI operation inventory.
 - `go run scripts/check_openapi_coverage.go` validates route compatibility and exact runtime/OpenAPI parity. Jenkins now runs this gate.
 
-## Remediation completed on 2026-08-30
+## Remediation completed through 2026-08-31
 
 - Registration always creates `ROLE_EMPLOYEE`; caller-selected privileged roles and fixed demo administrator seeds were removed. Optional initial-admin bootstrap is explicit.
 - Email/password validation, JWT IDs and access/refresh token types were added. Refresh rotation verifies signature, issuer, expiry and subject.
@@ -34,7 +46,8 @@ This is the current evidence baseline. "Implemented" means the code exists and t
 - Workflow instances and logs are requester-scoped for employees. Approval decisions are limited to the assigned user or configured role pool, CAB identity comes from the authenticated request and initial workflow state is written atomically.
 - Notification reads are per recipient, including broadcasts; list/count/read queries are parameterized and read receipts enforce ownership.
 - Runtime dashboards now show API results or explicit unavailable/empty states instead of static operational claims. The AI page reads provider/Qdrant state from `/api/v1/ai/status`.
-- Invalid non-hex UUID fixtures were corrected. Exact cleanup migrations remove development employees, knowledge content, tickets/problems, workflow runs, notifications and reporting telemetry without broad production-data deletes.
+- Invalid non-hex UUID fixtures were corrected. Exact cleanup migrations remove development employees, inventory/CMDB, knowledge content, tickets/problems, workflow runs, notifications and reporting telemetry without broad production-data deletes.
+- Asset/CMDB, Problem, Change, Monitoring, Reporting, Audit and workflow aggregate metrics are role-restricted in both gateway routes and frontend navigation; hard-coded navigation counts and the fictional "100% HEALTHY" sidebar were removed.
 - Human-readable ticket, problem, workflow and change numbers are allocated by PostgreSQL sequences rather than row counts or timestamp fallbacks, preventing reuse after deletion and common concurrent-create collisions.
 - AI/Qdrant mock fallback is disabled for real production providers unless `ALLOW_MOCK_AI=true` is explicitly set. Production manifests default to OpenAI and require an external key.
 - The conflicting Helpdesk routes `/tickets/asset/{assetId}` and `/tickets/{id}/assign` were replaced with an unambiguous asset-ticket route.
@@ -43,9 +56,9 @@ This is the current evidence baseline. "Implemented" means the code exists and t
 
 ## Verification evidence
 
-Completed locally on 2026-08-30 after the remediation above:
+Completed locally on 2026-08-31 after the remediation above:
 
-- Go tests passed for all 13 workspace modules, including `tests/e2e`.
+- `go test ./...` and `go vet ./...` passed for all 13 workspace modules, including `tests/e2e`.
 - OpenAPI YAML parsed successfully and Redocly reported a valid OpenAPI document.
 - Runtime/OpenAPI gate passed: `102/102` operations documented, with no `http.ServeMux` conflicts.
 - Frontend Vitest (3 tests), Nuxt typecheck, ESLint and production build passed.
@@ -62,9 +75,11 @@ Environment-limited checks:
 | Priority | Blocker | Acceptance condition |
 |---|---|---|
 | P0 | Previously committed secrets may already be compromised | Rotate PostgreSQL, JWT, RabbitMQ, MinIO, Grafana and any provider credentials in every environment and secret store |
+| P0 | Authorization matrix is not owner-approved | Record a traceable owner approval for `AUTHORIZATION_MATRIX.md` revision 1.0 before implementing dependent authorization work |
 | P0 | No real deployment/runtime proof | Build and scan every image, render Helm, deploy to a test cluster and pass smoke/integration checks |
 | P0 | DR targets are unverified | Complete a measured nine-database backup/restore drill and retain objective evidence |
 | P1 | Access/refresh tokens remain readable by browser JavaScript | Introduce a BFF/session design with an HttpOnly refresh cookie and CSRF protection |
+| P1 | Downstream services still trust gateway-injected plaintext identity headers | Add signed internal identity or validate the downstream JWT; keep service ports unreachable from untrusted networks |
 | P1 | Audit immutability is not yet enforced by a dedicated restricted DB role | Run the audit service with append-only grants, document HMAC key rotation and validate tamper detection against PostgreSQL |
 | P1 | Monitoring has probes but no real RED/log backend | Integrate Prometheus queries and a Loki-compatible log backend; keep unavailable fields explicit until then |
 | P1 | OpenAPI has complete operation parity but many generic bodies/responses | Replace generic schemas with domain models and add request/response conformance tests |

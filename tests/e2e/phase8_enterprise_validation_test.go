@@ -27,7 +27,7 @@ func TestPhase8_SecurityAndComplianceValidation(t *testing.T) {
 	t.Log("===> [PHASE 8 - Checklist 1/3] Verifying Security, RBAC & Compliance Controls...")
 
 	// 1. JWT & Secret Key Verification
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 	adminToken, _, err := jwtManager.GenerateTokenPair("u-adm-01", "admin@eomp.local", "ROLE_ADMIN", "dept-sec", "SecOps Admin")
 	if err != nil {
 		t.Fatalf("failed to generate admin token: %v", err)
@@ -137,7 +137,7 @@ func TestPhase8_BusinessAndAIGoldenFlowValidation(t *testing.T) {
 	t.Log("===> [PHASE 8 - Checklist 2/3] Verifying Business & AI Operations Golden Flow End-to-End...")
 
 	// 1. Multi-Role Identity Initialization
-	jwtManager := auth.NewJWTManager("eomp-enterprise-super-secret-jwt-key-2026", 1*time.Hour, 7*24*time.Hour)
+	jwtManager := auth.NewJWTManager("test-secret-key-that-is-at-least-32-chars-long", 1*time.Hour, 7*24*time.Hour)
 	roles := []struct {
 		ID    string
 		Email string
