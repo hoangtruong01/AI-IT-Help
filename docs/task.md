@@ -1,7 +1,7 @@
 # 📋 EOMP — Task Tracker & Báo Cáo Nâng Cấp (Gate-based)
 
-> **Baseline Commit:** `997a3d3` | **Cập nhật:** 2026-09-01
-> **Trạng thái:** **Gate A** đã hoàn tất; **Gate B đạt technical/runtime criteria, đang chờ owner acceptance**
+> **Baseline Commit:** `997a3d3` | **Cập nhật:** 2026-09-02
+> **Trạng thái:** **Gate A** đã hoàn tất; **Gate B chờ owner acceptance; Gate C chờ C-02 staging acceptance**
 > **Mục tiêu:** Pilot có kiểm soát → chỉ khi Gate A–D pass 100%  
 > **Quy tắc:** Task chỉ đóng khi có đủ 4 bằng chứng: `Code evidence` + `Automated test` + `Runtime evidence` + `Owner acceptance`.
 
@@ -13,7 +13,7 @@
 |---|---|:---:|:---:|:---:|
 | **Gate A** | **Chốt luật và khóa bề mặt tấn công** (Trust boundary, secrets, errors, matrix) | P0 | ✅ **DONE** (100%) | 5/5 |
 | **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟡 **TECHNICALLY VERIFIED — OWNER ACCEPTANCE PENDING** | 5/5 technical |
-| **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | ✅ **DONE** (100%) | 3/3 |
+| **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | 🟡 **IMPLEMENTED — C-02 STAGING ACCEPTANCE PENDING** | 3/3 code; 2/3 verified |
 | **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **READY FOR EXECUTION** | 0/3 |
 
 ---
@@ -203,47 +203,53 @@
 > ⚠️ **Điều kiện tiên quyết:** Không đóng Gate C dựa trên giả định Gate B đã pass; các mục còn mở của Gate B vẫn là blocker.
 
 ### ✅ C-01 — Frontend session architecture & Cookie BFF
-- **Priority:** P1 (release blocker) | **Effort:** 4–6 ngày | **Status:** `DONE & VERIFIED`
+- **Priority:** P1 (release blocker) | **Effort:** 4–6 ngày | **Status:** `IMPLEMENTED — LOCAL RUNTIME VERIFIED`
 - **Dependency:** A-03
 - **Files:**
-  - [`apps/web/server/api/auth/login.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/login.post.ts)
-  - [`apps/web/server/api/auth/refresh.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/refresh.post.ts)
-  - [`apps/web/server/api/auth/logout.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/logout.post.ts)
-  - [`apps/web/server/api/auth/me.get.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/me.get.ts)
-  - [`apps/web/app/middleware/auth.global.ts`](file:///d:/IT_help/eomp/apps/web/app/middleware/auth.global.ts)
-  - [`apps/web/app/composables/useApi.ts`](file:///d:/IT_help/eomp/apps/web/app/composables/useApi.ts)
-  - [`apps/web/app/stores/auth.ts`](file:///d:/IT_help/eomp/apps/web/app/stores/auth.ts)
-  - [`apps/web/app/utils/route-permissions.ts`](file:///d:/IT_help/eomp/apps/web/app/utils/route-permissions.ts)
+  - `apps/web/server/api/auth/*.ts`
+  - `apps/web/server/utils/*.ts`
+  - `apps/web/app/middleware/auth.global.ts`
+  - `apps/web/app/composables/useApi.ts`
+  - `apps/web/app/stores/auth.ts`
+  - `apps/web/app/utils/refresh-mutex.ts`
 - [x] Cookie strategy:
   - [x] BFF / Server Route set HttpOnly Secure SameSite cookie (`eomp_refresh_token`) cho refresh token.
   - [x] Access token lưu trong memory (Pinia store), không persist ra JS-readable storage (chống XSS token theft).
+  - [x] Nginx/Ingress route `/api/auth/*` tới Nuxt trước generic `/api/*`; Nitro dùng server-only internal Gateway URL.
+  - [x] Exact-Origin CSRF check cho login/refresh/logout; cookie giới hạn path `/api/auth`.
 - [x] Refresh Mutex:
   - [x] 5 requests 401 đồng thời chỉ trigger đúng 1 lần gọi refresh token (`auth_mutex.test.ts` pass).
   - [x] Queue các pending requests trong thời gian chờ token mới và tự động retry với token mới.
 - [x] Route Guard:
   - [x] Đổi middleware thành `auth.global.ts` tự động bảo vệ mọi trang.
-  - [x] Chặn truy cập trái quyền ở giao diện client theo ma trận RBAC (`/audit`, `/reports`, `/monitoring`, `/changes`, `/problems`, `/assets` - 50 matrix tests pass).
+  - [x] Chặn truy cập trái quyền ở giao diện client theo ma trận RBAC (`/audit`, `/reports`, `/monitoring`, `/changes`, `/problems`, `/assets`). Backend vẫn là security authority.
+- [x] Evidence: Vitest `73/73`, typecheck, ESLint, production build và Nitro CSRF/header smoke test pass.
 
 ---
 
-### ✅ C-02 — TLS & Private Monitoring
-- **Priority:** P0 | **Effort:** 2–4 ngày | **Status:** `DONE & VERIFIED`
+### 🟡 C-02 — TLS & Private Monitoring
+- **Priority:** P0 | **Effort:** 2–4 ngày | **Status:** `IMPLEMENTED — STAGING ACCEPTANCE PENDING`
 - **Files:**
-  - [`deploy/nginx/conf.d/eomp.conf`](file:///d:/IT_help/eomp/deploy/nginx/conf.d/eomp.conf)
-  - [`deploy/kubernetes/manifests/08-ingress.yaml`](file:///d:/IT_help/eomp/deploy/kubernetes/manifests/08-ingress.yaml)
+  - `deploy/nginx/conf.d/eomp.conf`
+  - `deploy/docker-compose.prod.yml`
+  - `deploy/kubernetes/manifests/08-ingress.yaml`
+  - `deploy/kubernetes/helm/eomp/templates/ingress.yaml`
 - [x] HTTPS redirect (80 → 443) & HSTS header (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`).
 - [x] Gỡ `/monitoring/grafana/` và `/monitoring/prometheus/` khỏi Ingress/Nginx công khai để bảo vệ telemetry.
 - [x] Cấu hình CSP: Bỏ `unsafe-eval`, tương thích chuẩn Nuxt SSR.
+- [x] Compose yêu cầu certificate/key ngoài repo, publish 443 và render validation pass.
+- [ ] Render/deploy Helm với TLS secret thật; chạy `nginx -t` và TLS scanner theo policy tổ chức.
+- [ ] Xác minh từ untrusted network không truy cập được Grafana/Prometheus.
 
 ---
 
 ### ✅ C-03 — Migration Concurrency Control
 - **Priority:** P1 | **Effort:** 1–2 ngày | **Status:** `DONE & VERIFIED`
 - **Files:**
-  - [`packages/shared/pkg/database/postgres.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres.go)
-  - [`packages/shared/pkg/database/postgres_test.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres_test.go)
+  - `packages/shared/pkg/database/postgres.go`
+  - `packages/shared/pkg/database/postgres_test.go`
 - [x] Bọc `pg_advisory_lock` (Lock ID `8424119472649191`) trên dedicated connection cho toàn bộ quá trình kiểm tra & apply migration khi nhiều pod cùng khởi động.
-- [x] Đảm bảo mỗi migration chỉ được thực thi đúng 1 lần duy nhất mà không bị crash loop hay race condition. Unit tests và Go test suite pass.
+- [x] PostgreSQL 17 runtime test với 5 connection đồng thời pass; migration effect và tracker row đều đúng một lần. Shared Go suite pass.
 
 ---
 
@@ -284,7 +290,7 @@
 
 1. ✅ **Gate A:** 100% Passed.
 2. 🟡 **Gate B:** Technical/runtime criteria đạt; chờ owner acceptance để đóng chính thức.
-3. ⏳ **Gate C:** 100% Passed.
+3. 🟡 **Gate C:** 3/3 implementation; chờ C-02 staging TLS/private-network acceptance.
 4. ⏳ **Gate D:** 100% Passed.
 5. Không còn bất kỳ issue P0 nào mở.
 6. Product Owner ký biên bản bàn giao phạm vi Pilot.
