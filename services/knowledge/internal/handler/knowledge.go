@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/packages/shared/pkg/response"
 	"eomp/services/knowledge/internal/model"
 	"eomp/services/knowledge/internal/service"
@@ -17,6 +18,15 @@ type KnowledgeHandler struct {
 	svc service.KnowledgeService
 }
 
+func requireKnowledgeActor(w http.ResponseWriter, r *http.Request) (middleware.Actor, bool) {
+	actor := middleware.GetActor(r.Context())
+	if !actor.IsValid() {
+		errors.WriteHTTP(w, errors.Unauthorized("valid user identity and role are required"))
+		return middleware.Actor{}, false
+	}
+	return actor, true
+}
+
 // NewKnowledgeHandler constructs a new KnowledgeHandler.
 func NewKnowledgeHandler(svc service.KnowledgeService) *KnowledgeHandler {
 	return &KnowledgeHandler{svc: svc}
@@ -24,6 +34,9 @@ func NewKnowledgeHandler(svc service.KnowledgeService) *KnowledgeHandler {
 
 // GetStats returns aggregate KPI statistics.
 func (h *KnowledgeHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireKnowledgeActor(w, r); !ok {
+		return
+	}
 	stats, err := h.svc.GetStats(r.Context())
 	if err != nil {
 		errors.WriteHTTP(w, err)
@@ -34,6 +47,9 @@ func (h *KnowledgeHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 // ListCategories returns all knowledge categories.
 func (h *KnowledgeHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireKnowledgeActor(w, r); !ok {
+		return
+	}
 	categories, err := h.svc.ListCategories(r.Context())
 	if err != nil {
 		errors.WriteHTTP(w, err)
@@ -44,6 +60,14 @@ func (h *KnowledgeHandler) ListCategories(w http.ResponseWriter, r *http.Request
 
 // CreateCategory creates a new category.
 func (h *KnowledgeHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
+	if !actor.IsAdmin() && !actor.IsManager() {
+		errors.WriteHTTP(w, errors.Forbidden("category creation requires manager or admin role"))
+		return
+	}
 	var req model.CreateCategoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON body"))
@@ -60,11 +84,16 @@ func (h *KnowledgeHandler) CreateCategory(w http.ResponseWriter, r *http.Request
 
 // ListArticles lists articles with category filter, search, and pagination.
 func (h *KnowledgeHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
 	query := model.ArticleListQuery{
-		Category: r.URL.Query().Get("category"),
-		Search:   r.URL.Query().Get("search"),
-		Page:     1,
-		PageSize: 20,
+		Category:      r.URL.Query().Get("category"),
+		Search:        r.URL.Query().Get("search"),
+		Page:          1,
+		PageSize:      20,
+		PublishedOnly: actor.IsEmployee(),
 	}
 
 	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
@@ -84,6 +113,10 @@ func (h *KnowledgeHandler) ListArticles(w http.ResponseWriter, r *http.Request) 
 
 // GetArticle returns an article by ID or slug.
 func (h *KnowledgeHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/api/v1/knowledge/articles/")
@@ -94,9 +127,9 @@ func (h *KnowledgeHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
 
 	// If ID looks like UUID, find by ID, else find by slug
 	if strings.Contains(id, "-") && len(id) == 36 {
-		art, err = h.svc.GetArticleByID(r.Context(), id)
+		art, err = h.svc.GetArticleByIDForVisibility(r.Context(), id, actor.IsEmployee())
 	} else {
-		art, err = h.svc.GetArticleBySlug(r.Context(), id)
+		art, err = h.svc.GetArticleBySlugForVisibility(r.Context(), id, actor.IsEmployee())
 	}
 
 	if err != nil {
@@ -108,24 +141,35 @@ func (h *KnowledgeHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
 
 // CreateArticle creates a new knowledge article.
 func (h *KnowledgeHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
+	if actor.IsEmployee() {
+		errors.WriteHTTP(w, errors.Forbidden("employees cannot create knowledge articles"))
+		return
+	}
+	if actor.IsManager() && actor.DepartmentID == "" {
+		errors.WriteHTTP(w, errors.Forbidden("manager department scope is required"))
+		return
+	}
 	var req model.CreateArticleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON body"))
 		return
 	}
 
-	// Extract author info from Gateway header if available
-	if req.AuthorID == nil || *req.AuthorID == "" {
-		userID := r.Header.Get("X-User-ID")
-		if userID != "" {
-			req.AuthorID = &userID
-		}
+	// Author and department are trusted identity fields, never client input.
+	req.AuthorID = &actor.ID
+	authorName := actor.Name
+	if authorName == "" {
+		authorName = actor.Email
 	}
-	if req.AuthorName == nil || *req.AuthorName == "" {
-		userName := r.Header.Get("X-User-Email")
-		if userName != "" {
-			req.AuthorName = &userName
-		}
+	req.AuthorName = &authorName
+	if actor.DepartmentID != "" {
+		req.DepartmentID = &actor.DepartmentID
+	} else {
+		req.DepartmentID = nil
 	}
 
 	art, err := h.svc.CreateArticle(r.Context(), &req)
@@ -138,6 +182,14 @@ func (h *KnowledgeHandler) CreateArticle(w http.ResponseWriter, r *http.Request)
 
 // UpdateArticle updates an existing article.
 func (h *KnowledgeHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
+	if actor.IsEmployee() {
+		errors.WriteHTTP(w, errors.Forbidden("employees cannot update knowledge articles"))
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/api/v1/knowledge/articles/")
@@ -147,6 +199,25 @@ func (h *KnowledgeHandler) UpdateArticle(w http.ResponseWriter, r *http.Request)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON body"))
 		return
+	}
+	current, err := h.svc.GetArticleByID(r.Context(), id)
+	if err != nil {
+		errors.WriteHTTP(w, err)
+		return
+	}
+	if actor.IsAgent() && current.AuthorID != actor.ID {
+		errors.WriteHTTP(w, errors.NotFound("article not found"))
+		return
+	}
+	if actor.IsManager() {
+		if actor.DepartmentID == "" {
+			errors.WriteHTTP(w, errors.Forbidden("manager department scope is required"))
+			return
+		}
+		if current.DepartmentID != actor.DepartmentID {
+			errors.WriteHTTP(w, errors.NotFound("article not found"))
+			return
+		}
 	}
 
 	art, err := h.svc.UpdateArticle(r.Context(), id, &req)
@@ -159,6 +230,14 @@ func (h *KnowledgeHandler) UpdateArticle(w http.ResponseWriter, r *http.Request)
 
 // DeleteArticle deletes an article.
 func (h *KnowledgeHandler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
+	if !actor.IsAdmin() {
+		errors.WriteHTTP(w, errors.Forbidden("article deletion requires admin role"))
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/api/v1/knowledge/articles/")
@@ -179,6 +258,9 @@ func (h *KnowledgeHandler) DeleteArticle(w http.ResponseWriter, r *http.Request)
 
 // ListRunbooks lists SOP Runbooks.
 func (h *KnowledgeHandler) ListRunbooks(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireKnowledgeActor(w, r); !ok {
+		return
+	}
 	category := r.URL.Query().Get("category")
 	search := r.URL.Query().Get("search")
 	page := 1
@@ -201,6 +283,9 @@ func (h *KnowledgeHandler) ListRunbooks(w http.ResponseWriter, r *http.Request) 
 
 // GetRunbook returns an SOP Runbook by ID or code.
 func (h *KnowledgeHandler) GetRunbook(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireKnowledgeActor(w, r); !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/api/v1/knowledge/runbooks/")
@@ -224,11 +309,24 @@ func (h *KnowledgeHandler) GetRunbook(w http.ResponseWriter, r *http.Request) {
 
 // CreateRunbook creates a new SOP Runbook.
 func (h *KnowledgeHandler) CreateRunbook(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
+	if actor.IsEmployee() {
+		errors.WriteHTTP(w, errors.Forbidden("employees cannot create runbooks"))
+		return
+	}
 	var req model.CreateRunbookRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("Invalid JSON body"))
 		return
 	}
+	authorName := actor.Name
+	if authorName == "" {
+		authorName = actor.Email
+	}
+	req.AuthorName = &authorName
 
 	rb, err := h.svc.CreateRunbook(r.Context(), &req)
 	if err != nil {
@@ -240,6 +338,10 @@ func (h *KnowledgeHandler) CreateRunbook(w http.ResponseWriter, r *http.Request)
 
 // Search performs semantic and fulltext search across articles and runbooks.
 func (h *KnowledgeHandler) Search(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireKnowledgeActor(w, r)
+	if !ok {
+		return
+	}
 	q := r.URL.Query().Get("q")
 	if q == "" {
 		q = r.URL.Query().Get("query")
@@ -250,7 +352,7 @@ func (h *KnowledgeHandler) Search(w http.ResponseWriter, r *http.Request) {
 		limit = l
 	}
 
-	results, err := h.svc.Search(r.Context(), q, category, limit)
+	results, err := h.svc.Search(r.Context(), q, category, limit, actor.IsEmployee())
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return

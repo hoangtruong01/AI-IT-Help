@@ -72,16 +72,22 @@ func (m *mockRepository) ListArticles(ctx context.Context, query model.ArticleLi
 	}, nil
 }
 func (m *mockRepository) FindArticleByID(ctx context.Context, id string) (*model.KnowledgeArticle, error) {
+	return m.FindArticleByIDForVisibility(ctx, id, false)
+}
+func (m *mockRepository) FindArticleByIDForVisibility(ctx context.Context, id string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	for _, a := range m.articles {
-		if a.ID == id {
+		if a.ID == id && (!publishedOnly || a.IsPublished) {
 			return &a, nil
 		}
 	}
 	return nil, nil
 }
 func (m *mockRepository) FindArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error) {
+	return m.FindArticleBySlugForVisibility(ctx, slug, false)
+}
+func (m *mockRepository) FindArticleBySlugForVisibility(ctx context.Context, slug string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	for _, a := range m.articles {
-		if a.Slug == slug {
+		if a.Slug == slug && (!publishedOnly || a.IsPublished) {
 			return &a, nil
 		}
 	}
@@ -151,7 +157,7 @@ func (m *mockRepository) CreateRunbook(ctx context.Context, rb *model.KnowledgeR
 	m.runbooks = append(m.runbooks, *rb)
 	return nil
 }
-func (m *mockRepository) Search(ctx context.Context, keyword, category string, limit int) ([]model.KnowledgeSearchResult, error) {
+func (m *mockRepository) Search(ctx context.Context, keyword, category string, limit int, publishedOnly bool) ([]model.KnowledgeSearchResult, error) {
 	return []model.KnowledgeSearchResult{
 		{
 			ID:         "a1",
@@ -234,7 +240,7 @@ func TestKnowledgeService_Search(t *testing.T) {
 	repo := newMockRepo()
 	svc := NewKnowledgeService(repo)
 
-	results, err := svc.Search(context.Background(), "MFA", "", 10)
+	results, err := svc.Search(context.Background(), "MFA", "", 10, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

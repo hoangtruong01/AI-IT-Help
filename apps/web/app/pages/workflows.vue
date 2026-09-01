@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WorkflowDefinition, WorkflowInstance, ApprovalRequest, WorkflowLog, WorkflowStats, PaginatedResponse, CreateWorkflowInstancePayload, ApprovalDecisionPayload } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -16,6 +17,7 @@ const stats = ref<WorkflowStats>({
   completed_today: 0
 })
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 
 // Approvals State
 const approvals = ref<ApprovalRequest[]>([])
@@ -75,6 +77,7 @@ async function fetchApprovals() {
 
 async function fetchInstances() {
   loading.value = true
+  pageState.value = 'loading'
   try {
     const res = await api.get<PaginatedResponse<WorkflowInstance>>('/api/v1/workflows/instances', {
       search: instanceSearch.value || undefined,
@@ -82,7 +85,10 @@ async function fetchInstances() {
       page_size: 50
     })
     instances.value = res?.data || []
-  } catch (err) {
+    pageState.value = dataViewState(instances.value)
+  } catch (err: unknown) {
+    instances.value = []
+    pageState.value = classifyApiError(err)
     console.error('Failed to load workflow instances:', err)
   } finally {
     loading.value = false
@@ -203,6 +209,12 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto">
+    <ApiStatePanel
+      v-if="!loading && pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="workflow instances"
+      @retry="fetchInstances"
+    />
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>

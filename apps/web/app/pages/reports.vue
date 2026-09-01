@@ -7,6 +7,7 @@ import type {
   AgentScorecard,
   ExportReportResponse
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -16,6 +17,7 @@ const toast = useToast()
 // State
 const selectedPeriod = ref<'today' | '7d' | '30d' | 'quarter'>('30d')
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 const isExportingPDF = ref(false)
 const isExportingCSV = ref(false)
 const isAutoRefresh = ref(true)
@@ -44,9 +46,10 @@ const agents = ref<AgentScorecard[]>([])
 // Fetch BI Analytics Data
 async function fetchReportData() {
   loading.value = true
+  pageState.value = 'loading'
   try {
     const [ovRes, trRes, catRes, deptRes, agRes] = await Promise.all([
-      api.get<ExecutiveOverview>('/api/v1/reports/overview', { range: selectedPeriod.value }).catch(() => null),
+      api.get<ExecutiveOverview>('/api/v1/reports/overview', { range: selectedPeriod.value }),
       api.get<IncidentTrend[]>('/api/v1/reports/trends', { range: selectedPeriod.value }).catch(() => null),
       api.get<CategoryBreakdown[]>('/api/v1/reports/categories', { range: selectedPeriod.value }).catch(() => null),
       api.get<DepartmentSLAMetric[]>('/api/v1/reports/departments-sla', { range: selectedPeriod.value }).catch(() => null),
@@ -62,6 +65,7 @@ async function fetchReportData() {
       total_breached: 0,
       period_label: 'Reporting service unavailable'
     }
+    pageState.value = dataViewState(overview.value.total_incidents > 0 ? [overview.value] : [])
 
     trends.value = trRes ?? []
     categories.value = catRes ?? []
@@ -70,6 +74,8 @@ async function fetchReportData() {
     if (!ovRes || !trRes || !catRes || !deptRes || !agRes) {
       toast.add({ title: 'Some reporting data could not be loaded', color: 'warning' })
     }
+  } catch (err: unknown) {
+    pageState.value = classifyApiError(err)
   } finally {
     loading.value = false
   }
@@ -170,6 +176,12 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-7 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!loading && (pageState === 'forbidden' || pageState === 'unavailable')"
+      :state="pageState"
+      resource="reporting analytics"
+      @retry="fetchReportData"
+    />
     <!-- Header with Breadcrumbs & Actions -->
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div>
@@ -187,7 +199,6 @@ onUnmounted(() => {
           Real-time MTTR, MTTD, SLA Compliance, Technician Productivity & Department Performance.
         </p>
       </div>
-
       <!-- Quick Action Controls -->
       <div class="flex flex-wrap items-center gap-2.5">
         <!-- Period Filter Pills -->
@@ -254,7 +265,7 @@ onUnmounted(() => {
 
     <!-- Empty State Alert when Zero Data Filtered (Test Case 9.2) -->
     <div
-      v-if="overview.total_incidents === 0"
+      v-if="pageState === 'empty'"
       class="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 text-center space-y-3 backdrop-blur-xl animate-fade-in"
     >
       <div class="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -347,7 +358,6 @@ onUnmounted(() => {
           <span>{{ overview.total_resolved - overview.total_breached }} of {{ overview.total_resolved }} resolved in SLA</span>
         </div>
       </div>
-
     </div>
 
     <!-- Daily incident and resolution trend -->

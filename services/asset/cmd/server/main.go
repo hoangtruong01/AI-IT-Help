@@ -65,6 +65,7 @@ func main() {
 
 	// 3. Routes
 	mux := http.NewServeMux()
+	apiMux := http.NewServeMux()
 
 	// Health & Metrics
 	mux.HandleFunc("GET /health", healthHandler.Check)
@@ -73,25 +74,32 @@ func main() {
 	mux.HandleFunc("GET /metrics", metrics.PrometheusHandler())
 
 	// Asset APIs
-	mux.HandleFunc("GET /api/v1/assets/stats", assetHandler.GetStats)
-	mux.HandleFunc("GET /api/v1/assets", assetHandler.ListAssets)
-	mux.HandleFunc("POST /api/v1/assets", assetHandler.CreateAsset)
-	mux.HandleFunc("GET /api/v1/assets/employee/{id}/history", assetHandler.GetEmployeeAssetHistory)
-	mux.HandleFunc("GET /api/v1/assets/{id}", assetHandler.GetAsset)
-	mux.HandleFunc("PATCH /api/v1/assets/{id}/status", assetHandler.UpdateStatus)
-	mux.HandleFunc("POST /api/v1/assets/{id}/assign", assetHandler.AssignAsset)
-	mux.HandleFunc("POST /api/v1/assets/{id}/return", assetHandler.ReturnAsset)
-	mux.HandleFunc("GET /api/v1/assets/{id}/assignments", assetHandler.ListAssignments)
-	mux.HandleFunc("GET /api/v1/assets/{id}/incidents", assetHandler.GetAssetIncidents)
+	apiMux.HandleFunc("GET /api/v1/assets/stats", assetHandler.GetStats)
+	apiMux.HandleFunc("GET /api/v1/assets", assetHandler.ListAssets)
+	apiMux.HandleFunc("POST /api/v1/assets", assetHandler.CreateAsset)
+	apiMux.HandleFunc("GET /api/v1/assets/employee/{id}/history", assetHandler.GetEmployeeAssetHistory)
+	apiMux.HandleFunc("GET /api/v1/assets/{id}", assetHandler.GetAsset)
+	apiMux.HandleFunc("PATCH /api/v1/assets/{id}/status", assetHandler.UpdateStatus)
+	apiMux.HandleFunc("POST /api/v1/assets/{id}/assign", assetHandler.AssignAsset)
+	apiMux.HandleFunc("POST /api/v1/assets/{id}/return", assetHandler.ReturnAsset)
+	apiMux.HandleFunc("GET /api/v1/assets/{id}/assignments", assetHandler.ListAssignments)
+	apiMux.HandleFunc("GET /api/v1/assets/{id}/incidents", assetHandler.GetAssetIncidents)
 
 	// CMDB APIs
-	mux.HandleFunc("GET /api/v1/cmdb/topology", cmdbHandler.GetTopology)
-	mux.HandleFunc("GET /api/v1/cmdb/ci", cmdbHandler.ListCIs)
-	mux.HandleFunc("POST /api/v1/cmdb/ci", cmdbHandler.CreateCI)
-	mux.HandleFunc("GET /api/v1/cmdb/ci/{id}", cmdbHandler.GetCI)
-	mux.HandleFunc("PATCH /api/v1/cmdb/ci/{id}/status", cmdbHandler.UpdateCIStatus)
-	mux.HandleFunc("GET /api/v1/cmdb/relationships", cmdbHandler.ListRelationships)
-	mux.HandleFunc("POST /api/v1/cmdb/relationships", cmdbHandler.CreateRelationship)
+	apiMux.HandleFunc("GET /api/v1/cmdb/topology", cmdbHandler.GetTopology)
+	apiMux.HandleFunc("GET /api/v1/cmdb/ci", cmdbHandler.ListCIs)
+	apiMux.HandleFunc("POST /api/v1/cmdb/ci", cmdbHandler.CreateCI)
+	apiMux.HandleFunc("GET /api/v1/cmdb/ci/{id}", cmdbHandler.GetCI)
+	apiMux.HandleFunc("PATCH /api/v1/cmdb/ci/{id}/status", cmdbHandler.UpdateCIStatus)
+	apiMux.HandleFunc("GET /api/v1/cmdb/relationships", cmdbHandler.ListRelationships)
+	apiMux.HandleFunc("POST /api/v1/cmdb/relationships", cmdbHandler.CreateRelationship)
+
+	// Asset and CMDB are operator resources. Keep this authorization at the
+	// service boundary as defence in depth for direct/internal calls.
+	operatorAPI := middleware.RequireValidActor()(
+		middleware.RequireRoles("ROLE_AGENT", "ROLE_MANAGER")(apiMux),
+	)
+	mux.Handle("/api/v1/", operatorAPI)
 
 	// Middleware Stack with RED Metrics
 	handlerStack := middleware.Recoverer(log)(

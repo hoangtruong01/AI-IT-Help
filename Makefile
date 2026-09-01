@@ -4,7 +4,7 @@
 # For Linux / macOS / CI environments.
 # Windows users: use scripts/dev.ps1
 
-.PHONY: help dev build test lint format docker-up docker-down logs health clean
+.PHONY: help dev seed build test lint format docker-up docker-down logs health clean
 
 # Default target
 help: ## Show this help
@@ -20,6 +20,9 @@ help: ## Show this help
 
 dev: ## Start frontend development server
 	cd apps/web && pnpm dev
+
+seed: ## Load idempotent operational fixtures (development/test only)
+	sh ./scripts/dev_seed.sh
 
 build: ## Build all services
 	@echo "Building Go services..."

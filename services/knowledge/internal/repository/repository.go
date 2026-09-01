@@ -27,7 +27,9 @@ type Repository interface {
 	// Articles
 	ListArticles(ctx context.Context, query model.ArticleListQuery) (*model.ArticleListResponse, error)
 	FindArticleByID(ctx context.Context, id string) (*model.KnowledgeArticle, error)
+	FindArticleByIDForVisibility(ctx context.Context, id string, publishedOnly bool) (*model.KnowledgeArticle, error)
 	FindArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error)
+	FindArticleBySlugForVisibility(ctx context.Context, slug string, publishedOnly bool) (*model.KnowledgeArticle, error)
 	CreateArticle(ctx context.Context, art *model.KnowledgeArticle) error
 	UpdateArticle(ctx context.Context, art *model.KnowledgeArticle) error
 	DeleteArticle(ctx context.Context, id string, expectedVersion int) error
@@ -40,7 +42,7 @@ type Repository interface {
 	CreateRunbook(ctx context.Context, rb *model.KnowledgeRunbook) error
 
 	// Search & Aggregation
-	Search(ctx context.Context, keyword, category string, limit int) ([]model.KnowledgeSearchResult, error)
+	Search(ctx context.Context, keyword, category string, limit int, publishedOnly bool) ([]model.KnowledgeSearchResult, error)
 	GetStats(ctx context.Context) (*model.KnowledgeStats, error)
 }
 
@@ -134,7 +136,10 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 		query.PageSize = 20
 	}
 
-	whereClauses := []string{"a.is_published = true"}
+	whereClauses := []string{"1=1"}
+	if query.PublishedOnly {
+		whereClauses = append(whereClauses, "a.is_published = true")
+	}
 	args := []any{}
 	argIndex := 1
 
@@ -174,7 +179,7 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 	dataQuery := fmt.Sprintf(`
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
+			a.tags, a.author_id, a.author_name, a.department_id, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
@@ -209,6 +214,7 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 			&tags,
 			&art.AuthorID,
 			&art.AuthorName,
+			&art.DepartmentID,
 			&art.ViewCount,
 			&art.HelpfulCount,
 			&art.IsPublished,
@@ -247,6 +253,10 @@ func (r *postgresRepository) ListArticles(ctx context.Context, query model.Artic
 }
 
 func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*model.KnowledgeArticle, error) {
+	return r.FindArticleByIDForVisibility(ctx, id, false)
+}
+
+func (r *postgresRepository) FindArticleByIDForVisibility(ctx context.Context, id string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	if r.db == nil {
 		return nil, errors.New("database connection not available")
 	}
@@ -254,17 +264,17 @@ func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*m
 	query := `
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
+			a.tags, a.author_id, a.author_name, a.department_id, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
-		WHERE a.id = $1
+		WHERE a.id = $1 AND ($2 = false OR a.is_published = true)
 	`
 	var art model.KnowledgeArticle
 	var catName, catCode sql.NullString
 	var tags pq.StringArray
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id, publishedOnly).Scan(
 		&art.ID,
 		&art.CategoryID,
 		&catName,
@@ -276,6 +286,7 @@ func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*m
 		&tags,
 		&art.AuthorID,
 		&art.AuthorName,
+		&art.DepartmentID,
 		&art.ViewCount,
 		&art.HelpfulCount,
 		&art.IsPublished,
@@ -305,6 +316,10 @@ func (r *postgresRepository) FindArticleByID(ctx context.Context, id string) (*m
 }
 
 func (r *postgresRepository) FindArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error) {
+	return r.FindArticleBySlugForVisibility(ctx, slug, false)
+}
+
+func (r *postgresRepository) FindArticleBySlugForVisibility(ctx context.Context, slug string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	if r.db == nil {
 		return nil, errors.New("database connection not available")
 	}
@@ -312,17 +327,17 @@ func (r *postgresRepository) FindArticleBySlug(ctx context.Context, slug string)
 	query := `
 		SELECT 
 			a.id, a.category_id, c.name, c.code, a.title, a.slug, a.summary, a.content,
-			a.tags, a.author_id, a.author_name, a.view_count, a.helpful_count, a.is_published, a.version,
+			a.tags, a.author_id, a.author_name, a.department_id, a.view_count, a.helpful_count, a.is_published, a.version,
 			a.created_at, a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
-		WHERE a.slug = $1
+		WHERE a.slug = $1 AND ($2 = false OR a.is_published = true)
 	`
 	var art model.KnowledgeArticle
 	var catName, catCode sql.NullString
 	var tags pq.StringArray
 
-	err := r.db.QueryRowContext(ctx, query, slug).Scan(
+	err := r.db.QueryRowContext(ctx, query, slug, publishedOnly).Scan(
 		&art.ID,
 		&art.CategoryID,
 		&catName,
@@ -334,6 +349,7 @@ func (r *postgresRepository) FindArticleBySlug(ctx context.Context, slug string)
 		&tags,
 		&art.AuthorID,
 		&art.AuthorName,
+		&art.DepartmentID,
 		&art.ViewCount,
 		&art.HelpfulCount,
 		&art.IsPublished,
@@ -370,12 +386,12 @@ func (r *postgresRepository) CreateArticle(ctx context.Context, art *model.Knowl
 	query := `
 		INSERT INTO knowledge_articles (
 			id, category_id, title, slug, summary, content, tags,
-			author_id, author_name, view_count, helpful_count, is_published,
+			author_id, author_name, department_id, view_count, helpful_count, is_published,
 			created_at, updated_at
 		)
 		VALUES (
 			uuid_generate_v4(), $1, $2, $3, $4, $5, $6,
-			$7, $8, 0, 0, $9,
+			$7, $8, NULLIF($9, ''), 0, 0, $10,
 			NOW(), NOW()
 		)
 		RETURNING id, version, created_at, updated_at
@@ -389,6 +405,7 @@ func (r *postgresRepository) CreateArticle(ctx context.Context, art *model.Knowl
 		pq.Array(art.Tags),
 		art.AuthorID,
 		art.AuthorName,
+		art.DepartmentID,
 		art.IsPublished,
 	).Scan(&art.ID, &art.Version, &art.CreatedAt, &art.UpdatedAt)
 }
@@ -680,7 +697,7 @@ func (r *postgresRepository) CreateRunbook(ctx context.Context, rb *model.Knowle
 // Search & Aggregation
 // ----------------------------------------------------------------------
 
-func (r *postgresRepository) Search(ctx context.Context, keyword, category string, limit int) ([]model.KnowledgeSearchResult, error) {
+func (r *postgresRepository) Search(ctx context.Context, keyword, category string, limit int, publishedOnly bool) ([]model.KnowledgeSearchResult, error) {
 	if r.db == nil {
 		return nil, errors.New("database connection not available")
 	}
@@ -705,11 +722,12 @@ func (r *postgresRepository) Search(ctx context.Context, keyword, category strin
 			a.updated_at
 		FROM knowledge_articles a
 		LEFT JOIN knowledge_categories c ON a.category_id = c.id
-		WHERE a.is_published = true AND (a.title ILIKE $1 OR a.summary ILIKE $1 OR a.content ILIKE $1)
+		WHERE ($3 = false OR a.is_published = true)
+		  AND (a.title ILIKE $1 OR a.summary ILIKE $1 OR a.content ILIKE $1)
 		ORDER BY score DESC, a.view_count DESC
 		LIMIT $2
 	`
-	rows, err := r.db.QueryContext(ctx, artQuery, pattern, limit)
+	rows, err := r.db.QueryContext(ctx, artQuery, pattern, limit, publishedOnly)
 	if err != nil {
 		return nil, fmt.Errorf("search knowledge articles: %w", err)
 	}

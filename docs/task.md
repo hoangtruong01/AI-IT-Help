@@ -1,7 +1,7 @@
 # 📋 EOMP — Task Tracker & Báo Cáo Nâng Cấp (Gate-based)
 
-> **Baseline Commit:** `997a3d3` | **Cập nhật:** 2026-08-31  
-> **Trạng thái:** **Gate A** đã implement nhưng còn owner/runtime acceptance; **Gate B đang PARTIAL sau re-audit**
+> **Baseline Commit:** `997a3d3` | **Cập nhật:** 2026-09-01
+> **Trạng thái:** **Gate A** đã hoàn tất; **Gate B đạt technical/runtime criteria, đang chờ owner acceptance**
 > **Mục tiêu:** Pilot có kiểm soát → chỉ khi Gate A–D pass 100%  
 > **Quy tắc:** Task chỉ đóng khi có đủ 4 bằng chứng: `Code evidence` + `Automated test` + `Runtime evidence` + `Owner acceptance`.
 
@@ -12,7 +12,7 @@
 | Gate | Mô tả phạm vi | Trọng số | Trạng thái | Số task |
 |---|---|:---:|:---:|:---:|
 | **Gate A** | **Chốt luật và khóa bề mặt tấn công** (Trust boundary, secrets, errors, matrix) | P0 | ✅ **DONE** (100%) | 5/5 |
-| **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟠 **PARTIAL — NOT CLOSED** | 0/5 verified |
+| **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟡 **TECHNICALLY VERIFIED — OWNER ACCEPTANCE PENDING** | 5/5 technical |
 | **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | 🟡 **READY** | 0/3 |
 | **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **OPEN** | 0/3 |
 
@@ -112,8 +112,8 @@
 
 > ⚠️ **Điều kiện tiên quyết:** Gate A đã pass 100%.
 
-### 🟠 B-01 — Authorization theo bản ghi (Row-Level / Scope-Based)
-- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `PARTIAL — NOT VERIFIED`
+### 🟢 B-01 — Authorization theo bản ghi (Row-Level / Scope-Based)
+- **Priority:** P0 | **Effort:** 5–8 ngày | **Status:** `IMPLEMENTED — POSTGRESQL RUNTIME VERIFIED`
 - **Files:**
   - [`packages/shared/pkg/middleware/auth.go`](file:///d:/IT_help/eomp/packages/shared/pkg/middleware/auth.go)
   - [`services/helpdesk/internal/handler/ticket.go`](file:///d:/IT_help/eomp/services/helpdesk/internal/handler/ticket.go)
@@ -129,8 +129,8 @@
   - [x] `GetTicket`: Scope được đưa vào SQL; ngoài scope trả `404 Not Found` để chống enumeration.
   - [x] `AddComment`, `ListComments`, `ListTimeline`: Kế thừa xác thực quyền từ ticket.
   - [x] `CreateTicket`: Employee luôn bị gán `requester_id = actor.ID`; Operators được tạo on-behalf.
-- [ ] Hoàn tất SQL scope cho Workflow, Asset, Employee và Knowledge theo toàn bộ ma trận A-01.
-- [ ] Chạy PostgreSQL integration matrix cho own/other department/assigned/unassigned của cả 4 role.
+- [x] Hoàn tất scope cho Workflow/Approval, Asset/CMDB, Employee và Knowledge theo ma trận A-01; direct call thiếu actor fail-closed.
+- [x] PostgreSQL runtime matrix pass cho cả 4 role với own/other department/assigned/unassigned; ngoài scope trả `404`, forbidden role trả `403`, thiếu actor trả `401`.
 
 ---
 
@@ -177,23 +177,24 @@
 
 ---
 
-### 🟡 B-04 — Frontend API contract & chuẩn hóa tham số
-- **Priority:** P1 | **Effort:** 3–5 ngày | **Status:** `PARTIAL — LOCAL CHECKS PASS`
+### 🟢 B-04 — Frontend API contract & chuẩn hóa tham số
+- **Priority:** P1 | **Effort:** 3–5 ngày | **Status:** `IMPLEMENTED — LOCAL VERIFIED`
 - **Files:**
   - [`apps/web/app/composables/useApi.ts`](file:///d:/IT_help/eomp/apps/web/app/composables/useApi.ts)
 - [x] Chuẩn hóa duy nhất `useApi.get(url, params)` và xóa toàn bộ caller `{ params: { ... } }`.
 - [x] Contract test kiểm tra URL/encoding và từ chối nested object; dashboard chỉ gọi endpoint hợp role.
-- [ ] Hiển thị và test riêng `empty`, `403`, `backend unavailable` trên từng page.
+- [x] `ApiStatePanel` + classifier hiển thị riêng `empty`, `403`, `backend unavailable` trên các data page; Vitest 14/14, typecheck và ESLint pass.
 
 ---
 
-### 🟠 B-05 — Migration và seed sạch
-- **Priority:** P1 | **Effort:** 2–4 ngày | **Status:** `PARTIAL`
+### 🟢 B-05 — Migration và seed sạch
+- **Priority:** P1 | **Effort:** 2–4 ngày | **Status:** `IMPLEMENTED — FRESH MIGRATION VERIFIED`
 - **Files:**
   - [`services/*/migrations/*.sql`](file:///d:/IT_help/eomp/services/)
 - [x] Reporting baseline không còn insert telemetry demo; giữ exact cleanup migration cho upgrade.
-- [ ] Gỡ operational demo INSERT khỏi baseline Asset/Helpdesk/Workflow/Knowledge/Notification.
-- [ ] Tạo seed command explicit, chỉ cho development/test, idempotent khi chạy hai lần.
+- [x] Gỡ operational demo INSERT khỏi baseline Asset/Helpdesk/Workflow/Knowledge/Notification; giữ reference data và exact cleanup migrations cho upgrade.
+- [x] Fresh migration trên 5 database tạm tạo 0 operational record và đúng reference data.
+- [x] `make seed`, `scripts/dev_seed.ps1`/`.sh` chỉ cho development/test; chạy hai lần vẫn đúng một fixture mỗi loại.
 
 ---
 
@@ -277,7 +278,7 @@
 ## 🎯 Pilot Exit Criteria
 
 1. ✅ **Gate A:** 100% Passed.
-2. ⏳ **Gate B:** Partial; chưa đạt exit criteria.
+2. 🟡 **Gate B:** Technical/runtime criteria đạt; chờ owner acceptance để đóng chính thức.
 3. ⏳ **Gate C:** 100% Passed.
 4. ⏳ **Gate D:** 100% Passed.
 5. Không còn bất kỳ issue P0 nào mở.

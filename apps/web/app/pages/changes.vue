@@ -9,6 +9,7 @@ import type {
   SubmitCABVotePayload,
   PaginatedResponse
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -31,6 +32,7 @@ const stats = ref<ChangeStats>({
 })
 
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 const searchQuery = ref('')
 const selectedType = ref('All')
 const selectedStatus = ref('All')
@@ -81,6 +83,7 @@ const categories = [
 // Fetch Changes & Calendar
 async function fetchData() {
   loading.value = true
+  pageState.value = 'loading'
   try {
     const [cRes, sRes, calRes] = await Promise.all([
       api.get<PaginatedResponse<ChangeRequest>>('/api/v1/changes', {
@@ -88,12 +91,13 @@ async function fetchData() {
         status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
         risk: selectedRisk.value === 'All' ? undefined : selectedRisk.value,
         page_size: 50
-      }).catch(() => null),
+      }),
       api.get<ChangeStats>('/api/v1/changes/stats').catch(() => null),
       api.get<ChangeCalendarItem[]>('/api/v1/changes/calendar').catch(() => null)
     ])
 
     changes.value = cRes?.data ?? []
+    pageState.value = dataViewState(changes.value)
 
     stats.value = sRes ?? {
       active_changes: 0,
@@ -107,6 +111,9 @@ async function fetchData() {
     if (!cRes || !sRes || !calRes) {
       toast.add({ title: 'Some change-management data could not be loaded', color: 'warning' })
     }
+  } catch (err: unknown) {
+    changes.value = []
+    pageState.value = classifyApiError(err)
   } finally {
     loading.value = false
   }
@@ -248,6 +255,12 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!loading && pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="change requests"
+      @retry="fetchData"
+    />
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>

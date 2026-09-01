@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/workflow/internal/model"
 )
 
@@ -20,12 +21,13 @@ type Repository interface {
 
 	ListInstances(ctx context.Context, query model.WorkflowListQuery) (*model.WorkflowListResponse, error)
 	FindInstanceByID(ctx context.Context, id string) (*model.WorkflowInstance, error)
+	FindInstanceByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.WorkflowInstance, error)
 	CreateInstance(ctx context.Context, inst *model.WorkflowInstance) error
 	CreateInstanceWithApprovalAndLog(ctx context.Context, inst *model.WorkflowInstance, approval *model.ApprovalRequest, log *model.WorkflowLog) error
 	UpdateInstanceStatus(ctx context.Context, id, status, currentStep string, completedAt *time.Time) error
 	NextInstanceNumber(ctx context.Context) (string, error)
 
-	ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error)
+	ListApprovals(ctx context.Context, approverID, approverRole, departmentID, status string, page, pageSize int) (*model.ApprovalListResponse, error)
 	FindApprovalByID(ctx context.Context, id string) (*model.ApprovalRequest, error)
 	CreateApproval(ctx context.Context, app *model.ApprovalRequest) error
 	UpdateApprovalDecision(ctx context.Context, id, status, notes string, decidedAt *time.Time) error
@@ -138,6 +140,23 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 	whereClauses := []string{"1=1"}
 	args := []any{}
 	argIndex := 1
+	switch query.ActorRole {
+	case "ROLE_EMPLOYEE":
+		whereClauses = append(whereClauses, fmt.Sprintf("requester_id = $%d", argIndex))
+		args = append(args, query.ActorID)
+		argIndex++
+	case "ROLE_AGENT":
+		whereClauses = append(whereClauses, fmt.Sprintf("(requester_id = $%d OR EXISTS (SELECT 1 FROM workflow_steps ws WHERE ws.instance_id = workflow_instances.id AND ws.assigned_to = $%d))", argIndex, argIndex))
+		args = append(args, query.ActorID)
+		argIndex++
+	case "ROLE_MANAGER":
+		whereClauses = append(whereClauses, fmt.Sprintf("department_id = $%d", argIndex))
+		args = append(args, query.ActorDepartmentID)
+		argIndex++
+	case "ROLE_ADMIN":
+	default:
+		whereClauses = append(whereClauses, "1=0")
+	}
 
 	if query.Status != "" && query.Status != "All" {
 		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIndex))
@@ -145,7 +164,7 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 		argIndex++
 	}
 
-	if query.RequesterID != "" {
+	if query.RequesterID != "" && query.ActorRole == "ROLE_ADMIN" {
 		whereClauses = append(whereClauses, fmt.Sprintf("requester_id = $%d", argIndex))
 		args = append(args, query.RequesterID)
 		argIndex++
@@ -170,7 +189,7 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 	dataQuery := fmt.Sprintf(`
 		SELECT 
 			id, instance_number, definition_id, definition_name, entity_type, entity_id,
-			title, requester_id, requester_name, requester_email,
+			title, requester_id, requester_name, requester_email, COALESCE(department_id, ''),
 			current_step_name, status, context_data::text, started_at, completed_at,
 			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM workflow_instances
@@ -195,7 +214,7 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 
 		err := rows.Scan(
 			&inst.ID, &inst.InstanceNumber, &inst.DefinitionID, &inst.DefinitionName, &inst.EntityType, &inst.EntityID,
-			&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail,
+			&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail, &inst.DepartmentID,
 			&inst.CurrentStepName, &inst.Status, &ctxStr, &inst.StartedAt, &completedAt,
 			&inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 		)
@@ -225,22 +244,36 @@ func (r *postgresRepository) ListInstances(ctx context.Context, query model.Work
 }
 
 func (r *postgresRepository) FindInstanceByID(ctx context.Context, id string) (*model.WorkflowInstance, error) {
+	return r.FindInstanceByIDForActor(ctx, id, middleware.Actor{ID: "system", Role: "ROLE_ADMIN"})
+}
+
+func (r *postgresRepository) FindInstanceByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.WorkflowInstance, error) {
 	query := `
 		SELECT 
 			id, instance_number, definition_id, definition_name, entity_type, entity_id,
-			title, requester_id, requester_name, requester_email,
+			title, requester_id, requester_name, requester_email, COALESCE(department_id, ''),
 			current_step_name, status, context_data::text, started_at, completed_at,
 			COALESCE(version, 1) AS version, created_at, updated_at
 		FROM workflow_instances
-		WHERE id = $1
+		WHERE id = $1 AND (
+			$2 = 'ROLE_ADMIN'
+			OR ($2 = 'ROLE_EMPLOYEE' AND requester_id = $3)
+			OR ($2 = 'ROLE_AGENT' AND (
+				requester_id = $3 OR EXISTS (
+					SELECT 1 FROM workflow_steps ws
+					WHERE ws.instance_id = workflow_instances.id AND ws.assigned_to = $3
+				)
+			))
+			OR ($2 = 'ROLE_MANAGER' AND department_id = $4)
+		)
 	`
 	var inst model.WorkflowInstance
 	var ctxStr sql.NullString
 	var completedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id, actor.Role, actor.ID, actor.DepartmentID).Scan(
 		&inst.ID, &inst.InstanceNumber, &inst.DefinitionID, &inst.DefinitionName, &inst.EntityType, &inst.EntityID,
-		&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail,
+		&inst.Title, &inst.RequesterID, &inst.RequesterName, &inst.RequesterEmail, &inst.DepartmentID,
 		&inst.CurrentStepName, &inst.Status, &ctxStr, &inst.StartedAt, &completedAt,
 		&inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 	)
@@ -265,12 +298,12 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 	query := `
 		INSERT INTO workflow_instances (
 			instance_number, definition_id, definition_name, entity_type, entity_id,
-			title, requester_id, requester_name, requester_email,
+			title, requester_id, requester_name, requester_email, department_id,
 			current_step_name, status, context_data, started_at, version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
-			$6, $7, $8, $9,
-			$10, $11, $12::jsonb, $13, 1, $14, $15
+			$6, $7, $8, $9, NULLIF($10, ''),
+			$11, $12, $13::jsonb, $14, 1, $15, $16
 		)
 		RETURNING id, version, created_at, updated_at
 	`
@@ -283,7 +316,7 @@ func (r *postgresRepository) CreateInstance(ctx context.Context, inst *model.Wor
 	err := r.db.QueryRowContext(
 		ctx, query,
 		inst.InstanceNumber, inst.DefinitionID, inst.DefinitionName, inst.EntityType, inst.EntityID,
-		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail,
+		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail, inst.DepartmentID,
 		inst.CurrentStepName, inst.Status, ctxData, now, now, now,
 	).Scan(&inst.ID, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt)
 
@@ -309,12 +342,12 @@ func (r *postgresRepository) CreateInstanceWithApprovalAndLog(ctx context.Contex
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO workflow_instances (
 			instance_number, definition_id, definition_name, entity_type, entity_id,
-			title, requester_id, requester_name, requester_email,
+			title, requester_id, requester_name, requester_email, department_id,
 			current_step_name, status, context_data, started_at, version, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 1, $14, $14)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), $11, $12, $13::jsonb, $14, 1, $15, $15)
 		RETURNING id, version, created_at, updated_at`,
 		inst.InstanceNumber, inst.DefinitionID, inst.DefinitionName, inst.EntityType, inst.EntityID,
-		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail,
+		inst.Title, inst.RequesterID, inst.RequesterName, inst.RequesterEmail, inst.DepartmentID,
 		inst.CurrentStepName, inst.Status, ctxData, inst.StartedAt, now,
 	).Scan(&inst.ID, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt); err != nil {
 		return fmt.Errorf("insert workflow instance: %w", err)
@@ -362,7 +395,7 @@ func (r *postgresRepository) UpdateInstanceStatus(ctx context.Context, id, statu
 	return nil
 }
 
-func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, approverRole, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
+func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, approverRole, departmentID, status string, page, pageSize int) (*model.ApprovalListResponse, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -375,17 +408,22 @@ func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, appr
 	idx := 1
 
 	if approverID != "" && approverRole != "" {
-		whereClauses = append(whereClauses, fmt.Sprintf("(approver_id = $%d OR (approver_id = approver_role AND approver_role = $%d))", idx, idx+1))
+		whereClauses = append(whereClauses, fmt.Sprintf("(ar.approver_id = $%d OR (ar.approver_id = ar.approver_role AND ar.approver_role = $%d))", idx, idx+1))
 		args = append(args, approverID, approverRole)
 		idx += 2
 	} else if approverID != "" {
-		whereClauses = append(whereClauses, fmt.Sprintf("approver_id = $%d", idx))
+		whereClauses = append(whereClauses, fmt.Sprintf("ar.approver_id = $%d", idx))
 		args = append(args, approverID)
+		idx++
+	}
+	if departmentID != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("wi.department_id = $%d", idx))
+		args = append(args, departmentID)
 		idx++
 	}
 
 	if status != "" && status != "All" {
-		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", idx))
+		whereClauses = append(whereClauses, fmt.Sprintf("ar.status = $%d", idx))
 		args = append(args, status)
 		idx++
 	}
@@ -393,7 +431,7 @@ func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, appr
 	whereSQL := strings.Join(whereClauses, " AND ")
 
 	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM approval_requests WHERE %s", whereSQL)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM approval_requests ar JOIN workflow_instances wi ON wi.id = ar.instance_id WHERE %s", whereSQL)
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count approvals: %w", err)
 	}
@@ -401,11 +439,12 @@ func (r *postgresRepository) ListApprovals(ctx context.Context, approverID, appr
 	offset := (page - 1) * pageSize
 	dataQuery := fmt.Sprintf(`
 		SELECT 
-			id, instance_id, step_id, title, approver_id, approver_name, approver_role,
-			approval_level, status, decision_notes, decided_at, sla_deadline, created_at
-		FROM approval_requests
+			ar.id, ar.instance_id, ar.step_id, ar.title, ar.approver_id, ar.approver_name, ar.approver_role,
+			ar.approval_level, ar.status, ar.decision_notes, ar.decided_at, ar.sla_deadline, ar.created_at
+		FROM approval_requests ar
+		JOIN workflow_instances wi ON wi.id = ar.instance_id
 		WHERE %s
-		ORDER BY created_at DESC
+		ORDER BY ar.created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, whereSQL, idx, idx+1)
 

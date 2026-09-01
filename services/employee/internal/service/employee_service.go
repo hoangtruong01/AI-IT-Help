@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"eomp/packages/shared/pkg/errors"
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/employee/internal/model"
 	"eomp/services/employee/internal/repository"
 )
@@ -14,6 +15,7 @@ import (
 type EmployeeService interface {
 	ListEmployees(ctx context.Context, query model.EmployeeListQuery) (*model.EmployeeListResponse, error)
 	GetEmployee(ctx context.Context, id string) (*model.Employee, error)
+	GetEmployeeForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error)
 	CreateEmployee(ctx context.Context, req *model.CreateEmployeeRequest) (*model.Employee, error)
 	UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error)
 	DeleteEmployee(ctx context.Context, id string, expectedVersion int) error
@@ -48,6 +50,23 @@ func (s *employeeService) GetEmployee(ctx context.Context, id string) (*model.Em
 		return nil, errors.NotFound("employee not found")
 	}
 
+	return emp, nil
+}
+
+func (s *employeeService) GetEmployeeForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error) {
+	if id == "" {
+		return nil, errors.BadRequest("employee id is required")
+	}
+	if !actor.IsValid() {
+		return nil, errors.Unauthorized("valid user identity and role are required")
+	}
+	emp, err := s.repo.FindEmployeeByIDForActor(ctx, id, actor)
+	if err != nil {
+		return nil, errors.Internal(ctx, "employee get scoped", err)
+	}
+	if emp == nil {
+		return nil, errors.NotFound("employee not found")
+	}
 	return emp, nil
 }
 

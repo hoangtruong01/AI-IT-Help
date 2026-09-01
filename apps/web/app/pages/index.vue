@@ -115,7 +115,7 @@ async function loadDashboard() {
   const canOperate = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER' || role === 'ROLE_AGENT'
   const canManagePeople = role === 'ROLE_ADMIN' || role === 'ROLE_MANAGER'
 
-  const load = async <T>(key: string, request: () => Promise<T>): Promise<T | null> => {
+  async function load<T>(key: string, request: () => Promise<T>): Promise<T | null> {
     dashboardErrors[key] = null
     try {
       return await request()

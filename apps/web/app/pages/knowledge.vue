@@ -9,6 +9,7 @@ import type {
   CreateRunbookPayload,
   PaginatedResponse
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -21,6 +22,7 @@ const selectedCategory = ref<string>('All')
 const searchQuery = ref('')
 const isLoading = ref(false)
 const isSearching = ref(false)
+const pageState = ref<ApiViewState>('loading')
 
 // Modals & Drawers
 const isArticleDrawerOpen = ref(false)
@@ -69,6 +71,7 @@ const runbookForm = ref<CreateRunbookPayload>({
 // Fetch initial data
 async function loadData() {
   isLoading.value = true
+  pageState.value = 'loading'
   try {
     // 1. Fetch Stats
     const statsRes = await api.get<KnowledgeStats>('/api/v1/knowledge/stats').catch(() => null)
@@ -93,16 +96,20 @@ async function loadData() {
     const artRes = await api.get<PaginatedResponse<KnowledgeArticle>>('/api/v1/knowledge/articles', {
       category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
       page_size: 50
-    }).catch(() => null)
+    })
     articles.value = artRes?.data ?? []
 
     // 4. Fetch Runbooks
     const rbRes = await api.get<PaginatedResponse<KnowledgeRunbook>>('/api/v1/knowledge/runbooks').catch(() => null)
     runbooks.value = rbRes?.data ?? []
+    pageState.value = dataViewState([...articles.value, ...runbooks.value])
 
     if (!statsRes || !catRes || !artRes || !rbRes) {
       toast.add({ title: 'Some knowledge-base data could not be loaded', color: 'warning' })
     }
+  } catch (err: unknown) {
+    articles.value = []
+    pageState.value = classifyApiError(err)
   } finally {
     isLoading.value = false
   }
@@ -248,6 +255,12 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!isLoading && pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="knowledge base"
+      @retry="loadData"
+    />
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
