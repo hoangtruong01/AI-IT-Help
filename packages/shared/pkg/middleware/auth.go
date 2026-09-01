@@ -140,6 +140,22 @@ func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireValidActor rejects direct service calls that do not contain a
+// complete identity propagated by the API Gateway. Role-only headers are not
+// sufficient because authorization decisions also depend on the actor ID.
+func RequireValidActor() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !GetActor(r.Context()).IsValid() {
+				errors.WriteHTTP(w, errors.Unauthorized("valid gateway identity is required"))
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Helper context getters
 func GetUserID(ctx context.Context) string {
 	if val, ok := ctx.Value(UserIDKey).(string); ok {

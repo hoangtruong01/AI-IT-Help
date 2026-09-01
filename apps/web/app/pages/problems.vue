@@ -9,6 +9,7 @@ import type {
   PaginatedResponse,
   Ticket
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -26,6 +27,7 @@ const stats = ref<ProblemStats>({
 })
 
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 const searchQuery = ref('')
 const selectedStatus = ref('All')
 const selectedCategory = ref('All')
@@ -81,13 +83,14 @@ const categories = [
 // Fetch Problems & Stats
 async function fetchData() {
   loading.value = true
+  pageState.value = 'loading'
   try {
     const [pRes, sRes, tRes] = await Promise.all([
       api.get<PaginatedResponse<Problem>>('/api/v1/problems', {
         category: selectedCategory.value === 'All' ? undefined : selectedCategory.value,
         status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
         page_size: 50
-      }).catch(() => null),
+      }),
       api.get<ProblemStats>('/api/v1/problems/stats').catch(() => null),
       api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', { page_size: 50 }).catch(() => null)
     ])
@@ -97,9 +100,13 @@ async function fetchData() {
     } else {
       problems.value = []
     }
+    pageState.value = dataViewState(problems.value)
 
     if (sRes) stats.value = sRes
     if (tRes && tRes.data) availableTickets.value = tRes.data
+  } catch (err: unknown) {
+    problems.value = []
+    pageState.value = classifyApiError(err)
   } finally {
     loading.value = false
   }
@@ -262,6 +269,12 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!loading && (pageState === 'forbidden' || pageState === 'unavailable')"
+      :state="pageState"
+      resource="problem records"
+      @retry="fetchData"
+    />
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
@@ -451,7 +464,7 @@ onMounted(() => {
             </tr>
 
             <tr
-              v-else-if="filteredProblems.length === 0"
+              v-else-if="pageState === 'empty' || (pageState === 'ready' && filteredProblems.length === 0)"
               class="text-center"
             >
               <td

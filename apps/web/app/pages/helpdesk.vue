@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Ticket, ServiceCatalogItem, PaginatedResponse, CreateTicketPayload, TicketComment, TicketTimeline, AITicketAnalysis } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -12,6 +13,7 @@ const tickets = ref<Ticket[]>([])
 const serviceItems = ref<ServiceCatalogItem[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+const pageState = ref<ApiViewState>('loading')
 
 // Filters
 const searchQuery = ref('')
@@ -82,6 +84,7 @@ async function fetchServiceItems() {
 
 async function fetchTickets() {
   loading.value = true
+  pageState.value = 'loading'
   error.value = null
   try {
     const params: Record<string, string | number | boolean | undefined> = {
@@ -94,7 +97,10 @@ async function fetchTickets() {
 
     const res = await api.get<PaginatedResponse<Ticket>>('/api/v1/tickets', params)
     tickets.value = res?.data || []
+    pageState.value = dataViewState(tickets.value)
   } catch (err: unknown) {
+    tickets.value = []
+    pageState.value = classifyApiError(err)
     const errObj = err as { data?: { error?: { message?: string } }, message?: string }
     error.value = errObj?.data?.error?.message || errObj?.message || 'Failed to fetch tickets from Helpdesk Service.'
   } finally {
@@ -301,6 +307,13 @@ onMounted(() => {
       </button>
     </div>
 
+    <ApiStatePanel
+      v-if="!loading && (pageState === 'forbidden' || pageState === 'unavailable')"
+      :state="pageState"
+      resource="helpdesk tickets"
+      @retry="fetchTickets"
+    />
+
     <!-- Filter & Search Bar -->
     <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3">
       <div class="relative w-full sm:w-80">
@@ -383,7 +396,7 @@ onMounted(() => {
 
     <!-- Error Alert -->
     <div
-      v-if="error"
+      v-if="error && pageState !== 'forbidden' && pageState !== 'unavailable'"
       class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between"
     >
       <div class="flex items-center gap-2">
@@ -447,7 +460,7 @@ onMounted(() => {
             </template>
 
             <!-- Empty State -->
-            <tr v-else-if="tickets.length === 0">
+            <tr v-else-if="pageState === 'empty'">
               <td
                 colspan="7"
                 class="p-8 text-center text-slate-500"

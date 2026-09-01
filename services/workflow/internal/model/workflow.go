@@ -65,6 +65,7 @@ type WorkflowInstance struct {
 	RequesterID     string     `json:"requester_id"`
 	RequesterName   string     `json:"requester_name"`
 	RequesterEmail  string     `json:"requester_email"`
+	DepartmentID    string     `json:"department_id,omitempty"`
 	CurrentStepName string     `json:"current_step_name"`
 	Status          string     `json:"status"`
 	ContextData     *string    `json:"context_data,omitempty"`
@@ -112,6 +113,7 @@ type CreateInstanceRequest struct {
 	RequesterID    string  `json:"requester_id"`
 	RequesterName  string  `json:"requester_name"`
 	RequesterEmail string  `json:"requester_email"`
+	DepartmentID   string  `json:"department_id,omitempty"`
 	ContextData    *string `json:"context_data,omitempty"`
 }
 
@@ -123,11 +125,14 @@ type ApprovalDecisionRequest struct {
 
 // WorkflowListQuery parameters
 type WorkflowListQuery struct {
-	Page        int    `json:"page"`
-	PageSize    int    `json:"page_size"`
-	Status      string `json:"status"`
-	Search      string `json:"search"`
-	RequesterID string `json:"requester_id,omitempty"`
+	Page              int    `json:"page"`
+	PageSize          int    `json:"page_size"`
+	Status            string `json:"status"`
+	Search            string `json:"search"`
+	RequesterID       string `json:"requester_id,omitempty"`
+	ActorRole         string `json:"-"`
+	ActorID           string `json:"-"`
+	ActorDepartmentID string `json:"-"`
 }
 
 // WorkflowListResponse envelope

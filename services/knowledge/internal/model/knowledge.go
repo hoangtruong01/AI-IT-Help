@@ -36,6 +36,7 @@ type KnowledgeArticle struct {
 	Tags         []string  `json:"tags"`
 	AuthorID     string    `json:"author_id"`
 	AuthorName   string    `json:"author_name"`
+	DepartmentID string    `json:"department_id,omitempty"`
 	ViewCount    int       `json:"view_count"`
 	HelpfulCount int       `json:"helpful_count"`
 	IsPublished  bool      `json:"is_published"`
@@ -46,15 +47,16 @@ type KnowledgeArticle struct {
 
 // CreateArticleRequest DTO for authoring a new article.
 type CreateArticleRequest struct {
-	CategoryID  string   `json:"category_id"`
-	Title       string   `json:"title"`
-	Slug        *string  `json:"slug,omitempty"`
-	Summary     string   `json:"summary"`
-	Content     string   `json:"content"`
-	Tags        []string `json:"tags,omitempty"`
-	AuthorID    *string  `json:"author_id,omitempty"`
-	AuthorName  *string  `json:"author_name,omitempty"`
-	IsPublished *bool    `json:"is_published,omitempty"`
+	CategoryID   string   `json:"category_id"`
+	Title        string   `json:"title"`
+	Slug         *string  `json:"slug,omitempty"`
+	Summary      string   `json:"summary"`
+	Content      string   `json:"content"`
+	Tags         []string `json:"tags,omitempty"`
+	AuthorID     *string  `json:"author_id,omitempty"`
+	AuthorName   *string  `json:"author_name,omitempty"`
+	DepartmentID *string  `json:"department_id,omitempty"`
+	IsPublished  *bool    `json:"is_published,omitempty"`
 }
 
 // UpdateArticleRequest DTO for updating an existing article.
@@ -130,10 +132,11 @@ type KnowledgeSearchResult struct {
 
 // ArticleListQuery query parameters for listing articles.
 type ArticleListQuery struct {
-	Category string
-	Search   string
-	Page     int
-	PageSize int
+	Category      string
+	Search        string
+	Page          int
+	PageSize      int
+	PublishedOnly bool
 }
 
 // ArticleListResponse paginated list of articles.

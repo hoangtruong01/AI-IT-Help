@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/employee/internal/model"
 )
 
@@ -20,6 +21,7 @@ type Repository interface {
 	// Employee methods
 	ListEmployees(ctx context.Context, query model.EmployeeListQuery) (*model.EmployeeListResponse, error)
 	FindEmployeeByID(ctx context.Context, id string) (*model.Employee, error)
+	FindEmployeeByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error)
 	FindEmployeeByEmail(ctx context.Context, email string) (*model.Employee, error)
 	CreateEmployee(ctx context.Context, emp *model.Employee) error
 	UpdateEmployee(ctx context.Context, id string, req *model.UpdateEmployeeRequest) (*model.Employee, error)
@@ -145,6 +147,14 @@ func (r *postgresRepository) ListEmployees(ctx context.Context, query model.Empl
 }
 
 func (r *postgresRepository) FindEmployeeByID(ctx context.Context, id string) (*model.Employee, error) {
+	return r.findEmployeeByID(ctx, id, middleware.Actor{ID: "system", Role: "ROLE_ADMIN"})
+}
+
+func (r *postgresRepository) FindEmployeeByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error) {
+	return r.findEmployeeByID(ctx, id, actor)
+}
+
+func (r *postgresRepository) findEmployeeByID(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error) {
 	query := `
 		SELECT 
 			e.id, e.user_id, e.first_name, e.last_name, e.email, e.phone, e.job_title,
@@ -156,11 +166,12 @@ func (r *postgresRepository) FindEmployeeByID(ctx context.Context, id string) (*
 		LEFT JOIN departments d ON e.department_id = d.id
 		LEFT JOIN employees m ON e.manager_id = m.id
 		WHERE e.id = $1
+		  AND ($2 <> 'ROLE_EMPLOYEE' OR e.user_id = $3)
 	`
 	var emp model.Employee
 	var joinedAt sql.NullString
 	var managerName sql.NullString
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id, actor.Role, actor.ID).Scan(
 		&emp.ID, &emp.UserID, &emp.FirstName, &emp.LastName, &emp.Email, &emp.Phone, &emp.JobTitle,
 		&emp.DepartmentID, &emp.DepartmentName, &emp.DepartmentCode,
 		&emp.ManagerID, &managerName,

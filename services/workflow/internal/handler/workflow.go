@@ -18,6 +18,15 @@ type WorkflowHandler struct {
 	svc service.WorkflowService
 }
 
+func requireWorkflowActor(w http.ResponseWriter, r *http.Request) (middleware.Actor, bool) {
+	actor := middleware.GetActor(r.Context())
+	if !actor.IsValid() {
+		errors.WriteHTTP(w, errors.Unauthorized("valid user identity and role are required"))
+		return middleware.Actor{}, false
+	}
+	return actor, true
+}
+
 // NewWorkflowHandler constructs a new WorkflowHandler
 func NewWorkflowHandler(svc service.WorkflowService) *WorkflowHandler {
 	return &WorkflowHandler{svc: svc}
@@ -25,6 +34,9 @@ func NewWorkflowHandler(svc service.WorkflowService) *WorkflowHandler {
 
 // ListDefinitions returns all active blueprints
 func (h *WorkflowHandler) ListDefinitions(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireWorkflowActor(w, r); !ok {
+		return
+	}
 	defs, err := h.svc.ListDefinitions(r.Context())
 	if err != nil {
 		errors.WriteHTTP(w, err)
@@ -35,6 +47,9 @@ func (h *WorkflowHandler) ListDefinitions(w http.ResponseWriter, r *http.Request
 
 // GetDefinition returns definition by ID
 func (h *WorkflowHandler) GetDefinition(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireWorkflowActor(w, r); !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -54,17 +69,21 @@ func (h *WorkflowHandler) GetDefinition(w http.ResponseWriter, r *http.Request) 
 
 // ListInstances returns paginated workflow runs
 func (h *WorkflowHandler) ListInstances(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireWorkflowActor(w, r)
+	if !ok {
+		return
+	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 
 	query := model.WorkflowListQuery{
-		Page:     page,
-		PageSize: pageSize,
-		Status:   r.URL.Query().Get("status"),
-		Search:   r.URL.Query().Get("search"),
-	}
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		query.RequesterID = middleware.GetUserID(r.Context())
+		Page:              page,
+		PageSize:          pageSize,
+		Status:            r.URL.Query().Get("status"),
+		Search:            r.URL.Query().Get("search"),
+		ActorRole:         actor.Role,
+		ActorID:           actor.ID,
+		ActorDepartmentID: actor.DepartmentID,
 	}
 
 	resp, err := h.svc.ListInstances(r.Context(), query)
@@ -78,22 +97,42 @@ func (h *WorkflowHandler) ListInstances(w http.ResponseWriter, r *http.Request) 
 
 // StartWorkflow initiates a new workflow instance
 func (h *WorkflowHandler) StartWorkflow(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireWorkflowActor(w, r)
+	if !ok {
+		return
+	}
 	var req model.CreateInstanceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errors.WriteHTTP(w, errors.BadRequest("invalid request body"))
 		return
 	}
 
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		req.RequesterID = middleware.GetUserID(r.Context())
-		req.RequesterEmail = middleware.GetUserEmail(r.Context())
-		req.RequesterName = req.RequesterEmail
-	} else if req.RequesterID == "" {
-		req.RequesterID = middleware.GetUserID(r.Context())
-		req.RequesterEmail = middleware.GetUserEmail(r.Context())
+	if actor.IsEmployee() {
+		req.RequesterID = actor.ID
+		req.RequesterEmail = actor.Email
+		req.RequesterName = actor.Name
 		if req.RequesterName == "" {
-			req.RequesterName = req.RequesterEmail
+			req.RequesterName = actor.Email
 		}
+		req.DepartmentID = actor.DepartmentID
+	} else if req.RequesterID == "" {
+		req.RequesterID = actor.ID
+		req.RequesterEmail = actor.Email
+		if req.RequesterName == "" {
+			req.RequesterName = actor.Name
+			if req.RequesterName == "" {
+				req.RequesterName = req.RequesterEmail
+			}
+		}
+	}
+	if actor.IsManager() {
+		if actor.DepartmentID == "" {
+			errors.WriteHTTP(w, errors.Forbidden("manager department scope is required"))
+			return
+		}
+		req.DepartmentID = actor.DepartmentID
+	} else if req.DepartmentID == "" {
+		req.DepartmentID = actor.DepartmentID
 	}
 
 	inst, err := h.svc.StartWorkflow(r.Context(), &req)
@@ -107,6 +146,10 @@ func (h *WorkflowHandler) StartWorkflow(w http.ResponseWriter, r *http.Request) 
 
 // GetInstance returns workflow execution details
 func (h *WorkflowHandler) GetInstance(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireWorkflowActor(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -115,21 +158,20 @@ func (h *WorkflowHandler) GetInstance(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	inst, err := h.svc.GetInstance(r.Context(), id)
+	inst, err := h.svc.GetInstanceForActor(r.Context(), id, actor)
 	if err != nil {
 		errors.WriteHTTP(w, err)
 		return
 	}
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" && inst.RequesterID != middleware.GetUserID(r.Context()) {
-		errors.WriteHTTP(w, errors.NotFound("workflow instance not found"))
-		return
-	}
-
 	response.JSON(w, http.StatusOK, inst)
 }
 
 // ListLogs returns audit logs for an execution
 func (h *WorkflowHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireWorkflowActor(w, r)
+	if !ok {
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -137,12 +179,9 @@ func (h *WorkflowHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 			id = parts[len(parts)-2]
 		}
 	}
-	if middleware.GetUserRole(r.Context()) == "ROLE_EMPLOYEE" {
-		inst, err := h.svc.GetInstance(r.Context(), id)
-		if err != nil || inst.RequesterID != middleware.GetUserID(r.Context()) {
-			errors.WriteHTTP(w, errors.NotFound("workflow instance not found"))
-			return
-		}
+	if _, err := h.svc.GetInstanceForActor(r.Context(), id, actor); err != nil {
+		errors.WriteHTTP(w, err)
+		return
 	}
 
 	logs, err := h.svc.ListLogs(r.Context(), id)
@@ -156,6 +195,14 @@ func (h *WorkflowHandler) ListLogs(w http.ResponseWriter, r *http.Request) {
 
 // GetStats returns summary metrics
 func (h *WorkflowHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	actor, ok := requireWorkflowActor(w, r)
+	if !ok {
+		return
+	}
+	if !actor.IsAdmin() && !actor.IsManager() {
+		errors.WriteHTTP(w, errors.Forbidden("workflow statistics require manager or admin role"))
+		return
+	}
 	stats, err := h.svc.GetStats(r.Context())
 	if err != nil {
 		errors.WriteHTTP(w, err)

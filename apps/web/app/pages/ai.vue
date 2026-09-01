@@ -5,6 +5,7 @@ import type {
   AITicketAnalysis,
   AIRuntimeStatus
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -14,6 +15,7 @@ const toast = useToast()
 // Active Mode: 'chat' | 'triage' | 'rag-status'
 const activeMode = ref<'chat' | 'triage' | 'rag-status'>('chat')
 const runtimeStatus = ref<AIRuntimeStatus | null>(null)
+const pageState = ref<ApiViewState>('loading')
 
 // Chat State
 const inputQuery = ref('')
@@ -147,7 +149,14 @@ function loadSampleTicket(type: string) {
 }
 
 async function loadRuntimeStatus() {
-  runtimeStatus.value = await api.get<AIRuntimeStatus>('/api/v1/ai/status').catch(() => null)
+  pageState.value = 'loading'
+  try {
+    runtimeStatus.value = await api.get<AIRuntimeStatus>('/api/v1/ai/status')
+    pageState.value = dataViewState(runtimeStatus.value ? [runtimeStatus.value] : [])
+  } catch (err: unknown) {
+    runtimeStatus.value = null
+    pageState.value = classifyApiError(err)
+  }
 }
 
 onMounted(loadRuntimeStatus)
@@ -155,6 +164,12 @@ onMounted(loadRuntimeStatus)
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto h-[calc(100vh-120px)] flex flex-col">
+    <ApiStatePanel
+      v-if="pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="AI runtime"
+      @retry="loadRuntimeStatus"
+    />
     <!-- Top Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
       <div>

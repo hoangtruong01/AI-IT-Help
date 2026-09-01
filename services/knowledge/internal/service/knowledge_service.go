@@ -19,7 +19,9 @@ type KnowledgeService interface {
 
 	ListArticles(ctx context.Context, query model.ArticleListQuery) (*model.ArticleListResponse, error)
 	GetArticleByID(ctx context.Context, id string) (*model.KnowledgeArticle, error)
+	GetArticleByIDForVisibility(ctx context.Context, id string, publishedOnly bool) (*model.KnowledgeArticle, error)
 	GetArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error)
+	GetArticleBySlugForVisibility(ctx context.Context, slug string, publishedOnly bool) (*model.KnowledgeArticle, error)
 	CreateArticle(ctx context.Context, req *model.CreateArticleRequest) (*model.KnowledgeArticle, error)
 	UpdateArticle(ctx context.Context, id string, req *model.UpdateArticleRequest) (*model.KnowledgeArticle, error)
 	DeleteArticle(ctx context.Context, id string, expectedVersion int) error
@@ -29,7 +31,7 @@ type KnowledgeService interface {
 	GetRunbookByCode(ctx context.Context, code string) (*model.KnowledgeRunbook, error)
 	CreateRunbook(ctx context.Context, req *model.CreateRunbookRequest) (*model.KnowledgeRunbook, error)
 
-	Search(ctx context.Context, keyword, category string, limit int) ([]model.KnowledgeSearchResult, error)
+	Search(ctx context.Context, keyword, category string, limit int, publishedOnly bool) ([]model.KnowledgeSearchResult, error)
 	GetStats(ctx context.Context) (*model.KnowledgeStats, error)
 }
 
@@ -75,10 +77,14 @@ func (s *knowledgeService) ListArticles(ctx context.Context, query model.Article
 }
 
 func (s *knowledgeService) GetArticleByID(ctx context.Context, id string) (*model.KnowledgeArticle, error) {
+	return s.GetArticleByIDForVisibility(ctx, id, false)
+}
+
+func (s *knowledgeService) GetArticleByIDForVisibility(ctx context.Context, id string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, errors.BadRequest("Article ID is required")
 	}
-	art, err := s.repo.FindArticleByID(ctx, id)
+	art, err := s.repo.FindArticleByIDForVisibility(ctx, id, publishedOnly)
 	if err != nil {
 		return nil, errors.Internal(ctx, "knowledge find article by ID", err)
 	}
@@ -93,10 +99,14 @@ func (s *knowledgeService) GetArticleByID(ctx context.Context, id string) (*mode
 }
 
 func (s *knowledgeService) GetArticleBySlug(ctx context.Context, slug string) (*model.KnowledgeArticle, error) {
+	return s.GetArticleBySlugForVisibility(ctx, slug, false)
+}
+
+func (s *knowledgeService) GetArticleBySlugForVisibility(ctx context.Context, slug string, publishedOnly bool) (*model.KnowledgeArticle, error) {
 	if strings.TrimSpace(slug) == "" {
 		return nil, errors.BadRequest("Article slug is required")
 	}
-	art, err := s.repo.FindArticleBySlug(ctx, slug)
+	art, err := s.repo.FindArticleBySlugForVisibility(ctx, slug, publishedOnly)
 	if err != nil {
 		return nil, errors.Internal(ctx, "knowledge find article by slug", err)
 	}
@@ -158,14 +168,20 @@ func (s *knowledgeService) CreateArticle(ctx context.Context, req *model.CreateA
 	}
 
 	art := &model.KnowledgeArticle{
-		CategoryID:  req.CategoryID,
-		Title:       req.Title,
-		Slug:        slug,
-		Summary:     summary,
-		Content:     req.Content,
-		Tags:        tags,
-		AuthorID:    authorID,
-		AuthorName:  authorName,
+		CategoryID: req.CategoryID,
+		Title:      req.Title,
+		Slug:       slug,
+		Summary:    summary,
+		Content:    req.Content,
+		Tags:       tags,
+		AuthorID:   authorID,
+		AuthorName: authorName,
+		DepartmentID: func() string {
+			if req.DepartmentID != nil {
+				return *req.DepartmentID
+			}
+			return ""
+		}(),
 		IsPublished: isPublished,
 	}
 
@@ -317,12 +333,12 @@ func (s *knowledgeService) CreateRunbook(ctx context.Context, req *model.CreateR
 	return rb, nil
 }
 
-func (s *knowledgeService) Search(ctx context.Context, keyword, category string, limit int) ([]model.KnowledgeSearchResult, error) {
+func (s *knowledgeService) Search(ctx context.Context, keyword, category string, limit int, publishedOnly bool) ([]model.KnowledgeSearchResult, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return []model.KnowledgeSearchResult{}, nil
 	}
-	return s.repo.Search(ctx, keyword, category, limit)
+	return s.repo.Search(ctx, keyword, category, limit, publishedOnly)
 }
 
 func (s *knowledgeService) GetStats(ctx context.Context) (*model.KnowledgeStats, error) {

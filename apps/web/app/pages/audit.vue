@@ -5,6 +5,7 @@ import type {
   AuditStats,
   PaginatedResponse
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -13,6 +14,7 @@ const toast = useToast()
 
 // State
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 const auditLogs = ref<AuditLog[]>([])
 const totalRecords = ref(0)
 const currentPage = ref(1)
@@ -43,6 +45,7 @@ const selectedAuditLog = ref<AuditLog | null>(null)
 // Fetch Audit Logs & Stats
 async function fetchAuditData() {
   loading.value = true
+  pageState.value = 'loading'
   try {
     const [listRes, statsRes, secRes] = await Promise.all([
       api.get<PaginatedResponse<AuditLog>>('/api/v1/audit/logs', {
@@ -52,12 +55,13 @@ async function fetchAuditData() {
         search: search.value || undefined,
         page: currentPage.value,
         page_size: pageSize.value
-      }).catch(() => null),
+      }),
       api.get<AuditStats>('/api/v1/audit/stats').catch(() => null),
       api.get<SecurityEvent[]>('/api/v1/audit/security-events').catch(() => null)
     ])
 
     auditLogs.value = listRes?.data ?? []
+    pageState.value = dataViewState(auditLogs.value)
     totalRecords.value = listRes?.total ?? 0
     stats.value = statsRes ?? {
       total_logs: 0,
@@ -71,6 +75,9 @@ async function fetchAuditData() {
     if (!listRes || !statsRes || !secRes) {
       toast.add({ title: 'Some audit data could not be loaded', color: 'warning' })
     }
+  } catch (err: unknown) {
+    auditLogs.value = []
+    pageState.value = classifyApiError(err)
   } finally {
     loading.value = false
   }
@@ -99,6 +106,12 @@ onMounted(() => {
 
 <template>
   <div class="space-y-7 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!loading && pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="audit events"
+      @retry="fetchAuditData"
+    />
     <!-- Header with Breadcrumbs & Actions -->
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
       <div>

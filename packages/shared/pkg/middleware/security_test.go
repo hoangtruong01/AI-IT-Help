@@ -92,6 +92,43 @@ func TestRBAC_RequireRolesForMethods(t *testing.T) {
 	}
 }
 
+func TestRequireValidActor(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	handler := ExtractGatewayHeaders()(RequireValidActor()(next))
+
+	tests := []struct {
+		name       string
+		userID     string
+		role       string
+		wantStatus int
+	}{
+		{name: "missing identity", wantStatus: http.StatusUnauthorized},
+		{name: "role only", role: "ROLE_AGENT", wantStatus: http.StatusUnauthorized},
+		{name: "id only", userID: "agent-1", wantStatus: http.StatusUnauthorized},
+		{name: "unknown role", userID: "agent-1", role: "ROLE_ROOT", wantStatus: http.StatusUnauthorized},
+		{name: "valid actor", userID: "agent-1", role: "ROLE_AGENT", wantStatus: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/assets", nil)
+			if tt.userID != "" {
+				req.Header.Set("X-User-ID", tt.userID)
+			}
+			if tt.role != "" {
+				req.Header.Set("X-User-Role", tt.role)
+			}
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rec.Code)
+			}
+		})
+	}
+}
+
 // Test Case 10.2: IP Rate Limiting.
 func TestRateLimiter_IPLimit(t *testing.T) {
 	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

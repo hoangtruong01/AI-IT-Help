@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"eomp/packages/shared/pkg/middleware"
 	"eomp/services/employee/internal/config"
 	"eomp/services/employee/internal/handler"
 	"eomp/services/employee/internal/model"
@@ -50,6 +51,9 @@ func (m *mockRepo) ListEmployees(ctx context.Context, query model.EmployeeListQu
 }
 func (m *mockRepo) FindEmployeeByID(ctx context.Context, id string) (*model.Employee, error) {
 	return &model.Employee{ID: id, FirstName: "Alex", LastName: "Nguyen", Email: "alex@eomp.local", JobTitle: "Dev", Version: 1}, nil
+}
+func (m *mockRepo) FindEmployeeByIDForActor(ctx context.Context, id string, actor middleware.Actor) (*model.Employee, error) {
+	return m.FindEmployeeByID(ctx, id)
 }
 func (m *mockRepo) FindEmployeeByEmail(ctx context.Context, email string) (*model.Employee, error) {
 	return nil, nil

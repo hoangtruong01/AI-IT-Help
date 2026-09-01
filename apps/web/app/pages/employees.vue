@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Employee, Department, PaginatedResponse, CreateEmployeePayload } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -10,6 +11,7 @@ const employees = ref<Employee[]>([])
 const departments = ref<Department[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+const pageState = ref<ApiViewState>('loading')
 const searchQuery = ref('')
 const selectedDepartment = ref('')
 const selectedStatus = ref('')
@@ -76,6 +78,7 @@ async function fetchDepartments() {
 
 async function fetchEmployees() {
   loading.value = true
+  pageState.value = 'loading'
   error.value = null
   try {
     const params: Record<string, string | number | boolean | undefined> = {
@@ -88,7 +91,10 @@ async function fetchEmployees() {
 
     const res = await api.get<PaginatedResponse<Employee>>('/api/v1/employees', params)
     employees.value = res?.data || []
+    pageState.value = dataViewState(employees.value)
   } catch (err: unknown) {
+    employees.value = []
+    pageState.value = classifyApiError(err)
     const errorObj = err as { data?: { error?: { message?: string } }, message?: string }
     error.value = errorObj?.data?.error?.message || errorObj?.message || 'Failed to load employees from API Gateway.'
   } finally {
@@ -171,6 +177,13 @@ onMounted(() => {
       </button>
     </div>
 
+    <ApiStatePanel
+      v-if="!loading && (pageState === 'forbidden' || pageState === 'unavailable')"
+      :state="pageState"
+      resource="employee directory"
+      @retry="fetchEmployees"
+    />
+
     <!-- Filters Bar -->
     <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3">
       <!-- Search Input -->
@@ -239,7 +252,7 @@ onMounted(() => {
 
     <!-- Error Alert -->
     <div
-      v-if="error"
+      v-if="error && pageState !== 'forbidden' && pageState !== 'unavailable'"
       class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between"
     >
       <div class="flex items-center gap-2">
@@ -279,7 +292,7 @@ onMounted(() => {
 
     <!-- Empty State -->
     <div
-      v-else-if="employees.length === 0 && !loading"
+      v-else-if="pageState === 'empty'"
       class="p-12 text-center rounded-3xl bg-slate-900/40 border border-slate-800/80 space-y-3"
     >
       <UIcon

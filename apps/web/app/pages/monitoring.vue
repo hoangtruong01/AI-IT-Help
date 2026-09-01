@@ -4,6 +4,7 @@ import type {
   ClusterOverview,
   LogEntry
 } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -27,6 +28,7 @@ const overview = ref<ClusterOverview>({
 const services = ref<ServiceHealthStatus[]>([])
 const logs = ref<LogEntry[]>([])
 const loading = ref(false)
+const pageState = ref<ApiViewState>('loading')
 const probingServiceId = ref<string | null>(null)
 
 // View State
@@ -51,9 +53,11 @@ const isLoadingMetrics = ref(false)
 
 // Fetch Overview & Services
 async function fetchData() {
+  loading.value = true
+  pageState.value = 'loading'
   try {
     const [ovRes, srvRes, logRes] = await Promise.all([
-      api.get<ClusterOverview>('/api/v1/monitoring/overview').catch(() => null),
+      api.get<ClusterOverview>('/api/v1/monitoring/overview'),
       api.get<ServiceHealthStatus[]>('/api/v1/monitoring/services').catch(() => null),
       api.get<LogEntry[]>('/api/v1/monitoring/logs', {
         service: selectedLogService.value === 'all' ? undefined : selectedLogService.value,
@@ -64,8 +68,12 @@ async function fetchData() {
 
     if (ovRes) overview.value = ovRes
     if (srvRes) services.value = srvRes
+    pageState.value = dataViewState(services.value)
 
     if (logRes) logs.value = logRes
+  } catch (err: unknown) {
+    services.value = []
+    pageState.value = classifyApiError(err)
   } finally {
     loading.value = false
   }
@@ -167,6 +175,12 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-6 max-w-7xl mx-auto pb-12">
+    <ApiStatePanel
+      v-if="!loading && pageState !== 'loading' && pageState !== 'ready'"
+      :state="pageState"
+      resource="monitoring telemetry"
+      @retry="fetchData"
+    />
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>

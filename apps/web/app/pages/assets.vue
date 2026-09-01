@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Asset, AssetStats, AssetAssignment, ConfigurationItem, CMDBTopologyGraph, PaginatedResponse, CreateAssetPayload } from '~/types'
+import { classifyApiError, dataViewState, type ApiViewState } from '~/utils/api-view-state'
 
 definePageMeta({ layout: 'default' })
 
@@ -19,6 +20,7 @@ const stats = ref<AssetStats>({
 })
 const loading = ref(false)
 const error = ref<string | null>(null)
+const pageState = ref<ApiViewState>('loading')
 
 // Filters
 const searchQuery = ref('')
@@ -98,6 +100,7 @@ async function fetchStats() {
 
 async function fetchAssets() {
   loading.value = true
+  pageState.value = 'loading'
   error.value = null
   try {
     const params: Record<string, string | number | boolean | undefined> = {
@@ -110,7 +113,10 @@ async function fetchAssets() {
 
     const res = await api.get<PaginatedResponse<Asset>>('/api/v1/assets', params)
     assets.value = res?.data || []
+    pageState.value = dataViewState(assets.value)
   } catch (err: unknown) {
+    assets.value = []
+    pageState.value = classifyApiError(err)
     const errObj = err as { data?: { error?: { message?: string } }, message?: string }
     error.value = errObj?.data?.error?.message || errObj?.message || 'Failed to fetch assets from Asset service.'
   } finally {
@@ -305,6 +311,13 @@ onMounted(() => {
       </div>
     </div>
 
+    <ApiStatePanel
+      v-if="!loading && (pageState === 'forbidden' || pageState === 'unavailable')"
+      :state="pageState"
+      resource="asset inventory"
+      @retry="fetchAssets"
+    />
+
     <!-- Live KPI Metrics Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
       <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl">
@@ -463,7 +476,7 @@ onMounted(() => {
 
       <!-- Error alert -->
       <div
-        v-if="error"
+        v-if="error && pageState !== 'forbidden' && pageState !== 'unavailable'"
         class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between"
       >
         <div class="flex items-center gap-2">
@@ -525,7 +538,7 @@ onMounted(() => {
                 </tr>
               </template>
 
-              <tr v-else-if="assets.length === 0">
+              <tr v-else-if="pageState === 'empty'">
                 <td
                   colspan="7"
                   class="p-8 text-center text-slate-500"
