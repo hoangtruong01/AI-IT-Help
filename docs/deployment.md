@@ -169,7 +169,8 @@ Các dịch vụ chịu tải cao (`gateway`, `auth`, `helpdesk`, `asset`, `work
 * Cổng vào duy nhất với hostname `eomp.local`.
 * Định tuyến thông minh:
   * `/api/*` -> `gateway-service:8080` (Hỗ trợ SSE/WebSocket stream)
-  * `/monitoring/grafana/*` -> `grafana-service:3000`
+  * `/api/auth/*` -> `web-service:3000` (Nuxt Cookie BFF; route cụ thể hơn `/api/*`)
+  * Grafana và Prometheus không có route public; truy cập qua private ingress/VPN/port-forward có kiểm soát.
   * `/*` -> `web-service:3000` (Frontend Nuxt 4)
 * Bảo vệ an ninh: CORS Headers, Body Size Limit (50MB), Rate Limit (100 RPS).
 

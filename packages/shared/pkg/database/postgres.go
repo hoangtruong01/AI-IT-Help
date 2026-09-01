@@ -89,8 +89,37 @@ func Connect(cfg Config) (*sql.DB, error) {
 	return db, nil
 }
 
+// MigrationAdvisoryLockID is a deterministic 64-bit key used for synchronizing schema migrations across pods
+const MigrationAdvisoryLockID int64 = 8424119472649191
+
 // RunMigrations executes all .sql migration files in ascending order from migrationsDir
+// protected by a PostgreSQL session-level advisory lock to guarantee concurrency safety.
 func RunMigrations(db *sql.DB, migrationsDir string) error {
+	if db == nil {
+		return fmt.Errorf("database handle is required for migrations")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// Obtain a dedicated single connection from the pool for advisory lock session affinity
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire dedicated connection for migration: %w", err)
+	}
+	defer conn.Close()
+
+	// Acquire advisory lock
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", MigrationAdvisoryLockID); err != nil {
+		return fmt.Errorf("failed to acquire migration advisory lock: %w", err)
+	}
+	defer func() {
+		// Release advisory lock on exit
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer unlockCancel()
+		_, _ = conn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock($1)", MigrationAdvisoryLockID)
+	}()
+
 	// 1. Create schema_migrations tracker table if not exists
 	trackerSQL := `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -98,7 +127,7 @@ func RunMigrations(db *sql.DB, migrationsDir string) error {
 			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);
 	`
-	if _, err := db.Exec(trackerSQL); err != nil {
+	if _, err := conn.ExecContext(ctx, trackerSQL); err != nil {
 		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)
 	}
 
@@ -121,7 +150,7 @@ func RunMigrations(db *sql.DB, migrationsDir string) error {
 
 	for _, filename := range sqlFiles {
 		var exists bool
-		err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", filename).Scan(&exists)
+		err := conn.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", filename).Scan(&exists)
 		if err != nil {
 			return fmt.Errorf("failed to check migration status for %s: %w", filename, err)
 		}
@@ -135,17 +164,17 @@ func RunMigrations(db *sql.DB, migrationsDir string) error {
 			return fmt.Errorf("failed to read migration file %s: %w", filename, err)
 		}
 
-		tx, err := db.Begin()
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("failed to begin transaction for %s: %w", filename, err)
 		}
 
-		if _, err := tx.Exec(string(content)); err != nil {
+		if _, err := tx.ExecContext(ctx, string(content)); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to execute migration %s: %w", filename, err)
 		}
 
-		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", filename); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", filename); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to record applied migration %s: %w", filename, err)
 		}

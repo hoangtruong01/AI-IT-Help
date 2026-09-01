@@ -63,6 +63,7 @@ ehthumbs.db
 # ==============================
 bin/
 tmp/
+.tmp/
 coverage/
 .cache/
 

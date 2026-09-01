@@ -4,6 +4,7 @@ definePageMeta({
 })
 
 const authStore = useAuthStore()
+const route = useRoute()
 
 const email = ref('')
 const password = ref('')
@@ -13,7 +14,7 @@ async function handleLogin() {
   if (!email.value || !password.value) return
   const success = await authStore.login(email.value, password.value)
   if (success) {
-    navigateTo('/')
+    await navigateTo(safeLocalRedirect(route.query.redirect))
   }
 }
 </script>

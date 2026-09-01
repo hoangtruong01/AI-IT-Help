@@ -1,5 +1,5 @@
 # ==============================================================================
-# EOMP — Kubernetes Ingress (Nginx Ingress Controller)
+# EOMP — Kubernetes Ingress (Nginx Ingress Controller with TLS & Hardening)
 # ==============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -9,16 +9,34 @@ metadata:
   namespace: eomp
   annotations:
     kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    nginx.ingress.kubernetes.io/hsts-preload: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
     nginx.ingress.kubernetes.io/limit-rps: "100"
 spec:
+  tls:
+    - hosts:
+        - eomp.local
+      secretName: eomp-tls-secret
   rules:
     - host: eomp.local
       http:
         paths:
+          # Nuxt Cookie BFF route; more specific than the generic API route.
+          - path: /api/auth/
+            pathType: Prefix
+            backend:
+              service:
+                name: web-service
+                port:
+                  number: 3000
           # API Gateway Route (All Microservices)
           - path: /api/
             pathType: Prefix
@@ -27,14 +45,6 @@ spec:
                 name: gateway-service
                 port:
                   number: 8080
-          # Grafana SRE Monitoring Route
-          - path: /monitoring/grafana/
-            pathType: Prefix
-            backend:
-              service:
-                name: grafana-service
-                port:
-                  number: 3000
           # Frontend Web Application Route (Default)
           - path: /
             pathType: Prefix
