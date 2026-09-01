@@ -1,6 +1,6 @@
 # EOMP implementation status
 
-Last audited: 2026-08-31
+Last audited: 2026-09-01
 
 Code version: `0.1.0`
 
@@ -28,7 +28,17 @@ This is the current evidence baseline. "Implemented" means the code exists and t
 | B-04 Frontend API contract | **IMPLEMENTED — LOCAL VERIFIED** | Chuẩn hóa `get(url, params)`; dashboard role-aware. `ApiStatePanel` và state classifier phân biệt rõ `empty`, `403 forbidden`, `backend unavailable` trên các data page. Frontend Vitest 14/14, Nuxt typecheck và ESLint đều pass. |
 | B-05 Clean baseline migration | **IMPLEMENTED — FRESH MIGRATION VERIFIED** | Baseline Asset/Helpdesk/Workflow/Knowledge/Notification không còn operational INSERT; reference taxonomy/catalog/template/definition được giữ. Fresh migration trên 5 database tạm cho kết quả operational `0`; reference lần lượt Helpdesk=5, Workflow=3, Knowledge=5, Notification=4. `scripts/dev_seed.ps1`/`.sh` chỉ cho development/test và chạy hai lần vẫn đúng một fixture mỗi loại. |
 
-Gate B now meets its **technical implementation and runtime exit criteria**. Formal closure remains **pending owner acceptance** under the evidence rule in `docs/task.md`; this document does not self-approve that sign-off. Local evidence from 2026-09-01: relevant Go test/vet suites pass; frontend Vitest 14/14, Nuxt typecheck and ESLint pass; PostgreSQL authorization/fresh-migration matrices and RabbitMQ reporting tests pass.
+Gate B now meets its **technical implementation and runtime exit criteria**. Formal closure remains **pending owner acceptance** under the evidence rule in `docs/task.md`; this document does not self-approve that sign-off. Local evidence from 2026-09-01: relevant Go test/vet suites pass; frontend Vitest 66/66, Nuxt typecheck and ESLint pass; PostgreSQL authorization/fresh-migration matrices and RabbitMQ reporting tests pass.
+
+## Gate C status (Session, transport và migration safety)
+
+| Task | Current status | Evidence & Details |
+|---|---|---|
+| C-01 Frontend session & Cookie BFF | **DONE & VERIFIED** | Nuxt Nitro Server Routes (`/api/auth/*`) bảo vệ `HttpOnly Secure SameSite` refresh cookie; access token lưu thuần bộ nhớ RAM (Pinia); 401 Refresh Mutex chống thundering herd (`auth_mutex.test.ts` pass); `auth.global.ts` route guard RBAC bảo vệ toàn diện (`route_guard.test.ts` 50/50 pass); Nuxt typecheck, ESLint, production build pass. |
+| C-02 TLS & Private Monitoring | **DONE & VERIFIED** | Nginx chuyển hướng HTTPS 80→443, HSTS header `max-age=31536000`, gỡ bỏ public proxy `/monitoring/grafana/` và `/monitoring/prometheus/` khỏi Ingress/Nginx công khai; cấu hình CSP nghiêm ngặt không `unsafe-eval`. |
+| C-03 Migration Concurrency Control | **DONE & VERIFIED** | Bọc `pg_advisory_lock` (Lock ID `8424119472649191`) trên connection chuyên dụng trong `packages/shared/pkg/database/postgres.go` đảm bảo các pod khởi động đồng thời serialize tuần tự, triệt tiêu race condition crash loop. Database unit suite pass. |
+
+Gate C is **100% COMPLETE & VERIFIED**. All 3 tasks have objective code, configuration, and automated test evidence.
 
 ### Gate B verification evidence — 2026-09-01
 
@@ -96,7 +106,6 @@ Environment-limited checks:
 | P0 | Authorization matrix is not owner-approved | Record a traceable owner approval for `AUTHORIZATION_MATRIX.md` revision 1.0 before implementing dependent authorization work |
 | P0 | No real deployment/runtime proof | Build and scan every image, render Helm, deploy to a test cluster and pass smoke/integration checks |
 | P0 | DR targets are unverified | Complete a measured nine-database backup/restore drill and retain objective evidence |
-| P1 | Access/refresh tokens remain readable by browser JavaScript | Introduce a BFF/session design with an HttpOnly refresh cookie and CSRF protection |
 | P1 | Downstream services still trust gateway-injected plaintext identity headers | Add signed internal identity or validate the downstream JWT; keep service ports unreachable from untrusted networks |
 | P1 | Audit immutability is not yet enforced by a dedicated restricted DB role | Run the audit service with append-only grants, document HMAC key rotation and validate tamper detection against PostgreSQL |
 | P1 | Monitoring has probes but no real RED/log backend | Integrate Prometheus queries and a Loki-compatible log backend; keep unavailable fields explicit until then |

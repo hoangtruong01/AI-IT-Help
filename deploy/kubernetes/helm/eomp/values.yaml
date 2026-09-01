@@ -29,10 +29,12 @@ ingress:
   enabled: true
   className: nginx
   host: eomp.local
-  tls: []
-  # - secretName: eomp-tls-secret
-  #   hosts:
-  #     - eomp.local
+  # Certificate material is supplied out-of-band by cert-manager or the
+  # platform owner. The chart never generates or stores a private key.
+  tls:
+    - secretName: eomp-tls-secret
+      hosts:
+        - eomp.local
 
 # --- Microservices Declarations ---
 services:

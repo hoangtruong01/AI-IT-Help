@@ -48,3 +48,4 @@ data:
   PORT: "3000"
   HOST: "0.0.0.0"
   NUXT_PUBLIC_API_URL: "/"
+  NUXT_API_BASE_URL: "http://{{ include "eomp.fullname" . }}-gateway:8080"

@@ -7,6 +7,12 @@ metadata:
     {{- include "eomp.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | default "nginx" | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    nginx.ingress.kubernetes.io/hsts-preload: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
@@ -17,6 +23,14 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
+          # Nuxt Cookie BFF Route
+          - path: /api/auth/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "eomp.fullname" . }}-web
+                port:
+                  number: 3000
           # API Gateway Route
           - path: /api/
             pathType: Prefix
@@ -25,14 +39,6 @@ spec:
                 name: {{ include "eomp.fullname" . }}-gateway
                 port:
                   number: 8080
-          # Grafana Monitoring Route
-          - path: /monitoring/grafana/
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "eomp.fullname" . }}-grafana
-                port:
-                  number: 3000
           # Frontend Web Route
           - path: /
             pathType: Prefix

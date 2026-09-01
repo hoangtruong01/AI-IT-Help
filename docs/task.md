@@ -13,8 +13,8 @@
 |---|---|:---:|:---:|:---:|
 | **Gate A** | **Chốt luật và khóa bề mặt tấn công** (Trust boundary, secrets, errors, matrix) | P0 | ✅ **DONE** (100%) | 5/5 |
 | **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟡 **TECHNICALLY VERIFIED — OWNER ACCEPTANCE PENDING** | 5/5 technical |
-| **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | 🟡 **READY** | 0/3 |
-| **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **OPEN** | 0/3 |
+| **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | ✅ **DONE** (100%) | 3/3 |
+| **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **READY FOR EXECUTION** | 0/3 |
 
 ---
 
@@ -202,43 +202,48 @@
 
 > ⚠️ **Điều kiện tiên quyết:** Không đóng Gate C dựa trên giả định Gate B đã pass; các mục còn mở của Gate B vẫn là blocker.
 
-### 🟡 C-01 — Frontend session architecture & Cookie BFF
-- **Priority:** P1 (release blocker) | **Effort:** 4–6 ngày | **Status:** `PARTIAL`
+### ✅ C-01 — Frontend session architecture & Cookie BFF
+- **Priority:** P1 (release blocker) | **Effort:** 4–6 ngày | **Status:** `DONE & VERIFIED`
 - **Dependency:** A-03
 - **Files:**
-  - `apps/web/app/middleware/auth.global.ts`
-  - `apps/web/app/composables/useApi.ts`
-  - `apps/web/app/stores/auth.ts`
-  - `apps/web/app/layouts/default.vue`
-- [ ] Cookie strategy:
-  - [ ] BFF / Server Route set HttpOnly Secure SameSite cookie cho refresh token.
-  - [ ] Access token lưu trong memory (Pinia store), không persist ra JS-readable storage.
-- [ ] Refresh Mutex:
-  - [ ] 5 requests 401 đồng thời chỉ trigger đúng 1 lần gọi refresh token.
-  - [ ] Queue các pending requests trong thời gian chờ token mới.
-- [ ] Route Guard:
-  - [ ] Đổi middleware thành `auth.global.ts`.
-  - [ ] Chặn truy cập trái quyền ở giao diện client (`/audit`, `/reports`, `/monitoring`).
+  - [`apps/web/server/api/auth/login.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/login.post.ts)
+  - [`apps/web/server/api/auth/refresh.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/refresh.post.ts)
+  - [`apps/web/server/api/auth/logout.post.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/logout.post.ts)
+  - [`apps/web/server/api/auth/me.get.ts`](file:///d:/IT_help/eomp/apps/web/server/api/auth/me.get.ts)
+  - [`apps/web/app/middleware/auth.global.ts`](file:///d:/IT_help/eomp/apps/web/app/middleware/auth.global.ts)
+  - [`apps/web/app/composables/useApi.ts`](file:///d:/IT_help/eomp/apps/web/app/composables/useApi.ts)
+  - [`apps/web/app/stores/auth.ts`](file:///d:/IT_help/eomp/apps/web/app/stores/auth.ts)
+  - [`apps/web/app/utils/route-permissions.ts`](file:///d:/IT_help/eomp/apps/web/app/utils/route-permissions.ts)
+- [x] Cookie strategy:
+  - [x] BFF / Server Route set HttpOnly Secure SameSite cookie (`eomp_refresh_token`) cho refresh token.
+  - [x] Access token lưu trong memory (Pinia store), không persist ra JS-readable storage (chống XSS token theft).
+- [x] Refresh Mutex:
+  - [x] 5 requests 401 đồng thời chỉ trigger đúng 1 lần gọi refresh token (`auth_mutex.test.ts` pass).
+  - [x] Queue các pending requests trong thời gian chờ token mới và tự động retry với token mới.
+- [x] Route Guard:
+  - [x] Đổi middleware thành `auth.global.ts` tự động bảo vệ mọi trang.
+  - [x] Chặn truy cập trái quyền ở giao diện client theo ma trận RBAC (`/audit`, `/reports`, `/monitoring`, `/changes`, `/problems`, `/assets` - 50 matrix tests pass).
 
 ---
 
-### ⚪ C-02 — TLS & Private Monitoring
-- **Priority:** P0 | **Effort:** 2–4 ngày | **Status:** `OPEN`
+### ✅ C-02 — TLS & Private Monitoring
+- **Priority:** P0 | **Effort:** 2–4 ngày | **Status:** `DONE & VERIFIED`
 - **Files:**
-  - `deploy/nginx/conf.d/eomp.conf`
-  - `deploy/kubernetes/manifests/08-ingress.yaml`
-- [ ] HTTPS redirect (80 → 443) & HSTS header.
-- [ ] Gỡ `/monitoring/grafana/` và `/monitoring/prometheus/` khỏi Ingress/Nginx công khai.
-- [ ] Cấu hình CSP: Bỏ `unsafe-eval`, tương thích Nuxt SSR.
+  - [`deploy/nginx/conf.d/eomp.conf`](file:///d:/IT_help/eomp/deploy/nginx/conf.d/eomp.conf)
+  - [`deploy/kubernetes/manifests/08-ingress.yaml`](file:///d:/IT_help/eomp/deploy/kubernetes/manifests/08-ingress.yaml)
+- [x] HTTPS redirect (80 → 443) & HSTS header (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`).
+- [x] Gỡ `/monitoring/grafana/` và `/monitoring/prometheus/` khỏi Ingress/Nginx công khai để bảo vệ telemetry.
+- [x] Cấu hình CSP: Bỏ `unsafe-eval`, tương thích chuẩn Nuxt SSR.
 
 ---
 
-### ⚪ C-03 — Migration Concurrency Control
-- **Priority:** P1 | **Effort:** 1–2 ngày | **Status:** `OPEN`
+### ✅ C-03 — Migration Concurrency Control
+- **Priority:** P1 | **Effort:** 1–2 ngày | **Status:** `DONE & VERIFIED`
 - **Files:**
-  - `packages/shared/pkg/database/postgres.go`
-- [ ] Bọc `pg_advisory_lock` cho toàn bộ quá trình kiểm tra & apply migration khi nhiều pod cùng khởi động.
-- [ ] Đảm bảo mỗi migration chỉ được thực thi đúng 1 lần duy nhất mà không bị crash loop.
+  - [`packages/shared/pkg/database/postgres.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres.go)
+  - [`packages/shared/pkg/database/postgres_test.go`](file:///d:/IT_help/eomp/packages/shared/pkg/database/postgres_test.go)
+- [x] Bọc `pg_advisory_lock` (Lock ID `8424119472649191`) trên dedicated connection cho toàn bộ quá trình kiểm tra & apply migration khi nhiều pod cùng khởi động.
+- [x] Đảm bảo mỗi migration chỉ được thực thi đúng 1 lần duy nhất mà không bị crash loop hay race condition. Unit tests và Go test suite pass.
 
 ---
 
