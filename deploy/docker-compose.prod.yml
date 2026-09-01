@@ -50,7 +50,7 @@ services:
       HOST: "0.0.0.0"
       NUXT_PUBLIC_API_URL: "/"
       NUXT_API_BASE_URL: "http://gateway:8080"
-      NUXT_ALLOWED_ORIGINS: ${EOMP_ALLOWED_ORIGINS:-}
+      NUXT_ALLOWED_ORIGINS: ${NUXT_ALLOWED_ORIGINS:-}
     deploy:
       resources:
         limits:

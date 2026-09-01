@@ -1,6 +1,6 @@
 # EOMP implementation status
 
-Last audited: 2026-09-01
+Last audited: 2026-09-02
 
 Code version: `0.1.0`
 
@@ -34,11 +34,18 @@ Gate B now meets its **technical implementation and runtime exit criteria**. For
 
 | Task | Current status | Evidence & Details |
 |---|---|---|
-| C-01 Frontend session & Cookie BFF | **DONE & VERIFIED** | Nuxt Nitro Server Routes (`/api/auth/*`) bảo vệ `HttpOnly Secure SameSite` refresh cookie; access token lưu thuần bộ nhớ RAM (Pinia); 401 Refresh Mutex chống thundering herd (`auth_mutex.test.ts` pass); `auth.global.ts` route guard RBAC bảo vệ toàn diện (`route_guard.test.ts` 50/50 pass); Nuxt typecheck, ESLint, production build pass. |
-| C-02 TLS & Private Monitoring | **DONE & VERIFIED** | Nginx chuyển hướng HTTPS 80→443, HSTS header `max-age=31536000`, gỡ bỏ public proxy `/monitoring/grafana/` và `/monitoring/prometheus/` khỏi Ingress/Nginx công khai; cấu hình CSP nghiêm ngặt không `unsafe-eval`. |
-| C-03 Migration Concurrency Control | **DONE & VERIFIED** | Bọc `pg_advisory_lock` (Lock ID `8424119472649191`) trên connection chuyên dụng trong `packages/shared/pkg/database/postgres.go` đảm bảo các pod khởi động đồng thời serialize tuần tự, triệt tiêu race condition crash loop. Database unit suite pass. |
+| C-01 Frontend session & Cookie BFF | **IMPLEMENTED — LOCAL RUNTIME VERIFIED** | Edge route `/api/auth/*` được ưu tiên chuyển tới Nuxt BFF; Nitro gọi Gateway qua server-only `NUXT_API_BASE_URL`. Refresh cookie có `HttpOnly`, `Secure` ở production, `SameSite=Strict`, path `/api/auth`; access token chỉ ở Pinia memory. POST auth kiểm tra exact Origin chống CSRF. Refresh mutex dùng chính utility production và cô lập theo auth-store/SSR context; route guard không rotate cookie trong SSR subrequest. Frontend Vitest `73/73`, Nuxt typecheck, ESLint và production build pass; Nitro smoke test trả `403` khi thiếu Origin và `401` khi same-origin nhưng thiếu cookie. |
+| C-02 TLS & Private Monitoring | **IMPLEMENTED — STAGING ACCEPTANCE PENDING** | Compose publish `443`, yêu cầu mount certificate/key, redirect toàn bộ `80→443`, thêm HSTS và security headers. Static Ingress và Helm ưu tiên BFF route, bật TLS/HSTS và không còn route public Grafana/Prometheus; observability service chỉ ở internal network. Compose render validation pass. Chưa có Helm render trên máy này, `nginx -t` với certificate thật, TLS scanner hoặc kiểm tra từ untrusted network. |
+| C-03 Migration Concurrency Control | **IMPLEMENTED — POSTGRESQL RUNTIME VERIFIED** | `pg_advisory_lock` (Lock ID `8424119472649191`) giữ trên dedicated connection quanh tracker/discovery/apply. Bài test PostgreSQL 17 thật chạy 5 runner đồng thời đã pass: migration effect đúng một lần và chỉ có một tracker row. Shared Go suite pass. |
 
-Gate C is **100% COMPLETE & VERIFIED**. All 3 tasks have objective code, configuration, and automated test evidence.
+Gate C has **3/3 implementations complete and 2/3 tasks locally/runtime verified**. Formal closure remains pending C-02 staging transport evidence: render/deploy the Helm chart with a real TLS secret, run `nginx -t`/TLS policy scan, and prove Grafana/Prometheus are unreachable from an untrusted network. This repository must not self-approve those environment-level checks.
+
+### Gate C verification evidence — 2026-09-02
+
+- Frontend: Vitest `73/73`, Nuxt typecheck, ESLint and production build passed. The built Nitro server registered all four `/api/auth/*` routes; same-origin CSRF smoke cases returned the expected `403/401` results and emitted CSP/frame/content-type/permissions headers.
+- Compose: `docker compose -f deploy/docker-compose.prod.yml config --quiet` passed with validation-only secret and certificate paths. No container was started by this syntax check.
+- Migration: a disposable PostgreSQL 17 container ran `TestRunMigrationsFiveConcurrentRunnersPostgres`; five concurrent connections completed without duplicate execution or tracker rows. The container was stopped and auto-removed afterward.
+- Environment limitation: Helm and local Nginx binaries are not installed; no organization-issued certificate, staging ingress or untrusted-network vantage point was available.
 
 ### Gate B verification evidence — 2026-09-01
 
