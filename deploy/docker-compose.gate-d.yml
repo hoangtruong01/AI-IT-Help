@@ -205,7 +205,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
-      NUXT_PUBLIC_API_URL: http://localhost:8080
+      # Browser traffic stays same-origin; Nitro proxies /api/v1 to Gateway.
+      NUXT_PUBLIC_API_URL: "/"
       NUXT_API_BASE_URL: http://gateway:8080
     networks:
       - eomp-network

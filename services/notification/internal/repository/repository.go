@@ -211,8 +211,8 @@ func (r *postgresRepository) MarkAsRead(ctx context.Context, id, recipientID, re
 	now := time.Now()
 	query := `
 		INSERT INTO notification_reads (notification_id, recipient_id, read_at)
-		SELECT id, $2, $3 FROM notifications
-		WHERE id = $1 AND (recipient_id = $2 OR recipient_id = 'all' OR ($4 <> '' AND recipient_id = $4))
+		SELECT id, $2::varchar, $3::timestamptz FROM notifications
+		WHERE id = $1::uuid AND (recipient_id = $2::varchar OR recipient_id = 'all' OR ($4::varchar <> '' AND recipient_id = $4::varchar))
 		ON CONFLICT (notification_id, recipient_id) DO UPDATE SET read_at = EXCLUDED.read_at
 	`
 	result, err := r.db.ExecContext(ctx, query, id, recipientID, now, recipientRole)
@@ -233,8 +233,8 @@ func (r *postgresRepository) MarkAllAsRead(ctx context.Context, recipientID, rec
 	now := time.Now()
 	query := `
 		INSERT INTO notification_reads (notification_id, recipient_id, read_at)
-		SELECT id, $1, $2 FROM notifications
-		WHERE recipient_id = $1 OR recipient_id = 'all' OR ($3 <> '' AND recipient_id = $3)
+		SELECT id, $1::varchar, $2::timestamptz FROM notifications
+		WHERE recipient_id = $1::varchar OR recipient_id = 'all' OR ($3::varchar <> '' AND recipient_id = $3::varchar)
 		ON CONFLICT (notification_id, recipient_id) DO UPDATE SET read_at = EXCLUDED.read_at
 	`
 	_, err := r.db.ExecContext(ctx, query, recipientID, now, recipientRole)

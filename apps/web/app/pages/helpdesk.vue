@@ -43,6 +43,7 @@ const timeline = ref<TicketTimeline[]>([])
 const newCommentText = ref('')
 const isInternalNote = ref(false)
 const actionLoading = ref(false)
+const actionError = ref<string | null>(null)
 
 // AI Operations Copilot Widget State
 const isAnalyzingAI = ref(false)
@@ -158,6 +159,7 @@ async function handleCreateTicket() {
 async function openTicketDetail(ticket: Ticket) {
   selectedTicket.value = ticket
   isDetailModalOpen.value = true
+  actionError.value = null
   comments.value = []
   timeline.value = []
 
@@ -176,6 +178,7 @@ async function openTicketDetail(ticket: Ticket) {
 async function handleUpdateStatus(newStatus: string) {
   if (!selectedTicket.value) return
   actionLoading.value = true
+  actionError.value = null
   try {
     const updated = await api.patch<Ticket>(`/api/v1/tickets/${selectedTicket.value.id}/status`, {
       status: newStatus,
@@ -187,7 +190,11 @@ async function handleUpdateStatus(newStatus: string) {
     // Refresh timeline
     timeline.value = await api.get<TicketTimeline[]>(`/api/v1/tickets/${selectedTicket.value.id}/timeline`)
   } catch (err: unknown) {
-    console.error('Failed to update status:', err)
+    const errorObj = err as { statusCode?: number, status?: number, response?: { status?: number }, data?: { error?: { message?: string } }, message?: string }
+    const status = errorObj.statusCode || errorObj.status || errorObj.response?.status
+    actionError.value = status === 409
+      ? 'This ticket was updated by another user. Refresh the ticket before retrying.'
+      : errorObj.data?.error?.message || errorObj.message || 'Failed to update ticket status.'
   } finally {
     actionLoading.value = false
   }
@@ -664,6 +671,7 @@ onMounted(() => {
     <!-- Ticket Detail Modal -->
     <div
       v-if="isDetailModalOpen && selectedTicket"
+      data-testid="ticket-detail-modal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
     >
       <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 space-y-6">
@@ -813,6 +821,14 @@ onMounted(() => {
 
         <!-- Workflow Lifecycle Actions -->
         <div class="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 space-y-3">
+          <div
+            v-if="actionError"
+            data-testid="ticket-action-error"
+            role="alert"
+            class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs"
+          >
+            {{ actionError }}
+          </div>
           <p class="text-xs font-bold text-indigo-300 uppercase tracking-wider">
             Incident Transition Actions
           </p>

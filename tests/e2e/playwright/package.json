@@ -1,0 +1,16 @@
+{
+  "name": "eomp-browser-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:list": "playwright test --list",
+    "report": "playwright show-report artifacts/html"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@10.34.5"
+}

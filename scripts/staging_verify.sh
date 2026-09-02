@@ -15,7 +15,7 @@ echo ""
 
 if [ "${REQUIRE_POSTGRES:-0}" = "1" ]; then
     MISSING_DSN=""
-    for name in AUTH_INTEGRATION_DSN HELPDESK_INTEGRATION_DSN AUDIT_INTEGRATION_DSN INTEGRATION_POSTGRES_DSN; do
+    for name in AUTH_INTEGRATION_DSN HELPDESK_INTEGRATION_DSN AUDIT_INTEGRATION_DSN INTEGRATION_POSTGRES_DSN NOTIFICATION_INTEGRATION_DSN REPORTING_INTEGRATION_DSN; do
         if [ -z "${!name:-}" ]; then MISSING_DSN="$MISSING_DSN $name"; fi
     done
     if [ -n "$MISSING_DSN" ]; then
@@ -55,7 +55,7 @@ echo "  [+] Unit & Simulation Tests: PASS"
 if [ "${REQUIRE_POSTGRES:-0}" = "1" ]; then
     echo "[4/6] Running fail-closed PostgreSQL integration suites and HTTP contracts..."
     MISSING_DSN=""
-    for name in AUTH_INTEGRATION_DSN HELPDESK_INTEGRATION_DSN AUDIT_INTEGRATION_DSN INTEGRATION_POSTGRES_DSN; do
+    for name in AUTH_INTEGRATION_DSN HELPDESK_INTEGRATION_DSN AUDIT_INTEGRATION_DSN INTEGRATION_POSTGRES_DSN NOTIFICATION_INTEGRATION_DSN REPORTING_INTEGRATION_DSN; do
         if [ -z "${!name:-}" ]; then MISSING_DSN="$MISSING_DSN $name"; fi
     done
     if [ -n "$MISSING_DSN" ]; then
@@ -63,7 +63,7 @@ if [ "${REQUIRE_POSTGRES:-0}" = "1" ]; then
         exit 1
     fi
     export INTEGRATION_REQUIRED=1
-    for mod in services/auth services/helpdesk services/audit tests/integration; do
+    for mod in services/auth services/helpdesk services/audit services/notification services/reporting tests/integration; do
         (cd "$PROJECT_ROOT/$mod" && go test -count=1 -v ./...)
     done
     echo "  [+] PostgreSQL integration: PASS (required; no skips allowed)"
