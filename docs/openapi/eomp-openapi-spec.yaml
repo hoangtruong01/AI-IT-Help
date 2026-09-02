@@ -4,11 +4,11 @@ info:
   version: 0.1.0
   description: |
     Runtime operation baseline for the EOMP gateway and its downstream services.
-    All 102 registered `/api/v1` operations are represented. Generic write bodies
+    All 107 registered `/api/v1` operations are represented. Generic write bodies
     mark endpoints whose domain schemas still need richer component definitions.
   x-coverage-status: complete-operation-inventory
-  x-runtime-operation-count: 102
-  x-documented-operation-count: 102
+  x-runtime-operation-count: 107
+  x-documented-operation-count: 107
 servers:
   - url: http://localhost:8080
     description: Local gateway
@@ -69,6 +69,8 @@ paths:
   /api/v1/audit/stats:
     get: {tags: [Audit], operationId: getAuditStats, summary: Get audit statistics, responses: {'200': {$ref: '#/components/responses/Success'}}}
 
+  /api/v1/auth/change-password:
+    post: {tags: [Authentication], operationId: changePassword, summary: Change authenticated user password and revoke active sessions, requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '401': {$ref: '#/components/responses/Unauthorized'}}}
   /api/v1/auth/login:
     post: {tags: [Authentication], operationId: login, summary: Authenticate and issue a token pair, security: [], requestBody: {$ref: '#/components/requestBodies/Login'}, responses: {'200': {$ref: '#/components/responses/Success'}, '401': {$ref: '#/components/responses/Unauthorized'}}}
   /api/v1/auth/login-history:
@@ -81,6 +83,9 @@ paths:
     post: {tags: [Authentication], operationId: refreshTokens, summary: Validate and rotate a refresh token, security: [], requestBody: {$ref: '#/components/requestBodies/RefreshToken'}, responses: {'200': {$ref: '#/components/responses/Success'}, '401': {$ref: '#/components/responses/Unauthorized'}}}
   /api/v1/auth/register:
     post: {tags: [Authentication], operationId: registerEmployee, summary: Register a standard employee account, security: [], requestBody: {$ref: '#/components/requestBodies/Register'}, responses: {'201': {$ref: '#/components/responses/Created'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/auth/reset-password/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post: {tags: [Authentication], operationId: resetUserPassword, summary: Reset user password and revoke all sessions (admin only), requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
   /api/v1/changes:
     get: {tags: [Changes], operationId: listChanges, summary: List change requests (manager or admin), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
@@ -232,6 +237,13 @@ paths:
   /api/v1/tickets/by-asset/{assetId}/list:
     parameters: [{$ref: '#/components/parameters/AssetId'}]
     get: {tags: [Helpdesk], operationId: listTicketsByAsset, summary: List tickets by asset, responses: {'200': {$ref: '#/components/responses/Success'}}}
+
+  /api/v1/users:
+    get: {tags: [Users], operationId: listUsers, summary: List system users with search and pagination (admin or manager), responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
+    post: {tags: [Users], operationId: createUser, summary: Create a new system user with assigned role and department (admin only), requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'201': {$ref: '#/components/responses/Created'}, '403': {$ref: '#/components/responses/Forbidden'}, '409': {$ref: '#/components/responses/Conflict'}}}
+  /api/v1/users/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    patch: {tags: [Users], operationId: updateUser, summary: Update user role, department or active status (admin only), requestBody: {$ref: '#/components/requestBodies/JsonBody'}, responses: {'200': {$ref: '#/components/responses/Success'}, '403': {$ref: '#/components/responses/Forbidden'}}}
 
   /api/v1/workflows/definitions:
     get: {tags: [Workflow], operationId: listWorkflowDefinitions, summary: List workflow definitions, responses: {'200': {$ref: '#/components/responses/Success'}}}

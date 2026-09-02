@@ -3,7 +3,7 @@
     EOMP Multi-Database Backup & Disaster Recovery CLI.
 
 .DESCRIPTION
-    Performs automated compressed SQL backups and integrity restore testing
+    Performs automated plain-SQL backups and integrity restore testing
     for all 9 EOMP PostgreSQL databases.
 
 .EXAMPLE
@@ -107,9 +107,11 @@ function Invoke-TestRestore {
 
     $startedAt = Get-Date
     $index = 0
+    $databaseResults = @()
     foreach ($file in $latestFiles) {
         $index++
         $restoreDb = "eomp_restore_verify_$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())_$index"
+        $databaseStartedAt = Get-Date
         try {
             docker exec $containerName createdb -U eomp $restoreDb
             if ($LASTEXITCODE -ne 0) { throw "createdb failed for $restoreDb" }
@@ -117,6 +119,12 @@ function Invoke-TestRestore {
             if ($LASTEXITCODE -ne 0) { throw "restore failed for $($file.Name)" }
             $tableCount = docker exec $containerName psql -U eomp -d $restoreDb -Atc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
             if ($LASTEXITCODE -ne 0 -or [int]$tableCount -le 0) { throw "restored database has no public tables: $($file.Name)" }
+            $databaseResults += [ordered]@{
+                source_file = $file.Name
+                sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                public_table_count = [int]$tableCount
+                restore_duration_seconds = [Math]::Round(((Get-Date) - $databaseStartedAt).TotalSeconds, 3)
+            }
         } finally {
             docker exec $containerName dropdb -U eomp --if-exists $restoreDb 2>$null | Out-Null
         }
@@ -125,14 +133,25 @@ function Invoke-TestRestore {
     $duration = (Get-Date) - $startedAt
     $oldestBackup = $latestFiles | Sort-Object LastWriteTimeUtc | Select-Object -First 1
     $rpo = (Get-Date).ToUniversalTime() - $oldestBackup.LastWriteTimeUtc
+    $postgresVersion = (docker exec $containerName psql -U eomp -d postgres -Atc "SHOW server_version;").Trim()
+    $containerImage = (docker inspect --format '{{.Config.Image}}' $containerName).Trim()
+    $sourceRevision = (& git -C $ProjectRoot rev-parse HEAD 2>$null).Trim()
     $evidence = [ordered]@{
+        status = "passed"
+        source_revision = $sourceRevision
+        postgres_version = $postgresVersion
+        container_image = $containerImage
         backup_created_at = $oldestBackup.LastWriteTimeUtc.ToString("o")
+        oldest_backup_age_seconds = [Math]::Round($rpo.TotalSeconds, 3)
         restore_duration_seconds = [Math]::Round($duration.TotalSeconds, 3)
+        restore_scope = "nine PostgreSQL databases only; not full-service RTO"
         database_count = $latestFiles.Count
+        databases = $databaseResults
         verified_at = (Get-Date).ToUniversalTime().ToString("o")
     }
     $evidence | ConvertTo-Json | Set-Content -LiteralPath "$BackupDir\dr_evidence.json" -Encoding utf8
-    Write-Host "[VERIFIED] Real restore drill completed for $($latestFiles.Count) databases. RPO=$([Math]::Round($rpo.TotalSeconds, 1))s, RTO=$([Math]::Round($duration.TotalSeconds, 1))s" -ForegroundColor Green
+    Write-Host "[VERIFIED] Real database restore drill completed for $($latestFiles.Count) databases. OldestBackupAge=$([Math]::Round($rpo.TotalSeconds, 1))s, DatabaseRestoreDuration=$([Math]::Round($duration.TotalSeconds, 1))s" -ForegroundColor Green
+    Write-Host "This measures backup age and database restore duration; it does not by itself certify WAL RPO or full-service RTO." -ForegroundColor Yellow
 }
 
 switch ($Command) {

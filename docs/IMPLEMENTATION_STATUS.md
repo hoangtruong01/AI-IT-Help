@@ -40,6 +40,30 @@ Gate B now meets its **technical implementation and runtime exit criteria**. For
 
 Gate C has **3/3 implementations complete and 2/3 tasks locally/runtime verified**. Formal closure remains pending C-02 staging transport evidence: render/deploy the Helm chart with a real TLS secret, run `nginx -t`/TLS policy scan, and prove Grafana/Prometheus are unreachable from an untrusted network. This repository must not self-approve those environment-level checks.
 
+## Gate D status (Bằng chứng pilot & Verification Evidence)
+
+| Task | Current status | Evidence & Details |
+|---|---|---|
+| D-01 PostgreSQL Integration Suite | **PARTIAL — CORE POSTGRESQL RUNTIME VERIFIED** | A strict run against PostgreSQL 17.11 used four isolated temporary databases and allowed no skips. Auth rotation/replay/session revocation/rollback, Helpdesk row scope/100-way sequence/CAS, Audit HMAC/append-only protection, migration concurrency and parameterized-query payloads passed. Test fixture and assertion defects exposed by the first real run were corrected. Coverage required by the plan for Notification, Reporting and reporting date filters is still absent, and CI does not yet provision ephemeral PostgreSQL automatically. |
+| D-02 Real API E2E & Browser E2E | **PARTIAL — LOCAL DEPLOYED-STACK E2E PASSED** | The real Docker Gateway/Auth/services completed login, create → assign → comment → resolve, stale-version `409`, refresh rotation and logout/revocation. Spoofed identity returned `401`, cross-department access returned `404`, and PostgreSQL assertions confirmed Helpdesk, Audit, Reporting and Notification effects. Evidence is retained at `docs/evidence/gate-d/deployed_stack_e2e.json`. Playwright and a release/staging run remain open. |
+| D-03 Staging Release Evidence & DR | **PARTIAL — LOCAL IMAGE/LOAD/DR VERIFIED** | One `eomp` Docker project runs 20 healthy containers. Twelve application images have immutable local digests and run as `10001:10001` (`docs/evidence/gate-d/image_manifest.json`). Controlled local load produced 2,928 requests with zero failures, p95 30.3439ms and p99 65.0058ms (`docs/evidence/gate-d/local_load_summary.json`). Nine-database restore passed in 6.602s (`docs/evidence/gate-d/dr_evidence_20260902.json`). CVE scan, k6/TLS staging, Helm/Kubernetes rollout, network isolation and WAL/full-service RTO remain open. |
+
+Gate D is **not closed**. Current engineering estimate is **90% local technical readiness** and **70% formal Gate D evidence**; all three tasks remain formally partial. Gate B owner acceptance and Gate C staging acceptance also remain prerequisites for pilot approval.
+
+### Gate D audit evidence — 2026-09-02
+
+- All Go modules passed `go test ./...` and `go vet ./...`.
+- Strict PostgreSQL integration passed against four isolated temporary databases with `INTEGRATION_REQUIRED=1`; no database test was skipped. All temporary databases were removed afterward.
+- The in-process HTTP contract harness passed three lifecycle/security contract tests and remains classified as contract evidence.
+- Real local deployed-stack E2E passed through Gateway/Auth/services, including lifecycle, security probes, session rotation/revocation and downstream PostgreSQL assertions; evidence is in `docs/evidence/gate-d/deployed_stack_e2e.json`.
+- Frontend Vitest passed `81/81`; Nuxt typecheck, ESLint and production build passed. These are local unit/contract/build checks; no browser was launched.
+- OpenAPI parity passed `107/107` runtime operations (`go run scripts/check_openapi_coverage.go`).
+- Docker Server 28.4.0 runs one unified `eomp` project with 20 healthy containers. Twelve application images were built, assigned immutable local digests and verified as non-root; evidence is in `docs/evidence/gate-d/image_manifest.json`.
+- Controlled local load passed at 100 VU for 30 seconds: 2,928 requests, zero failures, p95 30.3439ms and p99 65.0058ms; evidence is in `docs/evidence/gate-d/local_load_summary.json`.
+- Nine-database backup/restore passed on PostgreSQL 17.11: oldest snapshot age 54.718s and database restore duration 6.602s. This does not prove WAL RPO or full-service RTO.
+- Docker Scout CVE output was unavailable because Docker Desktop is not logged into Docker ID; k6/TLS staging and Helm deployment evidence also remain unavailable. The local controlled-load result is not counted as formal staging acceptance.
+- Detailed gap analysis and the required evidence checklist are recorded in `docs/GATE_D_VERIFICATION_EVIDENCE.md`.
+
 ### Gate C verification evidence — 2026-09-02
 
 - Frontend: Vitest `73/73`, Nuxt typecheck, ESLint and production build passed. The built Nitro server registered all four `/api/auth/*` routes; same-origin CSRF smoke cases returned the expected `403/401` results and emitted CSP/frame/content-type/permissions headers.
@@ -102,7 +126,7 @@ Environment-limited checks:
 
 - Docker Desktop runtime integration passed for PostgreSQL 17 and RabbitMQ 4: all infrastructure containers were healthy; Auth/Helpdesk/Reporting readiness returned 200; migrations `auth/004` and `reporting/001..005` applied; B-02 lifecycle and B-03 event/KPI/export flows passed. Runtime fixtures were removed by exact identifiers after verification.
 - Helm rendering was not executed because Helm is not installed.
-- No real PostgreSQL restore drill was available; RPO/RTO remain unverified until `scripts/backup_restore.ps1 test-restore` produces real evidence.
+- A nine-database PostgreSQL restore drill passed and is retained at `docs/evidence/gate-d/dr_evidence_20260902.json`. WAL-based RPO and full-service RTO remain unverified.
 - No production AI provider key or external Qdrant instance was available for an end-to-end AI validation.
 
 ## Remaining release blockers
@@ -112,7 +136,7 @@ Environment-limited checks:
 | P0 | Previously committed secrets may already be compromised | Rotate PostgreSQL, JWT, RabbitMQ, MinIO, Grafana and any provider credentials in every environment and secret store |
 | P0 | Authorization matrix is not owner-approved | Record a traceable owner approval for `AUTHORIZATION_MATRIX.md` revision 1.0 before implementing dependent authorization work |
 | P0 | No real deployment/runtime proof | Build and scan every image, render Helm, deploy to a test cluster and pass smoke/integration checks |
-| P0 | DR targets are unverified | Complete a measured nine-database backup/restore drill and retain objective evidence |
+| P0 | Full-service DR targets remain unverified | Database restore evidence now exists; still prove WAL-based RPO and application/infrastructure recovery within the agreed full-service RTO |
 | P1 | Downstream services still trust gateway-injected plaintext identity headers | Add signed internal identity or validate the downstream JWT; keep service ports unreachable from untrusted networks |
 | P1 | Audit immutability is not yet enforced by a dedicated restricted DB role | Run the audit service with append-only grants, document HMAC key rotation and validate tamper detection against PostgreSQL |
 | P1 | Monitoring has probes but no real RED/log backend | Integrate Prometheus queries and a Loki-compatible log backend; keep unavailable fields explicit until then |

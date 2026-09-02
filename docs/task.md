@@ -14,7 +14,7 @@
 | **Gate A** | **Chốt luật và khóa bề mặt tấn công** (Trust boundary, secrets, errors, matrix) | P0 | ✅ **DONE** (100%) | 5/5 |
 | **Gate B** | **Ranh giới dữ liệu & tính trung thực** (Row-level auth, user lifecycle, real reports) | P0 | 🟡 **TECHNICALLY VERIFIED — OWNER ACCEPTANCE PENDING** | 5/5 technical |
 | **Gate C** | **Session, transport và migration safety** (Cookie BFF, refresh mutex, TLS, locks) | P1 | 🟡 **IMPLEMENTED — C-02 STAGING ACCEPTANCE PENDING** | 3/3 code; 2/3 verified |
-| **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | ⚪ **READY FOR EXECUTION** | 0/3 |
+| **Gate D** | **Bằng chứng pilot** (Postgres integration suite, real E2E, staging verification) | P0 | 🟡 **LOCAL 90% / FORMAL EVIDENCE 70%** | 0/3 formally accepted |
 
 ---
 
@@ -257,43 +257,67 @@
 
 > ⚠️ **Điều kiện tiên quyết:** Gate A, B, C đã hoàn tất.
 
-### ⚪ D-01 — PostgreSQL Integration Suite
-- **Priority:** P0 (evidence) | **Effort:** 5–8 ngày | **Status:** `OPEN`
-- **Files:** `tests/integration/`, `Jenkinsfile`
-- [ ] Khởi chạy PostgreSQL test container qua testcontainers-go.
-- [ ] Kiểm thử tích hợp thực tế:
-  - [ ] Auth: Xoay vòng token atomic, đổi pass thu hồi session, CRUD user.
-  - [ ] Helpdesk: Phân quyền bản ghi theo 4 role, concurrency sequence (100 goroutines), optimistic locking.
-  - [ ] Audit: Kiểm tra tính toàn vẹn chuỗi HMAC append-only.
+### 🟡 D-01 — PostgreSQL Integration Suite
+- **Priority:** P0 (evidence) | **Effort:** 5–8 ngày | **Status:** `PARTIAL — CORE POSTGRESQL RUNTIME VERIFIED`
+- **Files:**
+  - `services/auth/internal/repository/auth_integration_test.go`
+  - `services/helpdesk/internal/repository/helpdesk_integration_test.go`
+  - `services/audit/internal/repository/audit_integration_test.go`
+  - `tests/integration/postgres_integration_test.go`
+- [x] Đã viết test Auth, Helpdesk, Audit, migration concurrency và parameterized-query payload.
+- [x] Runner có chế độ fail-closed: `scripts/staging_verify.ps1 -RequirePostgres` hoặc `REQUIRE_POSTGRES=1 ./scripts/staging_verify.sh`.
+- [x] Chạy local trên 4 database PostgreSQL 17.11 tạm, DSN riêng cho Auth/Helpdesk/Audit/migration và không có test `SKIP`; database tạm đã được dọn.
+- [ ] Tự động hóa cùng suite bằng PostgreSQL ephemeral trong CI và lưu run URL/log theo commit.
+- [ ] Bổ sung coverage Notification, Reporting và date filter theo đúng acceptance plan.
+- [ ] Lưu CI run URL/log gắn với commit được nghiệm thu.
 
 ---
 
-### ⚪ D-02 — Real API E2E & Browser E2E Suite
-- **Priority:** P0 (evidence) | **Effort:** 4–7 ngày | **Status:** `OPEN`
-- **Files:** `tests/e2e/`, `tests/browser/` (Playwright)
-- [ ] Kịch bản E2E toàn diện trên Gateway thật:
-  - [ ] Login → Tạo Ticket → Gán Kỹ thuật viên → Thêm Bình luận → Giải quyết.
-  - [ ] Giả lập tấn công Header Spoofing → Bị từ chối 401/403.
-  - [ ] Truy cập chéo dữ liệu người dùng khác → Trả về 404.
+### 🟡 D-02 — Real API E2E & Browser E2E Suite
+- **Priority:** P0 (evidence) | **Effort:** 4–7 ngày | **Status:** `PARTIAL — LOCAL DEPLOYED-STACK E2E PASSED; BROWSER/STAGING OPEN`
+- **Files:**
+  - `tests/integration/http_contract_test.go`
+  - `apps/web/tests/route_permissions.test.ts`
+  - `tests/e2e/README.md`
+- [x] Có HTTP contract harness bằng `httptest` cho lifecycle/status, header spoofing và anti-enumeration; đây là test double, không phải gateway thật.
+- [x] Có Vitest route-policy contracts cho RBAC, safe redirect, optimistic-lock model và refresh mutex; không khởi động browser.
+- [x] Stack Docker thật login qua Auth/Gateway, tạo/assign/comment/resolve, kiểm tra `409`, refresh rotation, logout/revoke và xác minh PostgreSQL Helpdesk/Audit/Reporting/Notification; evidence: `docs/evidence/gate-d/deployed_stack_e2e.json`.
+- [x] Spoofed identity bị từ chối `401` và cross-department probe được che bằng `404` qua Gateway thật.
+- [ ] Chạy lại cùng kịch bản trên staging/release và lưu evidence gắn với release version.
+- [ ] Bổ sung Playwright cho login, route guard, create ticket, 409, refresh và logout; lưu report/video/trace theo chính sách CI.
 
 ---
 
-### ⚪ D-03 — Staging Release Evidence & Handover
-- **Priority:** P0 (evidence) | **Effort:** 3–5 ngày | **Status:** `OPEN`
-- [ ] Quét lỗ hổng container image (Trivy Scan: 0 High/Critical).
-- [ ] Triển khai Staging qua Helm Chart.
-- [ ] Kiểm thử tải k6 & Báo cáo kết quả phục hồi dữ liệu Backup/Restore.
+### 🟡 D-03 — Staging Release Evidence & Handover
+- **Priority:** P0 (evidence) | **Effort:** 3–5 ngày | **Status:** `PARTIAL — LOCAL IMAGE/LOAD/DR EVIDENCE PRESENT; STAGING OPEN`
+- **Files:**
+  - `deploy/k6/load_test.js`
+  - `scripts/backup_restore.ps1` & `.sh`
+  - `scripts/staging_verify.ps1` & `.sh`
+  - `docs/GATE_D_VERIFICATION_EVIDENCE.md`
+  - `docs/evidence/gate-d/dr_evidence_20260902.json`
+- [x] Có kịch bản k6 với threshold `p95 < 200ms`, `p99 < 500ms`, error rate `< 1%`; credential thật là bắt buộc và 401 không còn được coi là thành công.
+- [x] Có script backup/restore fail-closed cho 9 database và tạo `backups/dr_evidence.json` khi drill thật hoàn tất.
+- [x] Có static precheck cho non-root, tag `:latest`, NetworkPolicy và PDB.
+- [x] Build 12 application image, ghi local digest, xác minh user `10001:10001` và 20 container healthy; evidence: `docs/evidence/gate-d/image_manifest.json`.
+- [ ] Lưu Trivy/Scout JSON chứng minh 0 High/Critical hoặc exception được duyệt; Docker Scout hiện yêu cầu Docker ID login.
+- [ ] `helm lint`/render, deploy staging với TLS secret thật, chạy rollout/readiness/migration/smoke và network-isolation checks.
+- [ ] Chạy k6 trên endpoint staging thật và lưu summary JSON.
+- [x] Controlled load local 100 VU/30s: 2.928 request, 0 lỗi, p95 `30.3439ms`, p99 `65.0058ms`; evidence: `docs/evidence/gate-d/local_load_summary.json` (không thay thế k6 staging).
+- [x] Backup/restore đủ 9 database trên PostgreSQL 17.11 pass; database restore 6.602s, evidence tại `docs/evidence/gate-d/dr_evidence_20260902.json`.
+- [ ] Chứng minh WAL-based RPO và full-service RTO < 15 phút; database-only restore không thay thế tiêu chí này.
+- [ ] Owner ký biên bản sau khi toàn bộ evidence trên gắn với cùng version/commit.
 
 ---
 
 ## 🎯 Pilot Exit Criteria
 
 1. ✅ **Gate A:** 100% Passed.
-2. 🟡 **Gate B:** Technical/runtime criteria đạt; chờ owner acceptance để đóng chính thức.
+2. 🟡 **Gate B:** Technical/runtime criteria đạt 100%; chờ owner acceptance để đóng chính thức.
 3. 🟡 **Gate C:** 3/3 implementation; chờ C-02 staging TLS/private-network acceptance.
-4. ⏳ **Gate D:** 100% Passed.
-5. Không còn bất kỳ issue P0 nào mở.
-6. Product Owner ký biên bản bàn giao phạm vi Pilot.
+4. 🟡 **Gate D:** local technical readiness ước tính 90%, formal acceptance evidence 70%; 0/3 task đã được đóng chính thức.
+5. 🔴 Vẫn còn P0 về browser/CI, CVE scan, TLS/network staging, WAL/full-service recovery và owner sign-off.
+6. 📝 Product Owner chưa ký biên bản bàn giao phạm vi Pilot.
 
 ---
 

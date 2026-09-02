@@ -1,0 +1,216 @@
+# Local deployed-stack verification for Gate D.
+# Reuses the development infrastructure from ../docker-compose.yml and does
+# not recreate or publish PostgreSQL, Redis, RabbitMQ, MinIO, Qdrant or
+# observability containers.
+
+# Keep every EOMP container in one Docker Compose project. This file remains a
+# separate application profile only so it can reuse infrastructure safely.
+name: eomp
+
+x-database-environment: &database-environment
+  APP_ENV: staging
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: ${POSTGRES_USER:-eomp}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+  POSTGRES_SSLMODE: disable
+
+x-rabbitmq-environment: &rabbitmq-environment
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  RABBITMQ_USER: ${RABBITMQ_USER:-eomp}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+
+x-go-service: &go-service
+  restart: unless-stopped
+  networks:
+    - eomp-network
+
+services:
+  auth:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: auth, PORT: 8081 }
+    image: eomp/auth:gate-d
+    environment:
+      <<: *database-environment
+      PORT: 8081
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-auth_db}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      BOOTSTRAP_ADMIN_EMAIL: ${GATE_D_ADMIN_EMAIL:-gate-admin@local.test}
+      BOOTSTRAP_ADMIN_PASSWORD: ${GATE_D_ADMIN_PASSWORD:?GATE_D_ADMIN_PASSWORD is required}
+      BOOTSTRAP_ADMIN_NAME: Gate D Administrator
+
+  employee:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: employee, PORT: 8082 }
+    image: eomp/employee:gate-d
+    environment:
+      <<: *database-environment
+      PORT: 8082
+      EMPLOYEE_DB_NAME: ${EMPLOYEE_DB_NAME:-employee_db}
+      ASSET_SERVICE_URL: http://asset:8083
+
+  asset:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: asset, PORT: 8083 }
+    image: eomp/asset:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8083
+      ASSET_DB_NAME: ${ASSET_DB_NAME:-asset_db}
+      HELPDESK_SERVICE_URL: http://helpdesk:8084
+
+  helpdesk:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: helpdesk, PORT: 8084 }
+    image: eomp/helpdesk:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8084
+      HELPDESK_DB_NAME: ${HELPDESK_DB_NAME:-helpdesk_db}
+
+  workflow:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: workflow, PORT: 8085 }
+    image: eomp/workflow:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8085
+      WORKFLOW_DB_NAME: ${WORKFLOW_DB_NAME:-workflow_db}
+
+  notification:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: notification, PORT: 8086 }
+    image: eomp/notification:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8086
+      NOTIFICATION_DB_NAME: ${NOTIFICATION_DB_NAME:-notification_db}
+
+  knowledge:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: knowledge, PORT: 8087 }
+    image: eomp/knowledge:gate-d
+    environment:
+      <<: *database-environment
+      PORT: 8087
+      KNOWLEDGE_DB_NAME: ${KNOWLEDGE_DB_NAME:-knowledge_db}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-knowledge_base}
+
+  ai:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: ai, PORT: 8088 }
+    image: eomp/ai:gate-d
+    environment:
+      APP_ENV: staging
+      PORT: 8088
+      AI_PROVIDER: mock
+      ALLOW_MOCK_AI: "true"
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-knowledge_base}
+
+  audit:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: audit, PORT: 8089 }
+    image: eomp/audit:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8089
+      AUDIT_DB_NAME: ${AUDIT_DB_NAME:-audit_db}
+      AUDIT_HMAC_KEY: ${JWT_SECRET:?JWT_SECRET is required}
+
+  reporting:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: reporting, PORT: 8090 }
+    image: eomp/reporting:gate-d
+    environment:
+      <<: [*database-environment, *rabbitmq-environment]
+      PORT: 8090
+      REPORTING_DB_NAME: ${REPORTING_DB_NAME:-reporting_db}
+
+  gateway:
+    <<: *go-service
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.go-service
+      args: { SERVICE_NAME: gateway, PORT: 8080 }
+    image: eomp/gateway:gate-d
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: staging
+      PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # The bridge gateway is the source address of requests forwarded from
+      # the Windows host load runner. 172.21.0.250 is reserved for local k6.
+      # These entries exist only in this Gate D compose, never production.
+      TRUSTED_PROXIES: 127.0.0.1,::1,172.21.0.1,172.21.0.250
+      AUTH_SERVICE_URL: http://auth:8081
+      EMPLOYEE_SERVICE_URL: http://employee:8082
+      ASSET_SERVICE_URL: http://asset:8083
+      HELPDESK_SERVICE_URL: http://helpdesk:8084
+      WORKFLOW_SERVICE_URL: http://workflow:8085
+      NOTIFICATION_SERVICE_URL: http://notification:8086
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8087
+      AI_SERVICE_URL: http://ai:8088
+      AUDIT_SERVICE_URL: http://audit:8089
+      REPORTING_SERVICE_URL: http://reporting:8090
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  web:
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.web
+    image: eomp/web:gate-d
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      NUXT_PUBLIC_API_URL: http://localhost:8080
+      NUXT_API_BASE_URL: http://gateway:8080
+    networks:
+      - eomp-network
+
+networks:
+  eomp-network:
+    external: true
+    name: eomp-network

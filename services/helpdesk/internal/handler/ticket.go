@@ -92,6 +92,9 @@ func (h *TicketHandler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		}
 		req.RequesterID = actor.ID
 		req.RequesterEmail = actor.Email
+		if actor.DepartmentID != "" {
+			req.DepartmentID = &actor.DepartmentID
+		}
 		if actor.Name != "" {
 			req.RequesterName = actor.Name
 		} else {

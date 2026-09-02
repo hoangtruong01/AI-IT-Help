@@ -14,4 +14,5 @@ use (
 	./services/reporting
 	./services/workflow
 	./tests/e2e
+	./tests/integration
 )
