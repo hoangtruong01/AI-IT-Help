@@ -176,7 +176,7 @@ EOMP provides automated CLI toolkits for developer, testing, deployment and SRE 
 | **Phase 13** | Docker and Kubernetes packaging | **Implemented; runtime validation pending** |
 | **Phase 14** | SRE, disaster recovery and handover | **Pending measured DR drill and owner acceptance** |
 
-The evidence-backed status and release blockers are maintained in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+The evidence-backed status and release blockers are maintained in [docs/CURRENT_TASKS.md](docs/CURRENT_TASKS.md).
 
 ---
 
@@ -184,21 +184,10 @@ The evidence-backed status and release blockers are maintained in [docs/IMPLEMEN
 
 Detailed specifications and architectural artifacts:
 
-- **Core Guides:**
-  - 📖 **[Developer & Intern Comprehensive Guide](docs/INTERN_DEVELOPER_GUIDE.md)** *(A-Z onboarding)*
-  - 📋 **[Project Structure & Daily Changelog](docs/PROJECT_STRUCTURE_AND_CHANGELOG.md)** *(Single Source of Truth)*
-  - 🎯 **[Phase 6 to 14 Multi-Role Specification](docs/PHASE_6_TO_14_ROADMAP_SPECIFICATION.md)**
-- **Architecture & API:**
-  - 🏛️ **[C4 Architecture Diagrams (Levels 1-4)](docs/architecture/c4_model_diagrams.md)**
-  - 🗄️ **[Master ERD & Data Dictionary](docs/architecture/database_erd_and_data_dictionary.md)**
-  - 🔌 **[OpenAPI 3.0 Specification Hub](docs/openapi/eomp-openapi-spec.yaml)**
-- **Operations & SRE:**
-  - 🚢 **[Production Deployment & Kubernetes Guide](docs/deployment.md)**
-  - 🛡️ **[Disaster Recovery Plan (RPO<5m, RTO<15m)](docs/sre/disaster_recovery_plan.md)**
-  - 🚨 **[Incident Response Playbook (SEV 1-4)](docs/sre/incident_response_playbook.md)**
-  - 📖 **[SRE Operations Manual (Day-2 Ops)](docs/sre/operations_manual.md)**
-  - 🔥 **[Chaos Engineering Runbook](docs/sre/chaos_engineering_runbook.md)**
-  - 📜 **[Master Platform Handover Certificate](docs/sre/project_handover_acceptance.md)**
+- 📖 **[Master Project Documentation (Single Source of Truth)](docs/PROJECT_DOCUMENTATION.md)** *(Comprehensive Architecture, Business Rules, APIs, DB schemas & Onboarding Guide)*
+- 🤖 **[AI Coding Agent Rules & Protocols](docs/AI_DEVELOPMENT_RULES.md)** *(Multi-role personas, 11-step development workflow, and quality gates)*
+- 📋 **[Current Active Tasks & Release Backlog](docs/CURRENT_TASKS.md)** *(Live open tasks, Gate verification checklist, and post-pilot roadmap)*
+- 🔌 **[OpenAPI 3.0 Specification Hub](docs/openapi/eomp-openapi-spec.yaml)** *(107 Registered API Operation Contracts)*
 
 ---
 
