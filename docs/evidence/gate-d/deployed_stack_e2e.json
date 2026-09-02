@@ -1,0 +1,86 @@
+﻿{
+    "schema_version":  1,
+    "result":  "PASS",
+    "scope":  "local Docker deployed-stack E2E; not TLS/staging acceptance",
+    "started_at_utc":  "2026-09-02T02:43:15.6855221+00:00",
+    "completed_at_utc":  "2026-09-02T02:43:17.0676343+00:00",
+    "source_revision":  "f72aa39a35655feca29a7238b569ec7b0751e87a",
+    "base_url":  "http://127.0.0.1:8080",
+    "ticket_id":  "b1891a2a-6057-4d10-956c-e28738e8274d",
+    "ticket_number":  "TK-1004",
+    "final_status":  "RESOLVED",
+    "final_version":  4,
+    "assertions":  {
+                       "helpdesk_comment_count":  1,
+                       "helpdesk_timeline_count":  5,
+                       "audit_event_count":  4,
+                       "reporting_projection_status":  "RESOLVED",
+                       "notification_count":  1
+                   },
+    "steps":  [
+                  {
+                      "name":  "admin_login",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "create_agent",
+                      "http_status":  201
+                  },
+                  {
+                      "name":  "create_employee",
+                      "http_status":  201
+                  },
+                  {
+                      "name":  "create_cross_scope_employee",
+                      "http_status":  201
+                  },
+                  {
+                      "name":  "role_logins",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "employee_create_ticket",
+                      "http_status":  201
+                  },
+                  {
+                      "name":  "identity_header_spoof_rejected",
+                      "http_status":  401
+                  },
+                  {
+                      "name":  "cross_department_probe_hidden",
+                      "http_status":  404
+                  },
+                  {
+                      "name":  "agent_self_assign",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "agent_comment",
+                      "http_status":  201
+                  },
+                  {
+                      "name":  "status_in_progress",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "optimistic_lock_conflict",
+                      "http_status":  409
+                  },
+                  {
+                      "name":  "status_resolved",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "refresh_rotation",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "logout_revoke",
+                      "http_status":  200
+                  },
+                  {
+                      "name":  "revoked_refresh_rejected",
+                      "http_status":  401
+                  }
+              ]
+}

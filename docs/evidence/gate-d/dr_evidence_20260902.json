@@ -1,0 +1,68 @@
+{
+  "status": "passed",
+  "source_revision": "f72aa39a35655feca29a7238b569ec7b0751e87a",
+  "postgres_version": "17.11",
+  "container_image": "postgres:17-alpine",
+  "backup_created_at": "2026-09-01T18:28:44.4279255Z",
+  "oldest_backup_age_seconds": 54.718,
+  "restore_duration_seconds": 6.602,
+  "restore_scope": "nine PostgreSQL databases only; not full-service RTO",
+  "database_count": 9,
+  "databases": [
+    {
+      "source_file": "auth_db_20260902_012844.sql",
+      "sha256": "e167cfaab991e8024ad337eb58a811fa83039eb3b1027b099194b10cba3b3889",
+      "public_table_count": 5,
+      "restore_duration_seconds": 0.606
+    },
+    {
+      "source_file": "employee_db_20260902_012844.sql",
+      "sha256": "75dd30803cc51d0458d907d242535393c78f89e23c536497771f1b0246817180",
+      "public_table_count": 3,
+      "restore_duration_seconds": 0.492
+    },
+    {
+      "source_file": "asset_db_20260902_012844.sql",
+      "sha256": "885a0b51a18652a91423ee119f20793799ea80d9d9407dc8011301479592935e",
+      "public_table_count": 5,
+      "restore_duration_seconds": 0.536
+    },
+    {
+      "source_file": "helpdesk_db_20260902_012844.sql",
+      "sha256": "f82eee0802ab18dc36bb3d9555782b894c1bf3b44d04a611d357b5097510e0be",
+      "public_table_count": 8,
+      "restore_duration_seconds": 0.648
+    },
+    {
+      "source_file": "workflow_db_20260902_012844.sql",
+      "sha256": "aa5256aaa78505a5fe92b8abf19f0ae0f45d9ba96893da94bad0c4795a0b2be5",
+      "public_table_count": 8,
+      "restore_duration_seconds": 0.695
+    },
+    {
+      "source_file": "notification_db_20260902_012844.sql",
+      "sha256": "e0c1097ee8378a34104567c7b494a636eeb3e102bfbcd8d0d0146a868286e6da",
+      "public_table_count": 4,
+      "restore_duration_seconds": 0.489
+    },
+    {
+      "source_file": "knowledge_db_20260902_012844.sql",
+      "sha256": "5abf1955d4b9b071e9fbd65a79943c0cf0ee4b4094447443bb855e4cc05ead5a",
+      "public_table_count": 5,
+      "restore_duration_seconds": 0.546
+    },
+    {
+      "source_file": "reporting_db_20260902_012844.sql",
+      "sha256": "01c34e9f5f189c8b29a45b02b96b70cad7a70979d4869ba1f7b8709043b184af",
+      "public_table_count": 7,
+      "restore_duration_seconds": 0.544
+    },
+    {
+      "source_file": "audit_db_20260902_012844.sql",
+      "sha256": "efd1e5dde0b73681cfdbca08a46c12fb0a503347b0fd53d43f970061d5989636",
+      "public_table_count": 2,
+      "restore_duration_seconds": 0.513
+    }
+  ],
+  "verified_at": "2026-09-01T18:29:39.3386141Z"
+}

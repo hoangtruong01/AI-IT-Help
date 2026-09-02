@@ -264,7 +264,9 @@ func ticketEventData(ticket *model.Ticket) map[string]any {
 	return map[string]any{
 		"ticket_id": ticket.ID, "ticket_number": ticket.TicketNumber,
 		"title": ticket.Title, "category": ticket.Category, "priority": ticket.Priority,
-		"status": ticket.Status, "requester_name": ticket.RequesterName,
+		"status": ticket.Status, "requester_id": ticket.RequesterID,
+		"requester_name": ticket.RequesterName, "requester_email": ticket.RequesterEmail,
+		"reporter_id": ticket.RequesterID, "reporter_email": ticket.RequesterEmail,
 		"assignee_id": assigneeID, "assignee_name": assigneeName,
 		"department_id": departmentID, "sla_status": ticket.SLAStatus,
 		"created_at": ticket.CreatedAt, "responded_at": ticket.RespondedAt,

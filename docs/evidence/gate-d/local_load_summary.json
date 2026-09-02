@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "result": "PASS",
+  "scope": "local Docker authenticated load evidence; not k6/TLS/staging acceptance",
+  "started_at_utc": "2026-09-02T02:49:05.0106637Z",
+  "completed_at_utc": "2026-09-02T02:49:35.017054Z",
+  "source_revision": "f72aa39a35655feca29a7238b569ec7b0751e87a",
+  "base_url": "http://127.0.0.1:8080",
+  "virtual_users": 100,
+  "duration": "30s",
+  "requests": 2928,
+  "failures": 0,
+  "failure_rate": 0,
+  "p95_ms": 30.3439,
+  "p99_ms": 65.0058,
+  "thresholds": {
+    "failure_rate": "\u003c 1%",
+    "p95": "\u003c 200 ms",
+    "p99": "\u003c 500 ms"
+  },
+  "endpoints": {
+    "health": {
+      "requests": 972,
+      "failures": 0,
+      "p95_ms": 14.0436,
+      "p99_ms": 61.7903,
+      "max_ms": 63.6291
+    },
+    "reports_overview": {
+      "requests": 980,
+      "failures": 0,
+      "p95_ms": 27.9306,
+      "p99_ms": 73.4015,
+      "max_ms": 80.7381
+    },
+    "tickets": {
+      "requests": 976,
+      "failures": 0,
+      "p95_ms": 37.7728,
+      "p99_ms": 78.1203,
+      "max_ms": 85.9681
+    }
+  }
+}

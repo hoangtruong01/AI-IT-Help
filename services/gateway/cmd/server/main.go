@@ -160,7 +160,7 @@ func main() {
 	mux.Handle("POST /api/v1/auth/refresh", strictAuthLimiter(authProxy))
 	mux.Handle("POST /api/v1/auth/logout", strictAuthLimiter(authProxy))
 
-	adminOnly := middleware.RequireRole("ROLE_ADMIN")
+	adminOnly := middleware.RequireRoles("ROLE_ADMIN")
 
 	// Protected auth routes — require valid JWT (A-02 fix: header spoofing prevention)
 	mux.Handle("GET /api/v1/auth/me", authFilter(authProxy))

@@ -20,13 +20,15 @@ RUN apk add --no-cache git ca-certificates tzdata
 WORKDIR /workspace
 
 # Copy workspace definition and dependencies
-COPY go.work go.work.sum ./
+# go.work.sum is optional and is not committed in this repository. Module
+# checksums are resolved from the copied module manifests during the build.
+COPY go.work ./
 COPY packages/shared packages/shared
 COPY services services
 
 # Build static binary without CGO, strip symbols to achieve < 20MB binary size
 WORKDIR /workspace/services/${SERVICE_NAME}
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -ldflags="-s -w -extldflags '-static'" -o /app/server ./cmd/server \
     && mkdir -p /app/migrations \
     && if [ -d migrations ]; then cp -R migrations/. /app/migrations/; fi

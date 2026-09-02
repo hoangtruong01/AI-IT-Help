@@ -1,0 +1,95 @@
+﻿{
+    "schema_version":  1,
+    "result":  "PASS",
+    "scope":  "local Docker image build/runtime metadata; vulnerability scan is separate",
+    "generated_at_utc":  "2026-09-02T02:53:39.1273937+00:00",
+    "source_revision":  "f72aa39a35655feca29a7238b569ec7b0751e87a",
+    "image_count":  12,
+    "healthy_container_count":  20,
+    "images":  [
+                   {
+                       "reference":  "eomp/ai:gate-d",
+                       "digest":  "sha256:5fb329ef488f9ba01093a8c85538ae79ec5218581fffa161a4723ca5e678d5de",
+                       "created_at":  "2026-09-01T18:42:25.546494699Z",
+                       "size_bytes":  8341191,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/asset:gate-d",
+                       "digest":  "sha256:7796051393bac8dd05f6cb62aa1242b70d4e3af2e5ab804731f5de84cba5de0c",
+                       "created_at":  "2026-09-01T18:42:24.552221681Z",
+                       "size_bytes":  8820448,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/audit:gate-d",
+                       "digest":  "sha256:8b0b06d7e057be263afa47cdd29a223bc77120fa1b0a0a6517037da95f24e34d",
+                       "created_at":  "2026-09-01T18:42:25.69793738Z",
+                       "size_bytes":  8616264,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/auth:gate-d",
+                       "digest":  "sha256:aecd551668b3594c3a717a145c2b34ea6385b6fc127531d3441f812fe4bcd630",
+                       "created_at":  "2026-09-01T18:42:25.753137965Z",
+                       "size_bytes":  8505332,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/employee:gate-d",
+                       "digest":  "sha256:2bdd8e43c1bddcbc2c00772816f29de7e61a8625d52be4d0a6e2d0bbdbb54225",
+                       "created_at":  "2026-09-01T18:42:26.984170931Z",
+                       "size_bytes":  8632573,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/gateway:gate-d",
+                       "digest":  "sha256:bec589f15649cbb3fee6a19e473f1a1aefb1685d0401d6d4cbdbc593e1271565",
+                       "created_at":  "2026-09-02T02:42:44.898696424Z",
+                       "size_bytes":  8868717,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/helpdesk:gate-d",
+                       "digest":  "sha256:96673d3cac7b7e24ad8d8764f935c26615d923231cfd9fbf97d55b39539c5663",
+                       "created_at":  "2026-09-02T02:38:09.122976007Z",
+                       "size_bytes":  8642484,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/knowledge:gate-d",
+                       "digest":  "sha256:8589c0f12391e570915beba9458e470ac1a5cce006795326ed2adc3f2c4208b9",
+                       "created_at":  "2026-09-01T18:42:23.101500439Z",
+                       "size_bytes":  8463998,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/notification:gate-d",
+                       "digest":  "sha256:dd0ccf8c5352cb1240995f244ad1c26e56868b94cbf7ae629de6be493633fb4f",
+                       "created_at":  "2026-09-01T18:42:16.16130527Z",
+                       "size_bytes":  8584614,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/reporting:gate-d",
+                       "digest":  "sha256:1d0c7a9f94d595ba153bb43fb82ddb95f07a5cb1e5e8c9a568ab9108375d279c",
+                       "created_at":  "2026-09-01T18:42:21.226680599Z",
+                       "size_bytes":  8598250,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/web:gate-d",
+                       "digest":  "sha256:9aa3bc3f3b6c1278c823e29378a8b51773f7eeea3dd407ac3b8475837976e00b",
+                       "created_at":  "2026-09-01T18:42:29.454261016Z",
+                       "size_bytes":  57053524,
+                       "runtime_user":  "10001:10001"
+                   },
+                   {
+                       "reference":  "eomp/workflow:gate-d",
+                       "digest":  "sha256:e696bdcb8634708da5ab47023ec7ef0e48f66e563a06261e59022d6067b114e0",
+                       "created_at":  "2026-09-01T18:42:12.298861736Z",
+                       "size_bytes":  8635782,
+                       "runtime_user":  "10001:10001"
+                   }
+               ]
+}

@@ -15,6 +15,9 @@ import (
 func TestCreateWithAuditRollsBackUserWhenAuditInsertFailsPostgres(t *testing.T) {
 	dsn := os.Getenv("AUTH_INTEGRATION_DSN")
 	if dsn == "" {
+		if os.Getenv("INTEGRATION_REQUIRED") != "" {
+			t.Fatal("AUTH_INTEGRATION_DSN is required")
+		}
 		t.Skip("AUTH_INTEGRATION_DSN is not set")
 	}
 
