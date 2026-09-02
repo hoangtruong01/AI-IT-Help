@@ -125,6 +125,33 @@ pipeline {
             }
         }
 
+        stage('Ephemeral PostgreSQL Integration') {
+            steps {
+                echo '=== Running Fail-Closed PostgreSQL Integration on Six Isolated Databases ==='
+                sh 'bash scripts/ci_postgres_integration.sh'
+                archiveArtifacts artifacts: 'docs/evidence/gate-d/ci_postgres_integration.json,docs/evidence/gate-d/ci_postgres_integration.log', fingerprint: true
+            }
+        }
+
+        stage('Staging Browser E2E (Playwright)') {
+            when {
+                expression { return env.E2E_WEB_BASE_URL?.trim() }
+            }
+            steps {
+                echo '=== Running Six Fail-Closed Chromium User Journeys Against Staging ==='
+                dir('tests/e2e/playwright') {
+                    sh 'pnpm install --frozen-lockfile'
+                    sh 'pnpm exec playwright install --with-deps chromium'
+                    sh 'pnpm test'
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'tests/e2e/playwright/artifacts/**/*', allowEmptyArchive: true, fingerprint: true
+                }
+            }
+        }
+
         stage('Build Artifacts') {
             parallel {
                 stage('Frontend Build') {
@@ -180,14 +207,16 @@ pipeline {
                 echo '=== Scanning Docker Images for CVE Vulnerabilities (Trivy) ==='
                 sh '''
                     command -v trivy >/dev/null 2>&1 || { echo "Trivy is required on the CI runner"; exit 1; }
-                    trivy image --severity HIGH,CRITICAL --exit-code 1 "eomp-web:${GIT_COMMIT_SHORT}"
+                    mkdir -p docs/evidence/gate-d/trivy
+                    trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json --output docs/evidence/gate-d/trivy/web.json --exit-code 1 "eomp-web:${GIT_COMMIT_SHORT}"
                     for dir in services/*; do
                         if [ -f "$dir/go.mod" ]; then
                             svc=$(basename "$dir")
-                            trivy image --severity HIGH,CRITICAL --exit-code 1 "eomp-$svc:${GIT_COMMIT_SHORT}"
+                            trivy image --severity HIGH,CRITICAL --ignore-unfixed --format json --output "docs/evidence/gate-d/trivy/$svc.json" --exit-code 1 "eomp-$svc:${GIT_COMMIT_SHORT}"
                         fi
                     done
                 '''
+                archiveArtifacts artifacts: 'docs/evidence/gate-d/trivy/*.json', fingerprint: true
             }
         }
     }

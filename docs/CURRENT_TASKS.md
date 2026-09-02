@@ -4,6 +4,8 @@
 > **Status:** Live Open Tasks  
 > **Rule:** This file contains **ONLY active, open, in-progress, or remaining tasks**. Completed tasks are removed upon verification and recorded in [`docs/PROJECT_DOCUMENTATION.md`](file:///d:/IT_help/eomp/docs/PROJECT_DOCUMENTATION.md).
 
+> **Last engineering update:** 2026-09-02 — release automation and local evidence advanced. Six-database PostgreSQL CI runner and repository suites pass locally; six Playwright journeys compile/discover but have not run in a connected browser; local full-service RTO passed in 18.513s. External staging, CVE execution, WAL/PITR and stakeholder sign-off remain open.
+
 ---
 
 ## 📊 Summary of Open Tasks
@@ -11,9 +13,9 @@
 | Task ID | Task Name | Priority | Status | Owner / Role |
 |---|---|:---:|:---:|---|
 | [TASK-REL-001](#task-rel-001--staging-tls--private-observability-verification) | Staging TLS & Private Observability Verification | CRITICAL | IN PROGRESS | DevOps / SRE + Security |
-| [TASK-REL-002](#task-rel-002--ci-automated-ephemeral-postgresql-integration-suite) | CI Automated Ephemeral PostgreSQL Integration Suite | HIGH | IN PROGRESS | Backend + DevOps |
-| [TASK-REL-003](#task-rel-003--playwright-browser-e2e-suite--staging-verification) | Playwright Browser E2E Suite & Staging Verification | HIGH | NOT STARTED | QA / Automation + Frontend |
-| [TASK-REL-004](#task-rel-004--container-security-cve-scan--full-service-dr-targets) | Container Security CVE Scan & Full-Service DR Targets | HIGH | IN PROGRESS | SRE + Security |
+| [TASK-REL-002](#task-rel-002--ci-automated-ephemeral-postgresql-integration-suite) | CI Automated Ephemeral PostgreSQL Integration Suite | HIGH | IMPLEMENTED — CI RUN PENDING | Backend + DevOps |
+| [TASK-REL-003](#task-rel-003--playwright-browser-e2e-suite--staging-verification) | Playwright Browser E2E Suite & Staging Verification | HIGH | IMPLEMENTED — BROWSER/STAGING RUN PENDING | QA / Automation + Frontend |
+| [TASK-REL-004](#task-rel-004--container-security-cve-scan--full-service-dr-targets) | Container Security CVE Scan & Full-Service DR Targets | HIGH | PARTIAL — LOCAL RTO PASS; CVE/WAL OPEN | SRE + Security |
 | [TASK-REL-005](#task-rel-005--product-owner--security-sign-off-for-pilot-handover) | Product Owner & Security Sign-Off for Pilot Handover | CRITICAL | BLOCKED | Product Owner + Security Lead |
 | [TASK-BKL-001](#task-bkl-001--sla-background-escalation-engine--leader-election) | SLA Background Escalation Engine & Leader Election | MEDIUM | NOT STARTED | Backend + Architect |
 | [TASK-BKL-002](#task-bkl-002--business-calendar--vietnam-holiday-working-hours) | Business Calendar & Vietnam Holiday Working Hours | MEDIUM | NOT STARTED | BA + Backend |
@@ -34,7 +36,7 @@
 
 **Status**
 ```text
-IN PROGRESS
+IMPLEMENTED — LOCAL PASS; JENKINS RUN URL PENDING
 ```
 
 **Priority**
@@ -115,13 +117,10 @@ Gate D-01 integration tests run successfully on local developer machines against
 - Versioned CI test run logs linked to Git commit SHA.
 
 **Current State**
-Core PostgreSQL integration suites exist in `services/auth/internal/repository/auth_integration_test.go`, `services/helpdesk/internal/repository/helpdesk_integration_test.go`, `services/audit/internal/repository/audit_integration_test.go`, and `tests/integration/postgres_integration_test.go`.
+Core suites plus Notification recipient-read and Reporting date/aggregate suites now exist. `scripts/ci_postgres_integration.sh` starts PostgreSQL 17, creates six isolated databases, applies every relevant migration from an empty state, enforces `INTEGRATION_REQUIRED=1`, runs all repository suites and writes JSON/log evidence. The local execution passed with zero skips at `docs/evidence/gate-d/ci_postgres_integration.json`. `Jenkinsfile` invokes and archives the same runner.
 
 **Missing**
-- Ephemeral PostgreSQL service block in `Jenkinsfile`.
-- Integration test for Notification receipts (`services/notification/internal/repository/`).
-- Integration test for Reporting date filters and aggregations (`services/reporting/internal/repository/`).
-- CI run URL logging.
+- Execute the updated pipeline on Jenkins and retain its non-local `BUILD_URL` and archived log.
 
 **Affected Modules**
 `Jenkinsfile`, `services/notification`, `services/reporting`, `tests/integration`
@@ -130,24 +129,24 @@ Core PostgreSQL integration suites exist in `services/auth/internal/repository/a
 Docker / PostgreSQL service daemon available in CI runner.
 
 **Acceptance Criteria**
-- [ ] Jenkinsfile runs `go test -v ./tests/integration/...` with `INTEGRATION_REQUIRED=1`.
-- [ ] Notification receipt integration test validates read state per recipient.
-- [ ] Reporting integration test validates date filtering and aggregate rollup without skipping.
+- [x] Jenkinsfile runs the six-database fail-closed runner with `INTEGRATION_REQUIRED=1`.
+- [x] Notification receipt integration test validates read state per recipient.
+- [x] Reporting integration test validates date filtering and aggregate rollup without skipping.
 - [ ] Zero skipped integration tests in CI report.
 
 **Implementation Checklist**
 ### Backend
-- [ ] Write `services/notification/internal/repository/notification_integration_test.go`.
-- [ ] Write `services/reporting/internal/repository/reporting_integration_test.go`.
+- [x] Write `services/notification/internal/repository/notification_integration_test.go`.
+- [x] Write `services/reporting/internal/repository/reporting_integration_test.go`.
 
 ### DevOps
-- [ ] Update `Jenkinsfile` stage `Integration Test` with ephemeral PostgreSQL containers.
+- [x] Update `Jenkinsfile` with an ephemeral PostgreSQL integration stage and archived evidence.
 
 ### Testing
-- [ ] Execute `REQUIRE_POSTGRES=1 ./scripts/staging_verify.sh` to confirm zero skips.
+- [x] Execute the equivalent fail-closed six-database runner locally; all suites passed with zero skips.
 
 ### Documentation
-- [ ] Record CI integration evidence in `docs/PROJECT_DOCUMENTATION.md`.
+- [x] Record local integration evidence and the remaining Jenkins-run requirement in `docs/PROJECT_DOCUMENTATION.md`.
 
 ---
 
@@ -155,7 +154,7 @@ Docker / PostgreSQL service daemon available in CI runner.
 
 **Status**
 ```text
-NOT STARTED
+IMPLEMENTED — COMPILE/DISCOVERY PASS; BROWSER/STAGING RUN PENDING
 ```
 
 **Priority**
@@ -181,12 +180,11 @@ Gate D-02 requires end-to-end verification executed through a real headless brow
 - Playwright HTML reports, test videos, and traces archived on test completion.
 
 **Current State**
-Backend deployed-stack E2E passed via API calls (`docs/evidence/gate-d/deployed_stack_e2e.json`). Frontend Vitest unit/contract tests pass (`apps/web/tests/route_permissions.test.ts`).
+Backend deployed-stack E2E passed via API calls. A standalone Playwright 1.62 suite now defines six Chromium journeys in four spec files under `tests/e2e/playwright/`, uses fail-closed dedicated credentials, records HTML/JSON/video/trace artifacts, and is conditionally executed and archived by Jenkins when `E2E_WEB_BASE_URL` is configured. TypeScript compile and Playwright discovery pass (`6 tests in 4 files`). The frontend now has a same-origin Nitro `/api/v1/**` proxy and a visible `409` stale-update alert.
 
 **Missing**
-- Playwright configuration and dependency installation (`@playwright/test`).
-- Browser journey test scripts in `tests/e2e/playwright/`.
-- CI execution stage for Playwright.
+- Run Chromium with dedicated admin/employee/agent credentials; no browser was connected to this engineering session.
+- Retain the generated HTML report, screenshots, videos and traces from Jenkins/staging.
 
 **Affected Modules**
 `apps/web`, `tests/e2e`, `Jenkinsfile`
@@ -201,14 +199,14 @@ Running Web frontend (`http://localhost:3000`) and Gateway (`http://localhost:80
 
 **Implementation Checklist**
 ### QA / Testing
-- [ ] Initialize Playwright in `tests/e2e/`.
-- [ ] Implement `login_and_navigation.spec.ts`.
-- [ ] Implement `ticket_lifecycle.spec.ts`.
-- [ ] Implement `concurrency_conflict.spec.ts`.
-- [ ] Implement `token_refresh_mutex.spec.ts`.
+- [x] Initialize Playwright in `tests/e2e/playwright/` with a frozen pnpm lockfile.
+- [x] Implement `login_and_navigation.spec.ts`.
+- [x] Implement `ticket_lifecycle.spec.ts`.
+- [x] Implement `concurrency_conflict.spec.ts` using a real stale-version API write.
+- [x] Implement `token_refresh_mutex.spec.ts` including logout/revocation verification.
 
 ### Documentation
-- [ ] Document Playwright execution commands in `docs/PROJECT_DOCUMENTATION.md`.
+- [x] Document Playwright execution commands in `docs/PROJECT_DOCUMENTATION.md`.
 
 ---
 
@@ -216,7 +214,7 @@ Running Web frontend (`http://localhost:3000`) and Gateway (`http://localhost:80
 
 **Status**
 ```text
-IN PROGRESS
+PARTIAL — LOCAL FULL-SERVICE RTO PASS; CVE AND WAL/PITR OPEN
 ```
 
 **Priority**
@@ -236,12 +234,11 @@ Gate D-03 requires verifiable automated container vulnerability scanning (Trivy 
 - Verifiable evidence report stored in `docs/evidence/gate-d/`.
 
 **Current State**
-All 12 application images built as non-root (`USER 10001:10001`) with immutable digests recorded in `docs/evidence/gate-d/image_manifest.json`. Database restore drill passed for 9 databases in 6.602s (`docs/evidence/gate-d/dr_evidence_20260902.json`).
+All 12 application images built as non-root with immutable digests. Database restore for 9 databases passed in 6.602s. `scripts/gate_d_full_stack_rto.ps1` now performs a non-destructive cold stopped-state restart of the existing 8 infrastructure and 12 application containers, waits for all health checks plus Gateway/Web HTTP readiness, and writes evidence. The measured local full-service RTO passed at 18.513s (`docs/evidence/gate-d/dr_full_service.json`). Jenkins Trivy now emits and archives one fail-closed High/Critical JSON report per image.
 
 **Missing**
-- Trivy CLI execution across all 12 images in CI.
+- Execute Trivy/Scout across all 12 release images and retain clean scan JSON; the local Docker Desktop Scout path still requires Docker ID login.
 - WAL archiving and point-in-time recovery (PITR) drill verification.
-- Full-stack start-to-ready RTO measurement.
 
 **Affected Modules**
 `scripts/backup_restore.ps1/.sh`, `Jenkinsfile`, `deploy/docker/`
@@ -256,12 +253,13 @@ Trivy scanner installed on build host; PostgreSQL WAL archive volume.
 
 **Implementation Checklist**
 ### SRE / DevOps
-- [ ] Add Trivy vulnerability scanning step to `Jenkinsfile`.
+- [x] Add fail-closed Trivy JSON vulnerability scanning and artifact archival to `Jenkinsfile`.
+- [ ] Execute the Trivy stage and review/approve any High/Critical exceptions.
 - [ ] Enhance `scripts/backup_restore.ps1` to verify WAL log replay.
-- [ ] Benchmark full cold-start to healthy status across all 20 containers.
+- [x] Benchmark full cold-start to healthy plus HTTP readiness across all 20 containers: 18.513s local.
 
 ### Documentation
-- [ ] Record vulnerability and DR evidence in `docs/PROJECT_DOCUMENTATION.md`.
+- [x] Record current DR evidence and remaining CVE/WAL limits in `docs/PROJECT_DOCUMENTATION.md`.
 
 ---
 

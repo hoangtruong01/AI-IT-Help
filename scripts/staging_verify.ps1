@@ -35,7 +35,10 @@ Write-Host ""
 
 $results = [ordered]@{}
 $totalFailed = 0
-$requiredDsns = @("AUTH_INTEGRATION_DSN", "HELPDESK_INTEGRATION_DSN", "AUDIT_INTEGRATION_DSN", "INTEGRATION_POSTGRES_DSN")
+$requiredDsns = @(
+    "AUTH_INTEGRATION_DSN", "HELPDESK_INTEGRATION_DSN", "AUDIT_INTEGRATION_DSN",
+    "INTEGRATION_POSTGRES_DSN", "NOTIFICATION_INTEGRATION_DSN", "REPORTING_INTEGRATION_DSN"
+)
 
 $requiredCommands = @("go", "gofmt", "pnpm.cmd")
 $missingCommands = @($requiredCommands | Where-Object { $null -eq (Get-Command $_ -ErrorAction SilentlyContinue) })
@@ -149,7 +152,10 @@ if ($RequirePostgres) {
         $previousRequired = $env:INTEGRATION_REQUIRED
         $env:INTEGRATION_REQUIRED = "1"
         $integrationFailed = $false
-        $integrationModules = @("services/auth", "services/helpdesk", "services/audit", "tests/integration")
+        $integrationModules = @(
+            "services/auth", "services/helpdesk", "services/audit", "services/notification",
+            "services/reporting", "tests/integration"
+        )
         try {
             foreach ($mod in $integrationModules) {
                 Push-Location "$ProjectRoot\$mod"

@@ -1,0 +1,116 @@
+﻿{
+    "schema_version":  1,
+    "result":  "PASS",
+    "scope":  "local Docker cold stopped-state to full-service readiness; WAL/PITR RPO is separate",
+    "source_revision":  "f179c11b2168bac8286440cb9cca6bf1e758209d",
+    "started_at_utc":  "2026-09-02T03:49:04.5789025+00:00",
+    "completed_at_utc":  "2026-09-02T03:49:23.2067163+00:00",
+    "rto_seconds":  18.513,
+    "threshold_seconds":  900,
+    "expected_container_count":  20,
+    "healthy_container_count":  20,
+    "gateway_health_http_200":  true,
+    "web_http_200":  true,
+    "containers":  [
+                       {
+                           "name":  "eomp-asset-1",
+                           "status":  "Up 15 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-helpdesk-1",
+                           "status":  "Up 14 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-workflow-1",
+                           "status":  "Up 13 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-web-1",
+                           "status":  "Up 13 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-auth-1",
+                           "status":  "Up 15 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-knowledge-1",
+                           "status":  "Up 14 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-reporting-1",
+                           "status":  "Up 13 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-audit-1",
+                           "status":  "Up 15 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-notification-1",
+                           "status":  "Up 13 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-ai-1",
+                           "status":  "Up 16 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-gateway-1",
+                           "status":  "Up 14 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-employee-1",
+                           "status":  "Up 14 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-loki",
+                           "status":  "Up 16 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-qdrant",
+                           "status":  "Up 17 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-grafana",
+                           "status":  "Up 16 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-postgres",
+                           "status":  "Up 18 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-rabbitmq",
+                           "status":  "Up 17 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-prometheus",
+                           "status":  "Up 16 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-redis",
+                           "status":  "Up 18 seconds (healthy)",
+                           "healthy":  true
+                       },
+                       {
+                           "name":  "eomp-minio",
+                           "status":  "Up 17 seconds (healthy)",
+                           "healthy":  true
+                       }
+                   ]
+}

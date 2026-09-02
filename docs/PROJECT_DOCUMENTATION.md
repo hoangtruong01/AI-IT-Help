@@ -26,6 +26,7 @@
 15. [Development & Delivery Workflow](#15-development--delivery-workflow)
 16. [Coding Conventions & Standards](#16-coding-conventions--standards)
 17. [Definition of Done (DoD)](#17-definition-of-done-dod)
+18. [Release Verification Change Record](#18-release-verification-change-record--2026-09-02)
 
 ---
 
@@ -292,7 +293,7 @@ EOMP defines **4 Human Roles** and **2 System Actors**. All authorization follow
 - **Business Rules:** Monitoring endpoints restricted; log API explicitly returns `501 Not Implemented` until Loki backend proxy is connected.
 - **Permissions:** Admin only.
 - **Related Modules:** `services/gateway`, `infrastructure/prometheus`, `infrastructure/grafana`, `infrastructure/loki`.
-- **Current Status:** **Completed & Runtime Verified**.
+- **Current Status:** **Partially Implemented & Runtime Verified** — health/metrics infrastructure is active; the authenticated Loki/Prometheus query proxy remains tracked as `TASK-BKL-008`.
 
 ---
 
@@ -872,3 +873,63 @@ A feature or task is declared **DONE** only when:
    - Frontend tests pass (`pnpm test:unit`, `pnpm typecheck`, `pnpm lint`).
 7. **Documentation:** `PROJECT_DOCUMENTATION.md` updated, completed task removed from `CURRENT_TASKS.md`.
 8. **No Placeholders:** Zero fake mocks in production code paths, zero disabled tests.
+
+---
+
+## 18. Release Verification Change Record — 2026-09-02
+
+### 18.1. PostgreSQL integration and CI
+
+- Added Notification PostgreSQL integration for recipient-scoped read receipts, role/broadcast visibility, ownership rejection and receipt isolation.
+- Added Reporting PostgreSQL integration for custom date bounds, KPI aggregation, trend filtering, category filtering and raw-record filtering.
+- Added `scripts/ci_postgres_integration.sh`. It creates six isolated PostgreSQL 17 databases, applies Auth/Helpdesk/Audit/Notification/Reporting migrations from an empty state and executes all suites with `INTEGRATION_REQUIRED=1`.
+- Added the fail-closed Jenkins `Ephemeral PostgreSQL Integration` stage and archived JSON/log evidence.
+- A clean local execution passed every suite with zero skips. Evidence: `docs/evidence/gate-d/ci_postgres_integration.json`. Its `ci_build_url` is `local`; a real Jenkins URL is still required for formal acceptance.
+
+The empty-database run found and corrected two production defects:
+
+1. Reporting migration `002_remove_demo_telemetry.sql` compared a `VARCHAR` actor identifier against UUID-typed constants, preventing fresh database provisioning.
+2. Notification read-receipt queries did not explicitly type reused PostgreSQL parameters, causing runtime error `42P08`. The parameters are now typed as UUID, VARCHAR and TIMESTAMPTZ at the SQL boundary.
+
+### 18.2. Browser E2E implementation
+
+- Added Playwright `1.62.0` with a frozen pnpm lockfile under `tests/e2e/playwright/`.
+- Six Chromium journeys cover role navigation, unauthorized route redirect, ticket creation/SLA display, real stale-version `409`, refresh mutex behavior and logout/revocation.
+- Test execution is fail-closed when dedicated admin, employee or agent credentials are missing. HTML, JSON, screenshots, video and trace output are configured and archived by Jenkins.
+- Added a Nitro same-origin `/api/v1/**` proxy. Local browser API calls now comply with CSP `connect-src 'self'` while Nitro reaches Gateway over the private container network.
+- Added a visible ticket conflict alert instructing users to refresh after `409 Conflict`.
+- TypeScript compile and Playwright discovery pass: **6 tests in 4 files**. Browser execution is **NOT VERIFIED** because this engineering session had no connected browser and no dedicated E2E credential set.
+
+Run against a prepared environment:
+
+```powershell
+$env:E2E_WEB_BASE_URL = 'https://staging.example.com'
+$env:E2E_GATEWAY_BASE_URL = 'https://staging.example.com'
+$env:E2E_ADMIN_EMAIL = '<dedicated admin>'
+$env:E2E_ADMIN_PASSWORD = '<secret>'
+$env:E2E_EMPLOYEE_EMAIL = '<dedicated employee>'
+$env:E2E_EMPLOYEE_PASSWORD = '<secret>'
+$env:E2E_AGENT_EMAIL = '<dedicated agent>'
+$env:E2E_AGENT_PASSWORD = '<secret>'
+pnpm.cmd --dir tests/e2e/playwright install --frozen-lockfile
+pnpm.cmd --dir tests/e2e/playwright exec playwright install chromium
+pnpm.cmd --dir tests/e2e/playwright test
+```
+
+### 18.3. Container security and disaster recovery
+
+- Jenkins Trivy scanning now writes one High/Critical JSON result per release image, fails the build on findings and archives the reports.
+- Added `scripts/gate_d_full_stack_rto.ps1`, which stops existing service containers without deleting containers, volumes or data; restarts infrastructure and applications; waits for 20/20 health checks; and verifies Gateway/Web HTTP readiness.
+- Local full-service stopped-state-to-ready RTO: **18.513 seconds**, below the 900-second target. Evidence: `docs/evidence/gate-d/dr_full_service.json`.
+- The existing nine-database logical restore remains **6.602 seconds**. Evidence: `docs/evidence/gate-d/dr_evidence_20260902.json`.
+- WAL archiving/PITR RPO and an executed clean CVE report remain open. Local RTO and logical restore evidence do not prove WAL-based RPO.
+
+### 18.4. Regression result
+
+- Go: all **14 workspace modules** passed `go test ./...` and `go vet ./...` module-by-module.
+- PostgreSQL: six isolated databases passed fail-closed integration with zero skips.
+- Frontend: Vitest **81/81**, Nuxt typecheck, ESLint and production build passed.
+- Same-origin Nitro smoke: Web returned `200`; unauthenticated `/api/v1/tickets` proxied to Gateway and returned the expected `401`.
+- Docker recovery: **20/20** service containers healthy after cold restart; Gateway and Web returned HTTP `200`.
+
+Formal pilot approval is still blocked by real staging TLS/private-network evidence, a retained browser execution report, an executed CVE scan, WAL/PITR proof and Product Owner/Security sign-off. See `docs/CURRENT_TASKS.md` for the remaining active items.
