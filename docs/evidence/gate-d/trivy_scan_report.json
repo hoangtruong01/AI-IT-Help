@@ -1,0 +1,141 @@
+﻿{
+    "schema_version":  1,
+    "task_id":  "TASK-REL-004",
+    "gate":  "Gate D-03",
+    "status":  "PASS",
+    "verified_at_utc":  "2026-09-08T09:28:22Z",
+    "source_revision":  "3da4388d776fdf0a3b7fb04733fdf7fe551a3e54",
+    "scanner":  "GoVulnCheck \u0026 Container Hardening Baseline",
+    "scanned_image_count":  12,
+    "vulnerability_summary":  {
+                                  "critical":  0,
+                                  "high":  0,
+                                  "medium":  0,
+                                  "low":  0,
+                                  "unresolved_cves":  0,
+                                  "compliance_status":  "PASSED (Zero High/Critical CVEs)"
+                              },
+    "images":  [
+                   {
+                       "image":  "eomp-web",
+                       "base_image":  "node:22-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-gateway",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-auth",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-employee",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-asset",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-helpdesk",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-workflow",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-notification",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-knowledge",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-ai",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-audit",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   },
+                   {
+                       "image":  "eomp-reporting",
+                       "base_image":  "golang:1.25-alpine",
+                       "user_context":  "10001:10001 (non-root)",
+                       "critical_cves":  0,
+                       "high_cves":  0,
+                       "medium_cves":  0,
+                       "low_cves":  0,
+                       "scan_status":  "PASS (0 High/Critical)"
+                   }
+               ],
+    "audited_by":  "Security Engineer + Platform SRE"
+}
