@@ -127,7 +127,7 @@ export interface Ticket {
   service_item_id?: string | null
   category: string
   priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | string
-  status: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'WAITING_USER' | 'RESOLVED' | 'CLOSED' | string
+  status: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'WAITING_USER' | 'WAITING_APPROVAL' | 'RESOLVED' | 'CLOSED' | string
   requester_id: string
   requester_name: string
   requester_email: string

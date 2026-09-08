@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ type TicketService interface {
 	ListServiceCatalogItems(ctx context.Context) ([]model.ServiceCatalogItem, error)
 	GetTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 	GetTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error)
+
+	HandleApprovalDecided(ctx context.Context, event eventbus.Event) error
 }
 
 type ticketService struct {
@@ -167,6 +170,17 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 	}
 
 	respDeadline, resolDeadline := s.slaEngine.CalculateDeadlines(req.Priority, customResponseMins, customResolutionMins)
+	initialStatus := model.StatusOpen
+	timelineAction := "TICKET_CREATED"
+	if req.ServiceItemID != nil && *req.ServiceItemID != "" {
+		item, _ := s.repo.FindServiceCatalogItemByID(ctx, *req.ServiceItemID)
+		if item != nil && item.RequiresApproval {
+			initialStatus = model.StatusWaitingApproval
+			timelineAction = "APPROVAL_REQUESTED"
+			respDeadline = time.Time{}
+			resolDeadline = time.Time{}
+		}
+	}
 
 	ticket := &model.Ticket{
 		TicketNumber:          ticketNumber,
@@ -175,7 +189,7 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 		ServiceItemID:         req.ServiceItemID,
 		Category:              req.Category,
 		Priority:              req.Priority,
-		Status:                model.StatusOpen,
+		Status:                initialStatus,
 		RequesterID:           req.RequesterID,
 		RequesterName:         req.RequesterName,
 		RequesterEmail:        req.RequesterEmail,
@@ -186,26 +200,46 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 		SLAStatus:             model.SLAWithinSLA,
 	}
 
-	if err := s.repo.CreateTicket(ctx, ticket); err != nil {
+	timeline := &model.TicketTimeline{
+		ActorID:   req.RequesterID,
+		ActorName: req.RequesterName,
+		Action:    timelineAction,
+		NewValue:  &ticket.Status,
+	}
+
+	eventData := ticketEventData(ticket)
+	eventPayload, _ := json.Marshal(eventData)
+	outbox := &model.OutboxEvent{
+		EventType: eventbus.TopicTicketCreated,
+		Source:    "helpdesk",
+		Payload:   string(eventPayload),
+	}
+
+	if err := s.repo.CreateTicketWithOutbox(ctx, ticket, timeline, outbox); err != nil {
 		return nil, errors.Internal(ctx, "helpdesk create ticket", err)
 	}
 
-	// Record creation in timeline
-	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{
-		TicketID:  ticket.ID,
-		ActorID:   req.RequesterID,
-		ActorName: req.RequesterName,
-		Action:    "TICKET_CREATED",
-		NewValue:  &ticket.Status,
-	})
-
-	// Publish ticket.created event via EventBus
+	// Publish ticket.created event via EventBus immediately if available
 	if s.bus != nil {
 		_ = s.bus.Publish(ctx, eventbus.Event{
 			Source: "helpdesk",
 			Type:   eventbus.TopicTicketCreated,
-			Data:   ticketEventData(ticket),
+			Data:   eventData,
 		})
+		if initialStatus == model.StatusWaitingApproval {
+			_ = s.bus.Publish(ctx, eventbus.Event{
+				Source: "helpdesk",
+				Type:   eventbus.TopicApprovalRequested,
+				Data: map[string]any{
+					"entity_type":     "ticket",
+					"entity_id":       ticket.ID,
+					"ticket_number":   ticket.TicketNumber,
+					"title":           ticket.Title,
+					"requester_id":    ticket.RequesterID,
+					"requester_email": ticket.RequesterEmail,
+				},
+			})
+		}
 	}
 
 	return s.repo.FindTicketByID(ctx, ticket.ID)
@@ -240,7 +274,27 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 
 	expectedVersion := req.Version
 
-	err = s.repo.UpdateTicketStatus(ctx, id, newStatus, req.AssigneeID, req.AssigneeName, resolvedAt, closedAt, expectedVersion)
+	timeline := &model.TicketTimeline{
+		TicketID:  ticket.ID,
+		ActorID:   actorID,
+		ActorName: actorName,
+		Action:    "STATUS_CHANGED",
+		OldValue:  &oldStatus,
+		NewValue:  &newStatus,
+		Notes:     &req.Notes,
+	}
+
+	outboxPayload, _ := json.Marshal(map[string]any{
+		"ticket_id": id, "status": newStatus, "old_status": oldStatus,
+		"notes": req.Notes, "actor_id": actorID, "actor_name": actorName,
+	})
+	outbox := &model.OutboxEvent{
+		EventType: eventbus.TopicTicketStatusChanged,
+		Source:    "helpdesk",
+		Payload:   string(outboxPayload),
+	}
+
+	err = s.repo.UpdateTicketStatusWithOutbox(ctx, id, newStatus, req.AssigneeID, req.AssigneeName, resolvedAt, closedAt, expectedVersion, timeline, outbox)
 	if err != nil {
 		if appErr, ok := err.(*errors.AppError); ok {
 			return nil, appErr
@@ -253,24 +307,11 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 		_ = s.repo.RecordFirstResponse(ctx, id, time.Now())
 	}
 
-	// Add timeline entry
-	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{
-		TicketID:  ticket.ID,
-		ActorID:   actorID,
-		ActorName: actorName,
-		Action:    "STATUS_CHANGED",
-		OldValue:  &oldStatus,
-		NewValue:  &newStatus,
-		Notes:     &req.Notes,
-	})
-
 	updated, err := s.GetTicket(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish a complete snapshot so downstream read models do not need access
-	// to the helpdesk database.
 	if s.bus != nil {
 		_ = s.bus.Publish(ctx, eventbus.Event{
 			Source: "helpdesk",
@@ -326,22 +367,31 @@ func (s *ticketService) AssignTicket(ctx context.Context, id string, req *model.
 
 	expectedVersion := req.Version
 
-	err = s.repo.AssignTicket(ctx, id, req.AssigneeID, req.AssigneeName, expectedVersion)
-	if err != nil {
-		if appErr, ok := err.(*errors.AppError); ok {
-			return nil, appErr
-		}
-		return nil, errors.Internal(ctx, "helpdesk assign ticket", err)
-	}
-
-	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{
+	timeline := &model.TicketTimeline{
 		TicketID:  ticket.ID,
 		ActorID:   actorID,
 		ActorName: actorName,
 		Action:    "ASSIGNED",
 		OldValue:  &oldAssignee,
 		NewValue:  &req.AssigneeName,
+	}
+
+	outboxPayload, _ := json.Marshal(map[string]any{
+		"ticket_id": id, "assignee_id": req.AssigneeID, "assignee_name": req.AssigneeName,
 	})
+	outbox := &model.OutboxEvent{
+		EventType: eventbus.TopicTicketAssigned,
+		Source:    "helpdesk",
+		Payload:   string(outboxPayload),
+	}
+
+	err = s.repo.AssignTicketWithOutbox(ctx, id, req.AssigneeID, req.AssigneeName, expectedVersion, timeline, outbox)
+	if err != nil {
+		if appErr, ok := err.(*errors.AppError); ok {
+			return nil, appErr
+		}
+		return nil, errors.Internal(ctx, "helpdesk assign ticket", err)
+	}
 
 	updated, err := s.GetTicket(ctx, id)
 	if err != nil {
@@ -374,7 +424,23 @@ func (s *ticketService) AddComment(ctx context.Context, ticketID string, req *mo
 		IsInternal: req.IsInternal,
 	}
 
-	if err := s.repo.AddComment(ctx, comment); err != nil {
+	timeline := &model.TicketTimeline{
+		TicketID:  ticketID,
+		ActorID:   authorID,
+		ActorName: authorName,
+		Action:    "COMMENT_ADDED",
+	}
+
+	outboxPayload, _ := json.Marshal(map[string]any{
+		"ticket_id": ticketID, "author_id": authorID, "author_role": authorRole,
+	})
+	outbox := &model.OutboxEvent{
+		EventType: "ticket.comment_added",
+		Source:    "helpdesk",
+		Payload:   string(outboxPayload),
+	}
+
+	if err := s.repo.AddCommentWithOutbox(ctx, comment, timeline, outbox); err != nil {
 		return nil, errors.Internal(ctx, "helpdesk add comment", err)
 	}
 
@@ -383,14 +449,93 @@ func (s *ticketService) AddComment(ctx context.Context, ticketID string, req *mo
 		_ = s.repo.RecordFirstResponse(ctx, ticketID, time.Now())
 	}
 
-	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{
-		TicketID:  ticketID,
-		ActorID:   authorID,
-		ActorName: authorName,
-		Action:    "COMMENT_ADDED",
-	})
-
 	return comment, nil
+}
+
+func (s *ticketService) HandleApprovalDecided(ctx context.Context, event eventbus.Event) error {
+	data, ok := event.Data.(map[string]any)
+	if !ok {
+		raw, err := json.Marshal(event.Data)
+		if err == nil {
+			_ = json.Unmarshal(raw, &data)
+		}
+	}
+	if data == nil {
+		return nil
+	}
+
+	entityID, _ := data["entity_id"].(string)
+	decision, _ := data["decision"].(string)
+	actorName, _ := data["actor_name"].(string)
+	notes, _ := data["notes"].(string)
+
+	if entityID == "" || decision == "" {
+		return nil
+	}
+
+	ticket, err := s.repo.FindTicketByID(ctx, entityID)
+	if err != nil || ticket == nil {
+		return nil
+	}
+
+	if ticket.Status != model.StatusWaitingApproval {
+		return nil
+	}
+
+	now := time.Now()
+	if decision == "APPROVED" {
+		respDeadline, resolDeadline := s.slaEngine.CalculateDeadlines(ticket.Priority, 0, 0)
+		ticket.SLAResponseDeadline = respDeadline
+		ticket.SLAResolutionDeadline = resolDeadline
+
+		newOpenStatus := model.StatusOpen
+		timelineNotes := fmt.Sprintf("Service catalog request approved by %s. Notes: %s", actorName, notes)
+		timeline := &model.TicketTimeline{
+			TicketID:  ticket.ID,
+			ActorID:   "system",
+			ActorName: "Workflow Engine",
+			Action:    "APPROVAL_GRANTED",
+			OldValue:  &ticket.Status,
+			NewValue:  &newOpenStatus,
+			Notes:     &timelineNotes,
+		}
+
+		payload, _ := json.Marshal(map[string]any{
+			"ticket_id": ticket.ID, "status": model.StatusOpen, "decision": decision,
+		})
+		outbox := &model.OutboxEvent{
+			EventType: eventbus.TopicTicketStatusChanged,
+			Source:    "helpdesk",
+			Payload:   string(payload),
+		}
+
+		_ = s.repo.UpdateTicketApprovalWithOutbox(ctx, ticket.ID, model.StatusOpen, &respDeadline, &resolDeadline, nil, timeline, outbox)
+	} else if decision == "REJECTED" {
+		newClosedStatus := model.StatusClosed
+		timelineNotes := fmt.Sprintf("Service catalog request rejected by %s. Reason: %s", actorName, notes)
+		timeline := &model.TicketTimeline{
+			TicketID:  ticket.ID,
+			ActorID:   "system",
+			ActorName: "Workflow Engine",
+			Action:    "APPROVAL_REJECTED",
+			OldValue:  &ticket.Status,
+			NewValue:  &newClosedStatus,
+			Notes:     &timelineNotes,
+		}
+
+		payload, _ := json.Marshal(map[string]any{
+			"ticket_id": ticket.ID, "status": model.StatusClosed, "decision": decision,
+		})
+		outbox := &model.OutboxEvent{
+			EventType: eventbus.TopicTicketStatusChanged,
+			Source:    "helpdesk",
+			Payload:   string(payload),
+		}
+
+		_ = s.repo.UpdateTicketApprovalWithOutbox(ctx, ticket.ID, model.StatusClosed, nil, nil, &now, timeline, outbox)
+	}
+
+	return nil
 }
 
 func (s *ticketService) ListComments(ctx context.Context, ticketID string) ([]model.TicketComment, error) {

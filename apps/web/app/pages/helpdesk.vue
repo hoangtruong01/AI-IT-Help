@@ -238,6 +238,10 @@ async function handleAddComment() {
 }
 
 function formatSLACountdown(ticket: Ticket): { text: string, color: string } {
+  if (ticket.status === 'WAITING_APPROVAL') {
+    return { text: 'Awaiting Approval', color: 'text-amber-400 font-medium' }
+  }
+
   if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
     return { text: 'Resolved', color: 'text-emerald-400' }
   }
@@ -369,6 +373,9 @@ onMounted(() => {
           </option>
           <option value="OPEN">
             Open
+          </option>
+          <option value="WAITING_APPROVAL">
+            Waiting Approval
           </option>
           <option value="ASSIGNED">
             Assigned
@@ -510,7 +517,7 @@ onMounted(() => {
               <td class="p-4">
                 <span
                   class="px-2 py-0.5 rounded-full text-[10px] font-medium border"
-                  :class="t.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : t.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'"
+                  :class="t.status === 'RESOLVED' || t.status === 'CLOSED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : t.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : t.status === 'WAITING_APPROVAL' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'"
                 >
                   {{ t.status }}
                 </span>
@@ -688,7 +695,10 @@ onMounted(() => {
               >
                 {{ selectedTicket.priority }}
               </span>
-              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30">
+              <span
+                class="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                :class="selectedTicket.status === 'WAITING_APPROVAL' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : selectedTicket.status === 'RESOLVED' || selectedTicket.status === 'CLOSED' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-blue-500/15 text-blue-300 border-blue-500/30'"
+              >
                 {{ selectedTicket.status }}
               </span>
             </div>

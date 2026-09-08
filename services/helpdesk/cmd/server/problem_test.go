@@ -225,6 +225,30 @@ func (m *mockTicketRepoForProblem) RecordFirstResponse(ctx context.Context, tick
 	}
 	return nil
 }
+func (m *mockTicketRepoForProblem) CreateTicketWithOutbox(ctx context.Context, ticket *model.Ticket, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return m.CreateTicket(ctx, ticket)
+}
+func (m *mockTicketRepoForProblem) UpdateTicketStatusWithOutbox(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return m.UpdateTicketStatus(ctx, id, status, assigneeID, assigneeName, resolvedAt, closedAt, expectedVersion)
+}
+func (m *mockTicketRepoForProblem) UpdateTicketApprovalWithOutbox(ctx context.Context, id, status string, slaRespDeadline, slaResolDeadline *time.Time, closedAt *time.Time, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return m.UpdateTicketStatus(ctx, id, status, nil, nil, nil, closedAt, nil)
+}
+func (m *mockTicketRepoForProblem) AssignTicketWithOutbox(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return m.AssignTicket(ctx, id, assigneeID, assigneeName, expectedVersion)
+}
+func (m *mockTicketRepoForProblem) AddCommentWithOutbox(ctx context.Context, comment *model.TicketComment, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return m.AddComment(ctx, comment)
+}
+func (m *mockTicketRepoForProblem) FetchPendingOutboxEvents(ctx context.Context, limit int) ([]model.OutboxEvent, error) {
+	return nil, nil
+}
+func (m *mockTicketRepoForProblem) MarkOutboxEventPublished(ctx context.Context, id string) error {
+	return nil
+}
+func (m *mockTicketRepoForProblem) MarkOutboxEventFailed(ctx context.Context, id string, errStr string) error {
+	return nil
+}
 
 // Test Case 7.1: Aggregate 3 duplicate Incidents and verify Cascade Resolution when Problem is Resolved.
 func TestProblemManagement_TestCase_7_1(t *testing.T) {

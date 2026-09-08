@@ -37,6 +37,16 @@ type Repository interface {
 	NextTicketNumber(ctx context.Context) (string, error)
 	ListTicketsByAssetID(ctx context.Context, assetID string) ([]model.Ticket, error)
 	ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error)
+
+	// Transactional Outbox Operations (Zero Event Loss)
+	CreateTicketWithOutbox(ctx context.Context, ticket *model.Ticket, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error
+	UpdateTicketStatusWithOutbox(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error
+	UpdateTicketApprovalWithOutbox(ctx context.Context, id, status string, slaRespDeadline, slaResolDeadline *time.Time, closedAt *time.Time, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error
+	AssignTicketWithOutbox(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error
+	AddCommentWithOutbox(ctx context.Context, comment *model.TicketComment, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error
+	FetchPendingOutboxEvents(ctx context.Context, limit int) ([]model.OutboxEvent, error)
+	MarkOutboxEventPublished(ctx context.Context, id string) error
+	MarkOutboxEventFailed(ctx context.Context, id string, errStr string) error
 }
 
 type postgresRepository struct {
@@ -732,4 +742,415 @@ func (r *postgresRepository) FindServiceCatalogItemByID(ctx context.Context, id 
 		item.Description = &desc.String
 	}
 	return &item, nil
+}
+
+func (r *postgresRepository) CreateTicketWithOutbox(ctx context.Context, t *model.Ticket, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	queryTicket := `
+		INSERT INTO tickets (
+			ticket_number, title, description, service_item_id, category, priority, status,
+			requester_id, requester_name, requester_email,
+			assignee_id, assignee_name, department_id, affected_ci_id,
+			sla_response_deadline, sla_resolution_deadline, sla_status, version,
+			created_at, updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7,
+			$8, $9, $10,
+			$11, $12, $13, $14,
+			$15, $16, $17, 1,
+			$18, $19
+		)
+		RETURNING id, version, created_at, updated_at
+	`
+	now := time.Now()
+	if err := tx.QueryRowContext(
+		ctx, queryTicket,
+		t.TicketNumber, t.Title, t.Description, t.ServiceItemID, t.Category, t.Priority, t.Status,
+		t.RequesterID, t.RequesterName, t.RequesterEmail,
+		t.AssigneeID, t.AssigneeName, t.DepartmentID, t.AffectedCIID,
+		t.SLAResponseDeadline, t.SLAResolutionDeadline, t.SLAStatus,
+		now, now,
+	).Scan(&t.ID, &t.Version, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		return fmt.Errorf("failed to insert ticket: %w", err)
+	}
+
+	if timeline != nil {
+		timeline.TicketID = t.ID
+		queryTL := `
+			INSERT INTO ticket_timeline (ticket_id, actor_id, actor_name, action, old_value, new_value, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryTL,
+			timeline.TicketID, timeline.ActorID, timeline.ActorName, timeline.Action,
+			timeline.OldValue, timeline.NewValue, now,
+		).Scan(&timeline.ID, &timeline.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert timeline record: %w", err)
+		}
+	}
+
+	if outbox != nil {
+		queryOutbox := `
+			INSERT INTO outbox_events (event_type, source, payload, status, retry_count, created_at)
+			VALUES ($1, $2, $3, 'PENDING', 0, $4)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryOutbox,
+			outbox.EventType, outbox.Source, outbox.Payload, now,
+		).Scan(&outbox.ID, &outbox.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresRepository) UpdateTicketStatusWithOutbox(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var query string
+	var res sql.Result
+
+	if expectedVersion != nil {
+		query = `
+			UPDATE tickets
+			SET 
+				status = $2,
+				assignee_id = COALESCE($3, assignee_id),
+				assignee_name = COALESCE($4, assignee_name),
+				resolved_at = COALESCE($5, resolved_at),
+				closed_at = COALESCE($6, closed_at),
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND version = $7
+		`
+		res, err = tx.ExecContext(ctx, query, id, status, assigneeID, assigneeName, resolvedAt, closedAt, *expectedVersion)
+	} else {
+		query = `
+			UPDATE tickets
+			SET 
+				status = $2,
+				assignee_id = COALESCE($3, assignee_id),
+				assignee_name = COALESCE($4, assignee_name),
+				resolved_at = COALESCE($5, resolved_at),
+				closed_at = COALESCE($6, closed_at),
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		res, err = tx.ExecContext(ctx, query, id, status, assigneeID, assigneeName, resolvedAt, closedAt)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to update ticket status: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
+	}
+
+	now := time.Now()
+	if timeline != nil {
+		timeline.TicketID = id
+		queryTL := `
+			INSERT INTO ticket_timeline (ticket_id, actor_id, actor_name, action, old_value, new_value, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryTL,
+			timeline.TicketID, timeline.ActorID, timeline.ActorName, timeline.Action,
+			timeline.OldValue, timeline.NewValue, now,
+		).Scan(&timeline.ID, &timeline.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert timeline record: %w", err)
+		}
+	}
+
+	if outbox != nil {
+		queryOutbox := `
+			INSERT INTO outbox_events (event_type, source, payload, status, retry_count, created_at)
+			VALUES ($1, $2, $3, 'PENDING', 0, $4)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryOutbox,
+			outbox.EventType, outbox.Source, outbox.Payload, now,
+		).Scan(&outbox.ID, &outbox.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresRepository) UpdateTicketApprovalWithOutbox(ctx context.Context, id, status string, slaRespDeadline, slaResolDeadline *time.Time, closedAt *time.Time, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	query := `
+		UPDATE tickets
+		SET 
+			status = $2,
+			sla_response_deadline = COALESCE($3, sla_response_deadline),
+			sla_resolution_deadline = COALESCE($4, sla_resolution_deadline),
+			closed_at = COALESCE($5, closed_at),
+			version = version + 1,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`
+	res, err := tx.ExecContext(ctx, query, id, status, slaRespDeadline, slaResolDeadline, closedAt)
+	if err != nil {
+		return fmt.Errorf("failed to update ticket approval: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
+	}
+
+	now := time.Now()
+	if timeline != nil {
+		queryTL := `
+			INSERT INTO ticket_timeline (ticket_id, actor_id, actor_name, action, old_value, new_value, notes, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryTL,
+			timeline.TicketID, timeline.ActorID, timeline.ActorName, timeline.Action,
+			timeline.OldValue, timeline.NewValue, timeline.Notes, now,
+		).Scan(&timeline.ID, &timeline.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert timeline record: %w", err)
+		}
+	}
+
+	if outbox != nil {
+		queryOutbox := `
+			INSERT INTO outbox_events (event_type, source, payload, status, retry_count, created_at)
+			VALUES ($1, $2, $3, 'PENDING', 0, $4)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryOutbox,
+			outbox.EventType, outbox.Source, outbox.Payload, now,
+		).Scan(&outbox.ID, &outbox.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresRepository) AssignTicketWithOutbox(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var query string
+	var res sql.Result
+
+	if expectedVersion != nil {
+		query = `
+			UPDATE tickets
+			SET 
+				assignee_id = $2,
+				assignee_name = $3,
+				status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND version = $4
+		`
+		res, err = tx.ExecContext(ctx, query, id, assigneeID, assigneeName, *expectedVersion)
+	} else {
+		query = `
+			UPDATE tickets
+			SET 
+				assignee_id = $2,
+				assignee_name = $3,
+				status = CASE WHEN status = 'OPEN' THEN 'ASSIGNED' ELSE status END,
+				version = version + 1,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1
+		`
+		res, err = tx.ExecContext(ctx, query, id, assigneeID, assigneeName)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to assign ticket: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
+	}
+
+	now := time.Now()
+	if timeline != nil {
+		timeline.TicketID = id
+		queryTL := `
+			INSERT INTO ticket_timeline (ticket_id, actor_id, actor_name, action, old_value, new_value, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryTL,
+			timeline.TicketID, timeline.ActorID, timeline.ActorName, timeline.Action,
+			timeline.OldValue, timeline.NewValue, now,
+		).Scan(&timeline.ID, &timeline.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert timeline record: %w", err)
+		}
+	}
+
+	if outbox != nil {
+		queryOutbox := `
+			INSERT INTO outbox_events (event_type, source, payload, status, retry_count, created_at)
+			VALUES ($1, $2, $3, 'PENDING', 0, $4)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryOutbox,
+			outbox.EventType, outbox.Source, outbox.Payload, now,
+		).Scan(&outbox.ID, &outbox.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresRepository) AddCommentWithOutbox(ctx context.Context, c *model.TicketComment, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	query := `
+		INSERT INTO ticket_comments (ticket_id, author_id, author_name, author_role, content, is_internal, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at
+	`
+	if err := tx.QueryRowContext(
+		ctx, query,
+		c.TicketID, c.AuthorID, c.AuthorName, c.AuthorRole, c.Content, c.IsInternal, now,
+	).Scan(&c.ID, &c.CreatedAt); err != nil {
+		return fmt.Errorf("failed to insert comment: %w", err)
+	}
+
+	if timeline != nil {
+		timeline.TicketID = c.TicketID
+		queryTL := `
+			INSERT INTO ticket_timeline (ticket_id, actor_id, actor_name, action, old_value, new_value, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryTL,
+			timeline.TicketID, timeline.ActorID, timeline.ActorName, timeline.Action,
+			timeline.OldValue, timeline.NewValue, now,
+		).Scan(&timeline.ID, &timeline.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert timeline record: %w", err)
+		}
+	}
+
+	if outbox != nil {
+		queryOutbox := `
+			INSERT INTO outbox_events (event_type, source, payload, status, retry_count, created_at)
+			VALUES ($1, $2, $3, 'PENDING', 0, $4)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryOutbox,
+			outbox.EventType, outbox.Source, outbox.Payload, now,
+		).Scan(&outbox.ID, &outbox.CreatedAt); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *postgresRepository) FetchPendingOutboxEvents(ctx context.Context, limit int) ([]model.OutboxEvent, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT id, event_type, source, payload, status, retry_count, last_error, created_at, processed_at
+		FROM outbox_events
+		WHERE status = 'PENDING'
+		ORDER BY created_at ASC
+		LIMIT $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pending outbox events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []model.OutboxEvent
+	for rows.Next() {
+		var ev model.OutboxEvent
+		var lastErr sql.NullString
+		var processedAt sql.NullTime
+		if err := rows.Scan(
+			&ev.ID, &ev.EventType, &ev.Source, &ev.Payload, &ev.Status,
+			&ev.RetryCount, &lastErr, &ev.CreatedAt, &processedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan outbox event: %w", err)
+		}
+		if lastErr.Valid {
+			ev.LastError = &lastErr.String
+		}
+		if processedAt.Valid {
+			ev.ProcessedAt = &processedAt.Time
+		}
+		events = append(events, ev)
+	}
+	return events, nil
+}
+
+func (r *postgresRepository) MarkOutboxEventPublished(ctx context.Context, id string) error {
+	now := time.Now()
+	query := `UPDATE outbox_events SET status = 'PUBLISHED', processed_at = $1 WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, now, id)
+	return err
+}
+
+func (r *postgresRepository) MarkOutboxEventFailed(ctx context.Context, id string, errStr string) error {
+	query := `
+		UPDATE outbox_events
+		SET retry_count = retry_count + 1,
+		    last_error = $1,
+		    status = CASE WHEN retry_count >= 10 THEN 'FAILED' ELSE 'PENDING' END
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, errStr, id)
+	return err
 }

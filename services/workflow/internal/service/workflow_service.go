@@ -239,24 +239,59 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		return errors.Forbidden("approval request is not assigned to this user")
 	}
 
+	var approvalSteps []configuredWorkflowStep
+	if def, err := s.repo.FindDefinitionByID(ctx, instance.DefinitionID); err == nil && def != nil {
+		if steps, err := parseApprovalSteps(def.StepsConfig); err == nil {
+			approvalSteps = steps
+		}
+	}
+
 	now := time.Now()
 	var newInstanceStatus string
 	var nextStep string
 	var completedAt *time.Time
+	var nextApproval *model.ApprovalRequest
+	var logMsg string
 
-	if req.Decision == model.ApprovalStatusApproved {
-		newInstanceStatus = model.InstanceStatusCompleted
-		nextStep = "Completed (Approved)"
-		completedAt = &now
-	} else {
+	if req.Decision == model.ApprovalStatusRejected {
 		newInstanceStatus = model.InstanceStatusRejected
 		nextStep = "Terminated (Rejected)"
 		completedAt = &now
+		logMsg = fmt.Sprintf("Approver %s rejected with notes: '%s'. Workflow terminated.", actorName, req.Notes)
+	} else {
+		currentLevel := approval.ApprovalLevel
+		if currentLevel > 0 && currentLevel < len(approvalSteps) {
+			// Multi-step advancement: there are further approval tiers
+			nextStepConfig := approvalSteps[currentLevel]
+			nextLevel := currentLevel + 1
+
+			newInstanceStatus = model.InstanceStatusWaitingApproval
+			nextStep = nextStepConfig.Name
+			completedAt = nil
+
+			nextApproval = &model.ApprovalRequest{
+				InstanceID:    instance.ID,
+				Title:         fmt.Sprintf("Approve: %s (Tier %d)", instance.Title, nextLevel),
+				ApproverID:    nextStepConfig.Role,
+				ApproverName:  nextStepConfig.Name,
+				ApproverRole:  nextStepConfig.Role,
+				ApprovalLevel: nextLevel,
+				Status:        model.ApprovalStatusPending,
+				SLADeadline:   now.Add(24 * time.Hour),
+			}
+			logMsg = fmt.Sprintf("Approver %s approved Tier %d. Advanced to Tier %d (%s). Notes: '%s'", actorName, currentLevel, nextLevel, nextStepConfig.Name, req.Notes)
+		} else {
+			// Final approval tier reached
+			newInstanceStatus = model.InstanceStatusCompleted
+			nextStep = "Completed (Approved)"
+			completedAt = &now
+			logMsg = fmt.Sprintf("Approver %s approved final Tier %d with notes: '%s'. Workflow completed.", actorName, currentLevel, req.Notes)
+		}
 	}
 
 	if err := s.repo.ApplyApprovalDecision(
 		ctx, approvalID, req.Decision, req.Notes, &now,
-		approval.InstanceID, instance.Version, newInstanceStatus, nextStep, completedAt,
+		approval.InstanceID, instance.Version, newInstanceStatus, nextStep, completedAt, nextApproval,
 	); err != nil {
 		if err == repository.ErrApprovalConflict {
 			return errors.Conflict("approval was already decided or workflow changed; reload and retry")
@@ -270,46 +305,93 @@ func (s *workflowService) ProcessApprovalDecision(ctx context.Context, approvalI
 		ActorID:    actor.ID,
 		ActorName:  actorName,
 		Action:     req.Decision,
-		Message:    fmt.Sprintf("Approver %s decided '%s' with notes: '%s'", actorName, req.Decision, req.Notes),
+		Message:    logMsg,
 	})
 
-	// Publish approval.decided event via EventBus
 	if s.bus != nil {
-		_ = s.bus.Publish(ctx, eventbus.Event{
-			Source: "workflow",
-			Type:   eventbus.TopicApprovalDecided,
-			Data: map[string]any{
-				"approval_id": approvalID,
-				"instance_id": approval.InstanceID,
-				"decision":    req.Decision,
-				"notes":       req.Notes,
-				"actor_id":    actor.ID,
-				"actor_name":  actorName,
-				"status":      newInstanceStatus,
-			},
-		})
+		if nextApproval != nil {
+			// Intermediate tier: publish approval.requested for the next tier
+			_ = s.bus.Publish(ctx, eventbus.Event{
+				Source: "workflow",
+				Type:   eventbus.TopicApprovalRequested,
+				Data: map[string]any{
+					"instance_id":     instance.ID,
+					"instance_number": instance.InstanceNumber,
+					"title":           instance.Title,
+					"requester_id":    instance.RequesterID,
+					"requester_email": instance.RequesterEmail,
+					"approval_id":     nextApproval.ID,
+					"approver_id":     nextApproval.ApproverID,
+					"approval_level":  nextApproval.ApprovalLevel,
+				},
+			})
+		} else {
+			// Terminal status: either completed or rejected
+			if newInstanceStatus == model.InstanceStatusCompleted {
+				_ = s.bus.Publish(ctx, eventbus.Event{
+					Source: "workflow",
+					Type:   eventbus.TopicWorkflowCompleted,
+					Data: map[string]any{
+						"instance_id":     instance.ID,
+						"instance_number": instance.InstanceNumber,
+						"entity_type":     instance.EntityType,
+						"entity_id":       instance.EntityID,
+						"status":          newInstanceStatus,
+					},
+				})
+			}
+
+			_ = s.bus.Publish(ctx, eventbus.Event{
+				Source: "workflow",
+				Type:   eventbus.TopicApprovalDecided,
+				Data: map[string]any{
+					"approval_id": approvalID,
+					"instance_id": approval.InstanceID,
+					"entity_type": instance.EntityType,
+					"entity_id":   instance.EntityID,
+					"decision":    req.Decision,
+					"notes":       req.Notes,
+					"actor_id":    actor.ID,
+					"actor_name":  actorName,
+					"status":      newInstanceStatus,
+				},
+			})
+		}
 	}
 
 	return nil
 }
 
 type configuredWorkflowStep struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Role string `json:"role"`
+	Order int    `json:"order,omitempty"`
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Role  string `json:"role"`
+}
+
+func parseApprovalSteps(raw string) ([]configuredWorkflowStep, error) {
+	var steps []configuredWorkflowStep
+	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+		return nil, err
+	}
+	var approvalSteps []configuredWorkflowStep
+	for _, step := range steps {
+		if step.Type == model.StepTypeApproval && step.Name != "" && step.Role != "" {
+			approvalSteps = append(approvalSteps, step)
+		}
+	}
+	if len(approvalSteps) == 0 {
+		return nil, fmt.Errorf("approval step is missing")
+	}
+	return approvalSteps, nil
 }
 
 func firstApprovalStep(raw string) (configuredWorkflowStep, error) {
-	var steps []configuredWorkflowStep
-	if err := json.Unmarshal([]byte(raw), &steps); err != nil {
+	steps, err := parseApprovalSteps(raw)
+	if err != nil {
 		return configuredWorkflowStep{}, err
 	}
-	for _, step := range steps {
-		if step.Type == model.StepTypeApproval && step.Name != "" && step.Role != "" {
-			return step, nil
-		}
-	}
-	return configuredWorkflowStep{}, fmt.Errorf("approval step is missing")
+	return steps[0], nil
 }
 
 func (s *workflowService) ListLogs(ctx context.Context, instanceID string) ([]model.WorkflowLog, error) {
