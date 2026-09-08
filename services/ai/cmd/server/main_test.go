@@ -365,3 +365,91 @@ func TestPhase4_PromptJSONParser(t *testing.T) {
 		t.Errorf("expected confidence 0.96, got %f", parsed.Confidence)
 	}
 }
+
+// TestRAG_ContentGroundingInPrompt verifies that retrieved citations inject actual document content into the LLM prompt.
+func TestRAG_ContentGroundingInPrompt(t *testing.T) {
+	citations := []model.Citation{
+		{
+			ArticleID: "doc-1",
+			Title:     "WireGuard MTU Tuning",
+			Score:     0.92,
+			Category:  "Network",
+			Type:      "runbook",
+			Content:   "Execute `ip link set mtu 1380 dev wg0` on both gateway and client to prevent packet drops.",
+		},
+	}
+
+	promptStr := prompt.FormatRAGPrompt("Why is my VPN dropping packets?", citations)
+	if !strings.Contains(promptStr, "Execute `ip link set mtu 1380 dev wg0`") {
+		t.Fatalf("RAG prompt must contain the actual document content, got:\n%s", promptStr)
+	}
+	if !strings.Contains(promptStr, "WireGuard MTU Tuning") {
+		t.Fatalf("RAG prompt must cite document title, got:\n%s", promptStr)
+	}
+}
+
+// TestRAG_HonestFallbackNoFakeCitations verifies that irrelevant queries return 0 citations rather than fabricated 0.88/0.85 fake ones.
+func TestRAG_HonestFallbackNoFakeCitations(t *testing.T) {
+	mockProv := provider.NewMockProvider()
+	retriever := rag.NewSmartRetriever("127.0.0.1", 59999, "knowledge_base") // offline port forces fallback search
+	aiSvc := service.NewAIService(mockProv, mockProv, retriever)
+
+	// Irrelevant query that matches none of the enterprise IT keywords
+	req := &model.ChatRequest{
+		Messages: []model.Message{
+			{Role: "user", Content: "How do I bake a chocolate cake with frosting?"},
+		},
+	}
+
+	res, err := aiSvc.Chat(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Must NOT return fake citations for irrelevant query
+	if len(res.Citations) != 0 {
+		t.Errorf("expected 0 citations for irrelevant query, got %d: %+v", len(res.Citations), res.Citations)
+	}
+	if res.IsGrounded {
+		t.Errorf("expected IsGrounded to be false when no documents match")
+	}
+	if res.Confidence > 0.60 {
+		t.Errorf("expected honest low confidence (<= 0.60) for ungrounded query, got: %f", res.Confidence)
+	}
+}
+
+// TestRAG_MatchedQueryHasContent verifies that matched queries return citations containing actual chunk content.
+func TestRAG_MatchedQueryHasContent(t *testing.T) {
+	mockProv := provider.NewMockProvider()
+	retriever := rag.NewSmartRetriever("127.0.0.1", 59999, "knowledge_base")
+	aiSvc := service.NewAIService(mockProv, mockProv, retriever)
+
+	req := &model.ChatRequest{
+		Messages: []model.Message{
+			{Role: "user", Content: "Reset user MFA token and authenticator"},
+		},
+	}
+
+	res, err := aiSvc.Chat(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(res.Citations) == 0 {
+		t.Fatal("expected citations for MFA reset query")
+	}
+	if !res.IsGrounded {
+		t.Errorf("expected IsGrounded to be true for matched query")
+	}
+
+	hasContent := false
+	for _, c := range res.Citations {
+		if strings.TrimSpace(c.Content) != "" {
+			hasContent = true
+			break
+		}
+	}
+	if !hasContent {
+		t.Errorf("expected citations to have non-empty Content field, got: %+v", res.Citations)
+	}
+}

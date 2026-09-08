@@ -134,6 +134,17 @@ func (r *concurrentMockTicketRepo) AssignTicket(ctx context.Context, id, assigne
 	return nil
 }
 
+func (r *concurrentMockTicketRepo) RecordFirstResponse(ctx context.Context, ticketID string, respondedAt time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, exists := r.tickets[ticketID]; exists {
+		if t.RespondedAt == nil {
+			t.RespondedAt = &respondedAt
+		}
+	}
+	return nil
+}
+
 func (r *concurrentMockTicketRepo) AddComment(ctx context.Context, comment *model.TicketComment) error {
 	return nil
 }

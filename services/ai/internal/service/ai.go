@@ -98,9 +98,10 @@ func (s *aiService) Chat(ctx context.Context, req *model.ChatRequest) (*model.Ch
 		isFallback = true
 	}
 
-	// Compute overall confidence score
-	confidence := 0.95
-	if len(citations) > 0 {
+	// Compute overall confidence score and groundedness
+	isGrounded := len(citations) > 0
+	confidence := 0.50 // Honest baseline for ungrounded queries without verified knowledge
+	if isGrounded {
 		var sum float64
 		for _, c := range citations {
 			sum += c.Score
@@ -120,6 +121,7 @@ func (s *aiService) Chat(ctx context.Context, req *model.ChatRequest) (*model.Ch
 		Confidence:   confidence,
 		TokensUsed:   tokensUsed,
 		FallbackMode: isFallback,
+		IsGrounded:   isGrounded,
 	}, nil
 }
 

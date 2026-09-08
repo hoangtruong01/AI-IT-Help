@@ -21,6 +21,7 @@ type ChatResponse struct {
 	Confidence   float64    `json:"confidence"`
 	TokensUsed   int        `json:"tokens_used"`
 	FallbackMode bool       `json:"fallback_mode,omitempty"`
+	IsGrounded   bool       `json:"is_grounded"`
 }
 
 // Citation references a knowledge base article or runbook used for RAG grounding.
@@ -30,6 +31,7 @@ type Citation struct {
 	Score     float64 `json:"score"`
 	Category  string  `json:"category,omitempty"`
 	Type      string  `json:"type,omitempty"` // "article" or "runbook"
+	Content   string  `json:"content,omitempty"`
 }
 
 // TicketAnalysis represents AI-powered categorization and suggested resolution for helpdesk tickets.

@@ -23,6 +23,7 @@ type Repository interface {
 	CreateTicket(ctx context.Context, ticket *model.Ticket) error
 	UpdateTicketStatus(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int) error
 	AssignTicket(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int) error
+	RecordFirstResponse(ctx context.Context, ticketID string, respondedAt time.Time) error
 
 	AddComment(ctx context.Context, comment *model.TicketComment) error
 	ListComments(ctx context.Context, ticketID string) ([]model.TicketComment, error)
@@ -528,6 +529,19 @@ func (r *postgresRepository) AssignTicket(ctx context.Context, id, assigneeID, a
 		return appErrors.Conflict("optimistic lock conflict: ticket has been updated by another transaction or does not exist")
 	}
 
+	return nil
+}
+
+func (r *postgresRepository) RecordFirstResponse(ctx context.Context, ticketID string, respondedAt time.Time) error {
+	query := `
+		UPDATE tickets
+		SET responded_at = $1, updated_at = $1
+		WHERE id = $2 AND responded_at IS NULL
+	`
+	_, err := r.db.ExecContext(ctx, query, respondedAt, ticketID)
+	if err != nil {
+		return fmt.Errorf("failed to record first response: %w", err)
+	}
 	return nil
 }
 
