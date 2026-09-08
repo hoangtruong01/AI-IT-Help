@@ -214,9 +214,15 @@ func (r *SmartRetriever) searchQdrant(ctx context.Context, vector []float32, lim
 
 	var citations []model.Citation
 	for _, pt := range qdrantRes.Result {
+		// Minimum relevance threshold to avoid noisy/unrelated knowledge
+		if pt.Score < 0.50 {
+			continue
+		}
+
 		title := fmt.Sprintf("Doc #%v", pt.ID)
 		cat := "General"
 		docType := "article"
+		var content string
 
 		if t, ok := pt.Payload["title"].(string); ok {
 			title = t
@@ -227,6 +233,13 @@ func (r *SmartRetriever) searchQdrant(ctx context.Context, vector []float32, lim
 		if tp, ok := pt.Payload["type"].(string); ok {
 			docType = tp
 		}
+		if cnt, ok := pt.Payload["content"].(string); ok {
+			content = cnt
+		} else if txt, ok := pt.Payload["text"].(string); ok {
+			content = txt
+		} else if body, ok := pt.Payload["body"].(string); ok {
+			content = body
+		}
 
 		citations = append(citations, model.Citation{
 			ArticleID: fmt.Sprintf("%v", pt.ID),
@@ -234,15 +247,35 @@ func (r *SmartRetriever) searchQdrant(ctx context.Context, vector []float32, lim
 			Score:     pt.Score,
 			Category:  cat,
 			Type:      docType,
+			Content:   content,
 		})
 	}
 
 	return citations, nil
 }
 
+var stopWords = map[string]bool{
+	"how": true, "what": true, "where": true, "when": true, "why": true, "which": true, "who": true,
+	"and": true, "the": true, "with": true, "for": true, "from": true, "this": true, "that": true,
+	"can": true, "could": true, "should": true, "would": true, "have": true, "has": true, "had": true,
+	"into": true, "onto": true, "about": true, "are": true, "is": true, "was": true, "were": true,
+	"does": true, "do": true, "did": true, "not": true, "you": true, "your": true, "our": true,
+	"their": true, "they": true, "them": true, "its": true, "any": true, "all": true, "some": true,
+	"make": true, "bake": true, "want": true, "like": true, "need": true, "help": true, "please": true,
+}
+
 func (r *SmartRetriever) searchFallback(query string, limit int) []model.Citation {
-	queryLower := strings.ToLower(query)
-	words := strings.Fields(queryLower)
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	rawWords := strings.Fields(queryLower)
+
+	var words []string
+	for _, w := range rawWords {
+		cleaned := strings.Trim(w, "?!.,;:\"'()")
+		if len(cleaned) <= 2 || stopWords[cleaned] {
+			continue
+		}
+		words = append(words, cleaned)
+	}
 
 	type scoredDoc struct {
 		doc   fallbackDoc
@@ -254,20 +287,17 @@ func (r *SmartRetriever) searchFallback(query string, limit int) []model.Citatio
 		var matches int
 		var totalWeight float64
 
-		// Check title match
+		// Check full title match (if non-trivial query)
 		titleLower := strings.ToLower(doc.Title)
-		if strings.Contains(titleLower, queryLower) {
+		if len(queryLower) >= 6 && strings.Contains(titleLower, queryLower) {
 			totalWeight += 0.95
 			matches += 3
 		}
 
-		// Check keyword matches
+		// Check keyword matches against non-stopword query tokens
 		for _, w := range words {
-			if len(w) <= 2 {
-				continue
-			}
 			for _, kw := range doc.Keywords {
-				if strings.Contains(kw, w) || strings.Contains(w, kw) {
+				if kw == w || strings.Contains(kw, w) || strings.Contains(w, kw) {
 					matches++
 					totalWeight += 0.35
 					break
@@ -302,35 +332,21 @@ func (r *SmartRetriever) searchFallback(query string, limit int) []model.Citatio
 
 	var citations []model.Citation
 	for i := 0; i < len(scored) && i < limit; i++ {
+		if scored[i].score < 0.50 {
+			continue
+		}
 		citations = append(citations, model.Citation{
 			ArticleID: scored[i].doc.ID,
 			Title:     scored[i].doc.Title,
 			Score:     scored[i].score,
 			Category:  scored[i].doc.Category,
 			Type:      scored[i].doc.Type,
+			Content:   scored[i].doc.Content,
 		})
 	}
 
-	// If no direct matches, return general top guides
-	if len(citations) == 0 {
-		citations = append(citations,
-			model.Citation{
-				ArticleID: r.fallbackCatalog[0].ID,
-				Title:     r.fallbackCatalog[0].Title,
-				Score:     0.88,
-				Category:  r.fallbackCatalog[0].Category,
-				Type:      r.fallbackCatalog[0].Type,
-			},
-			model.Citation{
-				ArticleID: r.fallbackCatalog[2].ID,
-				Title:     r.fallbackCatalog[2].Title,
-				Score:     0.85,
-				Category:  r.fallbackCatalog[2].Category,
-				Type:      r.fallbackCatalog[2].Type,
-			},
-		)
-	}
-
+	// Honest RAG: If no relevant matches meet threshold, return empty citations.
+	// DO NOT fabricate fake citations or inject unrelated high-score documents.
 	return citations
 }
 

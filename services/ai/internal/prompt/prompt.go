@@ -19,20 +19,28 @@ OPERATIONAL RULES:
 3. Be professional, clear, concise, structured (use markdown headers, bold text, step-by-step lists).
 4. When relevant documentation is cited, reference the runbook code or article title.`
 
-// FormatRAGPrompt injects retrieved citations/documents into the system or user prompt.
+// FormatRAGPrompt injects retrieved citations and actual document content into the user prompt for grounded RAG.
 func FormatRAGPrompt(userQuery string, citations []model.Citation) string {
 	if len(citations) == 0 {
 		return userQuery
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Retrieved Knowledge Base & Runbook Context:\n")
+	sb.WriteString("Retrieved Knowledge Base & Runbook Documentation:\n")
+	sb.WriteString("==================================================\n")
 	for i, c := range citations {
-		sb.WriteString(fmt.Sprintf("[%d] %s (Type: %s, Category: %s, Relevance: %.2f)\n", i+1, c.Title, c.Type, c.Category, c.Score))
+		sb.WriteString(fmt.Sprintf("[Source %d] %s (Type: %s, Category: %s, Relevance: %.2f)\n", i+1, c.Title, c.Type, c.Category, c.Score))
+		if strings.TrimSpace(c.Content) != "" {
+			sb.WriteString("Content:\n")
+			sb.WriteString(strings.TrimSpace(c.Content))
+			sb.WriteString("\n")
+		}
+		sb.WriteString("--------------------------------------------------\n")
 	}
-	sb.WriteString("\nUser Query: ")
+	sb.WriteString("\nInstructions: Ground your answer strictly on the verified knowledge sources provided above. Cite specific runbook codes and article titles when applicable. If the provided sources do not contain the answer, state that organizational documentation is not available.\n\n")
+	sb.WriteString("User Query: ")
 	sb.WriteString(userQuery)
-	sb.WriteString("\n\nPlease provide a clear resolution following standard IT procedures.")
+	sb.WriteString("\n\nPlease provide a clear, step-by-step resolution following the verified standard operating procedures above.")
 	return sb.String()
 }
 

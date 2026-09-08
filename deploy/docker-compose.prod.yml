@@ -122,8 +122,8 @@ services:
       PORT: 8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${AUTH_DB_USER:-${POSTGRES_USER:-auth_svc}}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-${POSTGRES_PASSWORD:-auth_svc_secret}}
       AUTH_DB_NAME: auth_db
       POSTGRES_SSLMODE: disable
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
@@ -153,8 +153,8 @@ services:
       PORT: 8082
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${EMPLOYEE_DB_USER:-${POSTGRES_USER:-employee_svc}}
+      POSTGRES_PASSWORD: ${EMPLOYEE_DB_PASSWORD:-${POSTGRES_PASSWORD:-employee_svc_secret}}
       EMPLOYEE_DB_NAME: employee_db
       POSTGRES_SSLMODE: disable
     depends_on:
@@ -181,8 +181,8 @@ services:
       PORT: 8083
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${ASSET_DB_USER:-${POSTGRES_USER:-asset_svc}}
+      POSTGRES_PASSWORD: ${ASSET_DB_PASSWORD:-${POSTGRES_PASSWORD:-asset_svc_secret}}
       ASSET_DB_NAME: asset_db
       POSTGRES_SSLMODE: disable
       RABBITMQ_HOST: rabbitmq
@@ -213,8 +213,8 @@ services:
       PORT: 8084
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${HELPDESK_DB_USER:-${POSTGRES_USER:-helpdesk_svc}}
+      POSTGRES_PASSWORD: ${HELPDESK_DB_PASSWORD:-${POSTGRES_PASSWORD:-helpdesk_svc_secret}}
       HELPDESK_DB_NAME: helpdesk_db
       POSTGRES_SSLMODE: disable
       RABBITMQ_HOST: rabbitmq
@@ -245,8 +245,8 @@ services:
       PORT: 8085
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${WORKFLOW_DB_USER:-${POSTGRES_USER:-workflow_svc}}
+      POSTGRES_PASSWORD: ${WORKFLOW_DB_PASSWORD:-${POSTGRES_PASSWORD:-workflow_svc_secret}}
       WORKFLOW_DB_NAME: workflow_db
       POSTGRES_SSLMODE: disable
       RABBITMQ_HOST: rabbitmq
@@ -277,8 +277,8 @@ services:
       PORT: 8086
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${NOTIFICATION_DB_USER:-${POSTGRES_USER:-notification_svc}}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-${POSTGRES_PASSWORD:-notification_svc_secret}}
       NOTIFICATION_DB_NAME: notification_db
       POSTGRES_SSLMODE: disable
       RABBITMQ_HOST: rabbitmq
@@ -311,8 +311,8 @@ services:
       PORT: 8087
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${KNOWLEDGE_DB_USER:-${POSTGRES_USER:-knowledge_svc}}
+      POSTGRES_PASSWORD: ${KNOWLEDGE_DB_PASSWORD:-${POSTGRES_PASSWORD:-knowledge_svc_secret}}
       KNOWLEDGE_DB_NAME: knowledge_db
       POSTGRES_SSLMODE: disable
       QDRANT_URL: http://qdrant:6333
@@ -376,8 +376,8 @@ services:
       PORT: 8089
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${AUDIT_DB_USER:-${POSTGRES_USER:-audit_svc}}
+      POSTGRES_PASSWORD: ${AUDIT_DB_PASSWORD:-${POSTGRES_PASSWORD:-audit_svc_secret}}
       AUDIT_DB_NAME: audit_db
       POSTGRES_SSLMODE: disable
       RABBITMQ_HOST: rabbitmq
@@ -409,8 +409,8 @@ services:
       PORT: 8090
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-eomp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${REPORTING_DB_USER:-${POSTGRES_USER:-reporting_svc}}
+      POSTGRES_PASSWORD: ${REPORTING_DB_PASSWORD:-${POSTGRES_PASSWORD:-reporting_svc_pass}}
       REPORTING_DB_NAME: reporting_db
       POSTGRES_SSLMODE: disable
     depends_on:

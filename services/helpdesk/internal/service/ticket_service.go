@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"eomp/packages/shared/pkg/errors"
@@ -112,13 +113,32 @@ func (s *ticketService) GetTicketForActor(ctx context.Context, id string, actor 
 }
 
 func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicketRequest) (*model.Ticket, error) {
-	if req.Title == "" || req.Description == "" || req.RequesterEmail == "" {
-		return nil, errors.BadRequest("title, description, and requester_email are required")
+	req.Title = strings.TrimSpace(req.Title)
+	req.Description = strings.TrimSpace(req.Description)
+	req.RequesterEmail = strings.TrimSpace(req.RequesterEmail)
+
+	if len(req.Title) < 5 || len(req.Title) > 255 {
+		return nil, errors.BadRequest("title must be between 5 and 255 characters")
+	}
+	if len(req.Description) < 10 || len(req.Description) > 5000 {
+		return nil, errors.BadRequest("description must be between 10 and 5000 characters")
+	}
+	if req.RequesterEmail == "" {
+		return nil, errors.BadRequest("requester_email is required")
 	}
 
+	// Validate priority enum
 	if req.Priority == "" {
 		req.Priority = model.PriorityMedium
+	} else {
+		req.Priority = strings.ToUpper(strings.TrimSpace(req.Priority))
+		switch req.Priority {
+		case model.PriorityLow, model.PriorityMedium, model.PriorityHigh, model.PriorityUrgent:
+		default:
+			return nil, errors.BadRequest("invalid priority: must be LOW, MEDIUM, HIGH, or URGENT")
+		}
 	}
+
 	if req.Category == "" {
 		req.Category = "General IT"
 	}
@@ -129,14 +149,21 @@ func (s *ticketService) CreateTicket(ctx context.Context, req *model.CreateTicke
 		return nil, errors.Internal(ctx, "helpdesk generate ticket number", err)
 	}
 
-	// Calculate SLA Deadlines
+	// Calculate SLA Deadlines and validate service catalog item if specified
 	var customResponseMins, customResolutionMins int
 	if req.ServiceItemID != nil && *req.ServiceItemID != "" {
-		item, _ := s.repo.FindServiceCatalogItemByID(ctx, *req.ServiceItemID)
-		if item != nil {
-			customResponseMins = item.SLAResponseMinutes
-			customResolutionMins = item.SLAResolutionMinutes
+		item, err := s.repo.FindServiceCatalogItemByID(ctx, *req.ServiceItemID)
+		if err != nil {
+			return nil, errors.Internal(ctx, "helpdesk find service catalog item", err)
 		}
+		if item == nil {
+			return nil, errors.BadRequest("service catalog item not found")
+		}
+		if !item.IsActive {
+			return nil, errors.BadRequest("service catalog item is inactive")
+		}
+		customResponseMins = item.SLAResponseMinutes
+		customResolutionMins = item.SLAResolutionMinutes
 	}
 
 	respDeadline, resolDeadline := s.slaEngine.CalculateDeadlines(req.Priority, customResponseMins, customResolutionMins)
@@ -219,6 +246,11 @@ func (s *ticketService) UpdateStatus(ctx context.Context, id string, req *model.
 			return nil, appErr
 		}
 		return nil, errors.Internal(ctx, "helpdesk update ticket status", err)
+	}
+
+	// Mark first response if transitioning from OPEN to IN_PROGRESS or ASSIGNED
+	if newStatus == model.StatusInProgress || newStatus == model.StatusAssigned {
+		_ = s.repo.RecordFirstResponse(ctx, id, time.Now())
 	}
 
 	// Add timeline entry
@@ -344,6 +376,11 @@ func (s *ticketService) AddComment(ctx context.Context, ticketID string, req *mo
 
 	if err := s.repo.AddComment(ctx, comment); err != nil {
 		return nil, errors.Internal(ctx, "helpdesk add comment", err)
+	}
+
+	// Mark first response if the comment author is an IT Agent or Administrator
+	if authorRole == "ROLE_AGENT" || authorRole == "ROLE_ADMIN" {
+		_ = s.repo.RecordFirstResponse(ctx, ticketID, time.Now())
 	}
 
 	_ = s.repo.AddTimelineRecord(ctx, &model.TicketTimeline{

@@ -4,7 +4,7 @@
 > **Status:** Live Open Tasks  
 > **Rule:** This file contains **ONLY active, open, in-progress, or remaining tasks**. Completed tasks are removed upon verification and recorded in [`docs/PROJECT_DOCUMENTATION.md`](file:///d:/IT_help/eomp/docs/PROJECT_DOCUMENTATION.md).
 
-> **Last engineering update:** 2026-09-08 — Gate C and Gate D technical verification complete. Staging TLS audit passed (`docs/evidence/gate-c/staging_tls_evidence.json`), fail-closed PostgreSQL integration runner in place (`scripts/ci_postgres_integration.ps1`), Playwright Chromium runner automated (`scripts/run_playwright_e2e.ps1`), WAL replay & PITR verified (`docs/evidence/gate-d/dr_wal_pitr_evidence.json`), 12-image container CVE scan verified (`docs/evidence/gate-d/trivy_scan_report.json`), and the Controlled Pilot Handover Certificate formally ratified in Section 19 of `docs/PROJECT_DOCUMENTATION.md`.
+> **Last engineering update:** 2026-09-08 — CTO / Tech Lead Audit Remediations (Sprint 1) complete and verified. First response & resolution SLA evaluation fixed (`services/helpdesk/internal/service/sla_engine.go`), RAG real document chunk grounding implemented & fake fallback citations removed (`services/ai/internal/rag/retriever.go`), strict ticket validation enforced (`services/helpdesk/internal/service/ticket_service.go`), per-service PostgreSQL isolation with dedicated roles & revoked public connect established (`infrastructure/postgres/02-service-roles.sql`), and JWT algorithm pinning (HS256) & issuer validation hardened (`packages/shared/pkg/auth/jwt.go`). All 6 local release precheck gates PASS cleanly.
 
 ---
 
@@ -23,14 +23,22 @@
 
 ---
 
-## ✅ Completed Release Verification Tasks (Archived)
+## ✅ Completed Release Verification & Audit Tasks (Archived)
 
+### 1. Release & Verification Gates (Gates A - D)
 All 5 release and verification gates are formally closed and recorded with cryptographic proof:
 - **TASK-REL-001:** Staging TLS & Observability Isolation -> **VERIFIED** in [`docs/evidence/gate-c/staging_tls_evidence.json`](file:///d:/IT_help/eomp/docs/evidence/gate-c/staging_tls_evidence.json).
 - **TASK-REL-002:** Ephemeral 6-Database PostgreSQL Integration -> **VERIFIED** in [`docs/evidence/gate-d/ci_postgres_integration.json`](file:///d:/IT_help/eomp/docs/evidence/gate-d/ci_postgres_integration.json).
 - **TASK-REL-003:** Playwright 6 User Journeys Browser E2E Suite -> **VERIFIED** via [`scripts/run_playwright_e2e.ps1`](file:///d:/IT_help/eomp/scripts/run_playwright_e2e.ps1).
 - **TASK-REL-004:** Full-Service DR Targets & 12-Image Clean CVE Scan -> **VERIFIED** in [`docs/evidence/gate-d/trivy_scan_report.json`](file:///d:/IT_help/eomp/docs/evidence/gate-d/trivy_scan_report.json) and [`docs/evidence/gate-d/dr_wal_pitr_evidence.json`](file:///d:/IT_help/eomp/docs/evidence/gate-d/dr_wal_pitr_evidence.json).
 - **TASK-REL-005:** Product Owner & Security Sign-Off -> **RATIFIED** in Section 19 of [`docs/PROJECT_DOCUMENTATION.md`](file:///d:/IT_help/eomp/docs/PROJECT_DOCUMENTATION.md).
+
+### 2. CTO / Tech Lead Audit Remediations (Sprint 1 Completed)
+- **TASK-AUD-001 (BE-01):** Fix First Response & Resolution SLA Evaluation -> **VERIFIED** in [`sla_engine.go`](file:///d:/IT_help/eomp/services/helpdesk/internal/service/sla_engine.go) & [`sla_engine_test.go`](file:///d:/IT_help/eomp/services/helpdesk/internal/service/sla_engine_test.go).
+- **TASK-AUD-002 (AI-01):** Implement Actual Grounded RAG & Eliminate Fabricated Citations -> **VERIFIED** in [`retriever.go`](file:///d:/IT_help/eomp/services/ai/internal/rag/retriever.go), [`prompt.go`](file:///d:/IT_help/eomp/services/ai/internal/prompt/prompt.go), and [`main_test.go`](file:///d:/IT_help/eomp/services/ai/cmd/server/main_test.go).
+- **TASK-AUD-003 (BE-03):** Strict Ticket Input Validation (Title/Description length, Priority enum, ServiceCatalog check) -> **VERIFIED** in [`ticket_service.go`](file:///d:/IT_help/eomp/services/helpdesk/internal/service/ticket_service.go).
+- **TASK-AUD-004 (DEVOPS-01):** Database-Level Least Privilege Isolation (Dedicated roles per service, revoke public connect) -> **VERIFIED** in [`02-service-roles.sql`](file:///d:/IT_help/eomp/infrastructure/postgres/02-service-roles.sql) & [`docker-compose.prod.yml`](file:///d:/IT_help/eomp/deploy/docker-compose.prod.yml).
+- **TASK-AUD-005 (BE-06):** JWT Validation Hardening (Pin HS256 algorithm & issuer) -> **VERIFIED** in [`jwt.go`](file:///d:/IT_help/eomp/packages/shared/pkg/auth/jwt.go) & [`jwt_test.go`](file:///d:/IT_help/eomp/packages/shared/pkg/auth/jwt_test.go).
 
 ---
 

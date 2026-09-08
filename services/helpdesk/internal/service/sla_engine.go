@@ -54,25 +54,48 @@ func (e *slaEngine) CalculateDeadlines(priority string, customResponseMins, cust
 func (e *slaEngine) EvaluateSLAStatus(ticket *model.Ticket) string {
 	now := time.Now()
 
-	// If resolved or closed
+	// 1. First Response SLA Evaluation
+	if ticket.RespondedAt == nil {
+		// Not yet responded by IT Agent
+		if !ticket.SLAResponseDeadline.IsZero() && now.After(ticket.SLAResponseDeadline) {
+			return model.SLABreached
+		}
+	} else if !ticket.SLAResponseDeadline.IsZero() && ticket.RespondedAt.After(ticket.SLAResponseDeadline) {
+		// Responded, but breached the response deadline
+		return model.SLABreached
+	}
+
+	// 2. Resolution SLA Evaluation
+	// If ticket is resolved or closed
 	if ticket.Status == model.StatusResolved || ticket.Status == model.StatusClosed {
-		if ticket.ResolvedAt != nil && ticket.ResolvedAt.After(ticket.SLAResolutionDeadline) {
+		if ticket.ResolvedAt != nil && !ticket.SLAResolutionDeadline.IsZero() && ticket.ResolvedAt.After(ticket.SLAResolutionDeadline) {
 			return model.SLABreached
 		}
 		return model.SLAWithinSLA
 	}
 
 	// Active ticket check against resolution deadline
-	if now.After(ticket.SLAResolutionDeadline) {
+	if !ticket.SLAResolutionDeadline.IsZero() && now.After(ticket.SLAResolutionDeadline) {
 		return model.SLABreached
 	}
 
-	totalDuration := ticket.SLAResolutionDeadline.Sub(ticket.CreatedAt)
-	remaining := ticket.SLAResolutionDeadline.Sub(now)
+	// 3. Warning SLA Evaluation (<= 20% remaining time)
+	// Check Response warning if not yet responded
+	if ticket.RespondedAt == nil && !ticket.SLAResponseDeadline.IsZero() {
+		respTotal := ticket.SLAResponseDeadline.Sub(ticket.CreatedAt)
+		respRemaining := ticket.SLAResponseDeadline.Sub(now)
+		if respTotal > 0 && float64(respRemaining)/float64(respTotal) <= 0.20 {
+			return model.SLAWarning
+		}
+	}
 
-	// Warning if <= 20% of SLA time remaining
-	if totalDuration > 0 && float64(remaining)/float64(totalDuration) <= 0.20 {
-		return model.SLAWarning
+	// Check Resolution warning
+	if !ticket.SLAResolutionDeadline.IsZero() {
+		resTotal := ticket.SLAResolutionDeadline.Sub(ticket.CreatedAt)
+		resRemaining := ticket.SLAResolutionDeadline.Sub(now)
+		if resTotal > 0 && float64(resRemaining)/float64(resTotal) <= 0.20 {
+			return model.SLAWarning
+		}
 	}
 
 	return model.SLAWithinSLA

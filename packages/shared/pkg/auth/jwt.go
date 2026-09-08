@@ -121,11 +121,11 @@ func (m *JWTManager) GenerateTokenPair(userID, email, role, departmentID, fullNa
 // ValidateToken verifies token signature and expiration, returning user claims
 func (m *JWTManager) ValidateToken(tokenStr string) (*UserClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return m.secretKey, nil
-	})
+	}, jwt.WithIssuer("eomp-auth-service"), jwt.WithValidMethods([]string{"HS256"}))
 
 	if err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func (m *JWTManager) ValidateRefreshToken(tokenStr string) (*RefreshClaims, erro
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return m.secretKey, nil
-	}, jwt.WithIssuer("eomp-auth-service"))
+	}, jwt.WithIssuer("eomp-auth-service"), jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
 		return nil, err
 	}

@@ -217,6 +217,14 @@ func (m *mockTicketRepoForProblem) ListTicketsByAssetID(ctx context.Context, ass
 func (m *mockTicketRepoForProblem) ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
 	return m.ListTicketsByAssetID(ctx, assetID)
 }
+func (m *mockTicketRepoForProblem) RecordFirstResponse(ctx context.Context, ticketID string, respondedAt time.Time) error {
+	if t, exists := m.tickets[ticketID]; exists {
+		if t.RespondedAt == nil {
+			t.RespondedAt = &respondedAt
+		}
+	}
+	return nil
+}
 
 // Test Case 7.1: Aggregate 3 duplicate Incidents and verify Cascade Resolution when Problem is Resolved.
 func TestProblemManagement_TestCase_7_1(t *testing.T) {
