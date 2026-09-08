@@ -31,7 +31,7 @@ type Repository interface {
 	FindApprovalByID(ctx context.Context, id string) (*model.ApprovalRequest, error)
 	CreateApproval(ctx context.Context, app *model.ApprovalRequest) error
 	UpdateApprovalDecision(ctx context.Context, id, status, notes string, decidedAt *time.Time) error
-	ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time) error
+	ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time, nextApproval *model.ApprovalRequest) error
 
 	AddLog(ctx context.Context, log *model.WorkflowLog) error
 	ListLogs(ctx context.Context, instanceID string) ([]model.WorkflowLog, error)
@@ -568,7 +568,7 @@ func (r *postgresRepository) UpdateApprovalDecision(ctx context.Context, id, sta
 }
 
 // ApplyApprovalDecision atomically consumes a pending approval and advances its workflow instance.
-func (r *postgresRepository) ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time) error {
+func (r *postgresRepository) ApplyApprovalDecision(ctx context.Context, approvalID, decision, notes string, decidedAt *time.Time, instanceID string, expectedInstanceVersion int, instanceStatus, currentStep string, completedAt *time.Time, nextApproval *model.ApprovalRequest) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin approval decision transaction: %w", err)
@@ -606,6 +606,27 @@ func (r *postgresRepository) ApplyApprovalDecision(ctx context.Context, approval
 	}
 	if instanceRows != 1 {
 		return ErrApprovalConflict
+	}
+
+	if nextApproval != nil {
+		queryNext := `
+			INSERT INTO approval_requests (
+				instance_id, step_id, title, approver_id, approver_name, approver_role,
+				approval_level, status, sla_deadline, created_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10
+			)
+			RETURNING id, created_at
+		`
+		if err := tx.QueryRowContext(
+			ctx, queryNext,
+			nextApproval.InstanceID, nextApproval.StepID, nextApproval.Title,
+			nextApproval.ApproverID, nextApproval.ApproverName, nextApproval.ApproverRole,
+			nextApproval.ApprovalLevel, nextApproval.Status, nextApproval.SLADeadline, *decidedAt,
+		).Scan(&nextApproval.ID, &nextApproval.CreatedAt); err != nil {
+			return fmt.Errorf("insert next approval request: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

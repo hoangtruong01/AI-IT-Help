@@ -177,6 +177,30 @@ func (r *concurrentMockTicketRepo) ListTicketsByAssetID(ctx context.Context, ass
 func (r *concurrentMockTicketRepo) ListTicketsByAssetIDForActor(ctx context.Context, assetID string, actor middleware.Actor) ([]model.Ticket, error) {
 	return r.ListTicketsByAssetID(ctx, assetID)
 }
+func (r *concurrentMockTicketRepo) CreateTicketWithOutbox(ctx context.Context, ticket *model.Ticket, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return r.CreateTicket(ctx, ticket)
+}
+func (r *concurrentMockTicketRepo) UpdateTicketStatusWithOutbox(ctx context.Context, id, status string, assigneeID, assigneeName *string, resolvedAt, closedAt *time.Time, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return r.UpdateTicketStatus(ctx, id, status, assigneeID, assigneeName, resolvedAt, closedAt, expectedVersion)
+}
+func (r *concurrentMockTicketRepo) UpdateTicketApprovalWithOutbox(ctx context.Context, id, status string, slaRespDeadline, slaResolDeadline *time.Time, closedAt *time.Time, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return r.UpdateTicketStatus(ctx, id, status, nil, nil, nil, closedAt, nil)
+}
+func (r *concurrentMockTicketRepo) AssignTicketWithOutbox(ctx context.Context, id, assigneeID, assigneeName string, expectedVersion *int, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return r.AssignTicket(ctx, id, assigneeID, assigneeName, expectedVersion)
+}
+func (r *concurrentMockTicketRepo) AddCommentWithOutbox(ctx context.Context, comment *model.TicketComment, timeline *model.TicketTimeline, outbox *model.OutboxEvent) error {
+	return r.AddComment(ctx, comment)
+}
+func (r *concurrentMockTicketRepo) FetchPendingOutboxEvents(ctx context.Context, limit int) ([]model.OutboxEvent, error) {
+	return nil, nil
+}
+func (r *concurrentMockTicketRepo) MarkOutboxEventPublished(ctx context.Context, id string) error {
+	return nil
+}
+func (r *concurrentMockTicketRepo) MarkOutboxEventFailed(ctx context.Context, id string, errStr string) error {
+	return nil
+}
 
 // TEST: ITIL v4 State Machine
 func TestPhase3_ITILv4StateMachineTransitions(t *testing.T) {

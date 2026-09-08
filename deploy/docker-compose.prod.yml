@@ -41,7 +41,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/Dockerfile.web
-    image: eomp/web:0.1.0
+    image: eomp/web:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-web
     restart: always
     environment:
@@ -72,7 +72,7 @@ services:
       args:
         SERVICE_NAME: gateway
         PORT: 8080
-    image: eomp/gateway:0.1.0
+    image: eomp/gateway:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-gateway
     restart: always
     environment:
@@ -114,7 +114,7 @@ services:
       args:
         SERVICE_NAME: auth
         PORT: 8081
-    image: eomp/auth:0.1.0
+    image: eomp/auth:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-auth
     restart: always
     environment:
@@ -145,7 +145,7 @@ services:
       args:
         SERVICE_NAME: employee
         PORT: 8082
-    image: eomp/employee:0.1.0
+    image: eomp/employee:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-employee
     restart: always
     environment:
@@ -173,7 +173,7 @@ services:
       args:
         SERVICE_NAME: asset
         PORT: 8083
-    image: eomp/asset:0.1.0
+    image: eomp/asset:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-asset
     restart: always
     environment:
@@ -205,7 +205,7 @@ services:
       args:
         SERVICE_NAME: helpdesk
         PORT: 8084
-    image: eomp/helpdesk:0.1.0
+    image: eomp/helpdesk:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-helpdesk
     restart: always
     environment:
@@ -237,7 +237,7 @@ services:
       args:
         SERVICE_NAME: workflow
         PORT: 8085
-    image: eomp/workflow:0.1.0
+    image: eomp/workflow:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-workflow
     restart: always
     environment:
@@ -269,7 +269,7 @@ services:
       args:
         SERVICE_NAME: notification
         PORT: 8086
-    image: eomp/notification:0.1.0
+    image: eomp/notification:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-notification
     restart: always
     environment:
@@ -303,7 +303,7 @@ services:
       args:
         SERVICE_NAME: knowledge
         PORT: 8087
-    image: eomp/knowledge:0.1.0
+    image: eomp/knowledge:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-knowledge
     restart: always
     environment:
@@ -336,7 +336,7 @@ services:
       args:
         SERVICE_NAME: ai
         PORT: 8088
-    image: eomp/ai:0.1.0
+    image: eomp/ai:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-ai
     restart: always
     environment:
@@ -368,7 +368,7 @@ services:
       args:
         SERVICE_NAME: audit
         PORT: 8089
-    image: eomp/audit:0.1.0
+    image: eomp/audit:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-audit
     restart: always
     environment:
@@ -401,7 +401,7 @@ services:
       args:
         SERVICE_NAME: reporting
         PORT: 8090
-    image: eomp/reporting:0.1.0
+    image: eomp/reporting:${IMAGE_TAG:-0.1.0}
     container_name: eomp-prod-reporting
     restart: always
     environment:

@@ -14,12 +14,13 @@ const (
 
 // Ticket statuses (ITIL lifecycle)
 const (
-	StatusOpen        = "OPEN"
-	StatusAssigned    = "ASSIGNED"
-	StatusInProgress  = "IN_PROGRESS"
-	StatusWaitingUser = "WAITING_USER"
-	StatusResolved    = "RESOLVED"
-	StatusClosed      = "CLOSED"
+	StatusWaitingApproval = "WAITING_APPROVAL"
+	StatusOpen            = "OPEN"
+	StatusAssigned        = "ASSIGNED"
+	StatusInProgress      = "IN_PROGRESS"
+	StatusWaitingUser     = "WAITING_USER"
+	StatusResolved        = "RESOLVED"
+	StatusClosed          = "CLOSED"
 )
 
 // SLA status indicators
@@ -31,12 +32,13 @@ const (
 
 // ValidTicketTransitions defines ITIL v4 compliant ticket lifecycle state transitions
 var ValidTicketTransitions = map[string][]string{
-	StatusOpen:        {StatusAssigned, StatusInProgress, StatusClosed},
-	StatusAssigned:    {StatusInProgress, StatusWaitingUser, StatusOpen},
-	StatusInProgress:  {StatusWaitingUser, StatusResolved, StatusAssigned},
-	StatusWaitingUser: {StatusInProgress, StatusResolved},
-	StatusResolved:    {StatusClosed, StatusInProgress},
-	StatusClosed:      {}, // Terminal State - No further transitions allowed
+	StatusWaitingApproval: {StatusOpen, StatusClosed},
+	StatusOpen:            {StatusAssigned, StatusInProgress, StatusClosed},
+	StatusAssigned:        {StatusInProgress, StatusWaitingUser, StatusOpen},
+	StatusInProgress:      {StatusWaitingUser, StatusResolved, StatusAssigned},
+	StatusWaitingUser:     {StatusInProgress, StatusResolved},
+	StatusResolved:        {StatusClosed, StatusInProgress},
+	StatusClosed:          {}, // Terminal State - No further transitions allowed
 }
 
 // IsValidTransition checks if moving from one status to another is permitted

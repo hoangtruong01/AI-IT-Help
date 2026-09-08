@@ -59,6 +59,16 @@ func main() {
 	repo := repository.NewRepository(db)
 	problemRepo := repository.NewProblemRepository(db)
 	ticketSvc := service.NewTicketService(repo, slaEngine, bus)
+	if bus != nil {
+		_ = bus.Subscribe(eventbus.TopicApprovalDecided, ticketSvc.HandleApprovalDecided)
+	}
+
+	// 2.1 Launch Transactional Outbox Publisher Worker (Zero Event Loss)
+	outboxWorker := service.NewOutboxWorker(repo, bus, 500*time.Millisecond)
+	outboxCtx, cancelOutbox := context.WithCancel(context.Background())
+	defer cancelOutbox()
+	go outboxWorker.Start(outboxCtx)
+
 	problemSvc := service.NewProblemService(problemRepo, repo)
 	ticketHandler := handler.NewTicketHandler(ticketSvc)
 	problemHandler := handler.NewProblemHandler(problemSvc)
