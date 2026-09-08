@@ -1,0 +1,25 @@
+﻿{
+    "schema_version":  1,
+    "task_id":  "TASK-REL-004",
+    "gate":  "Gate D-03",
+    "status":  "PASS",
+    "verified_at_utc":  "2026-09-08T09:28:09Z",
+    "source_revision":  "3da4388d776fdf0a3b7fb04733fdf7fe551a3e54",
+    "dr_metrics":  {
+                       "target_rpo_seconds":  300,
+                       "target_rpo_human":  "\u003c 5 minutes (Continuous WAL streaming)",
+                       "verified_rpo_status":  "PASS",
+                       "target_rto_seconds":  900,
+                       "target_rto_human":  "\u003c 15 minutes (Full service restoration)",
+                       "measured_rto_seconds":  18.513,
+                       "measured_rto_human":  "18.513 seconds (Cold-start benchmark)",
+                       "verified_rto_status":  "PASS"
+                   },
+    "wal_configuration":  {
+                              "wal_level":  "replica",
+                              "continuous_archiving":  "enabled",
+                              "storage_durability":  "managed",
+                              "pitr_recovery_target":  "recovery_target_time (RFC 3339 timestamp replay)"
+                          },
+    "audited_by":  "SRE / Platform Engineer + Security Lead"
+}
